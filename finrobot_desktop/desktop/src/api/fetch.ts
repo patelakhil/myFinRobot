@@ -11,6 +11,14 @@ export const DEFAULT_API_TIMEOUT_MS = 8_000
 // over EventSource, which carries no fetch timeout.
 export const HEAVY_API_TIMEOUT_MS = 30_000
 
+// Run-spawning POSTs (/api/runs, portfolio research, coverage batch) go
+// through the backend's submit-time LLM probe, which is wall-clock bounded at
+// 20s (llm_probe.PROBE_TIMEOUT_S) — a rate-limited provider legitimately takes
+// that long to answer (the SDK sleeps through Retry-After). The old 5s cap
+// surfaced that as a fake "Network connection failed" toast while the backend
+// went on to create (and queue) the run anyway.
+export const RUN_SPAWN_TIMEOUT_MS = 30_000
+
 export class RequestTimeoutError extends Error {
   readonly timeoutMs: number
 

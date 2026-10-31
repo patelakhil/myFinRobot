@@ -49,7 +49,9 @@ CREATE TABLE IF NOT EXISTS runs (
     result_json   TEXT,
     error         TEXT,
     language      TEXT,
-    source_artifact_id TEXT
+    source_artifact_id TEXT,
+    retry_at      TEXT,
+    refresh_integrations TEXT
 )
 """
 
@@ -60,6 +62,8 @@ CREATE TABLE IF NOT EXISTS runs (
 _RUN_COLUMN_MIGRATIONS = (
     ("language", "ALTER TABLE runs ADD COLUMN language TEXT"),
     ("source_artifact_id", "ALTER TABLE runs ADD COLUMN source_artifact_id TEXT"),
+    ("retry_at", "ALTER TABLE runs ADD COLUMN retry_at TEXT"),
+    ("refresh_integrations", "ALTER TABLE runs ADD COLUMN refresh_integrations TEXT"),
 )
 
 _CREATE_RUN_EVENTS = """
@@ -99,7 +103,8 @@ _CREATE_INDEXES = [
 # with this tuple so positional decoding matches the row layout.
 _RUN_SELECT_COLUMNS = (
     "run_id, pipeline_type, ticker, status, created_at, completed_at, "
-    "duration_s, result_text, result_json, error, language, source_artifact_id"
+    "duration_s, result_text, result_json, error, language, source_artifact_id, retry_at, "
+    "refresh_integrations"
 )
 
 
@@ -130,6 +135,27 @@ class RunRecord(BaseModel):
             "Pipeline.execute(source_artifact_id=) and stamped onto the new "
             "artifact's meta.parent_artifact_id to build the version lineage "
             "the diff view follows. None for fresh runs / legacy rows."
+        ),
+    )
+    retry_at: str | None = Field(
+        default=None,
+        description=(
+            "ISO-8601 UTC instant at which a rate-limit-QUEUED run will resume. "
+            "Set while the run is parked on a provider cool-down (OpenRouter "
+            "daily/minute quota), cleared the moment it actually starts "
+            "executing. A `created` row with retry_at set survives a server "
+            "restart: the startup reconciler re-schedules it instead of failing "
+            "it as an orphan. None for every run that is not parked."
+        ),
+    )
+    refresh_integrations: list[str] | None = Field(
+        default=None,
+        description=(
+            "Set for a PARTIAL refresh run (engine/pipelines/refresh.py): the "
+            "integration ids (e.g. ['fmp']) that may be queried live; every other "
+            "source is served from cache and unaffected steps are carried over "
+            "from source_artifact_id. Persisted so a rate-limit-parked partial run "
+            "restored after a restart stays partial. None = a full run."
         ),
     )
 
@@ -193,18 +219,29 @@ class RunStore:
         ticker: str,
         language: str | None = None,
         source_artifact_id: str | None = None,
+        refresh_integrations: list[str] | None = None,
     ) -> RunRecord:
         try:
             run_id = f"run_{uuid.uuid4().hex[:12]}"
             created_at = _now()
             conn = await self._ensure_connection()
+            refresh_csv = ",".join(refresh_integrations) if refresh_integrations else None
             await conn.execute(
                 """
                 INSERT INTO runs
-                    (run_id, pipeline_type, ticker, status, created_at, language, source_artifact_id)
-                VALUES (?, ?, ?, 'created', ?, ?, ?)
+                    (run_id, pipeline_type, ticker, status, created_at, language,
+                     source_artifact_id, refresh_integrations)
+                VALUES (?, ?, ?, 'created', ?, ?, ?, ?)
                 """,
-                (run_id, pipeline_type, ticker.upper(), created_at, language, source_artifact_id),
+                (
+                    run_id,
+                    pipeline_type,
+                    ticker.upper(),
+                    created_at,
+                    language,
+                    source_artifact_id,
+                    refresh_csv,
+                ),
             )
             await conn.commit()
             return RunRecord(
@@ -215,6 +252,7 @@ class RunStore:
                 created_at=created_at,
                 language=language,
                 source_artifact_id=source_artifact_id,
+                refresh_integrations=list(refresh_integrations) if refresh_integrations else None,
             )
         except aiosqlite.OperationalError:
             logger.exception("Failed to create run for %s/%s", pipeline_type, ticker)
@@ -274,6 +312,43 @@ class RunStore:
             return None
         return _row_to_run(row)
 
+    async def set_retry_at(self, run_id: str, retry_at: str | None) -> None:
+        """Park (ISO instant) or un-park (None) a rate-limit-queued run.
+
+        A dedicated setter rather than an ``update_run`` kwarg because that
+        method COALESCEs every column (None means "leave unchanged"), and
+        clearing the park marker is exactly the operation we need here.
+        """
+        try:
+            conn = await self._ensure_connection()
+            async with conn.execute(
+                "UPDATE runs SET retry_at = ? WHERE run_id = ?", (retry_at, run_id)
+            ) as cursor:
+                if cursor.rowcount == 0:
+                    raise KeyError(f"Run not found: {run_id}")
+            await conn.commit()
+        except KeyError:
+            raise
+        except aiosqlite.OperationalError:
+            logger.exception("Failed to set retry_at for run %s", run_id)
+            raise
+
+    async def list_scheduled_runs(self) -> list[RunRecord]:
+        """Runs parked on a provider rate limit (``created`` + ``retry_at`` set).
+
+        Called on startup AFTER ``reconcile_orphaned_runs`` (which leaves these
+        rows alone) so the server can re-spawn their wait-then-run tasks — a
+        desktop restart must not turn "queued, retrying at 09:00" into
+        "failed: interrupted by server restart".
+        """
+        conn = await self._ensure_connection()
+        async with conn.execute(
+            f"SELECT {_RUN_SELECT_COLUMNS} FROM runs "
+            "WHERE status = 'created' AND retry_at IS NOT NULL ORDER BY created_at ASC"
+        ) as cursor:
+            rows = await cursor.fetchall()
+        return [_row_to_run(row) for row in rows]
+
     async def reconcile_orphaned_runs(self) -> int:
         """Fail runs left mid-flight by a previous process.
 
@@ -296,8 +371,13 @@ class RunStore:
 
         error_msg = "interrupted by server restart"
         conn = await self._ensure_connection()
+        # A `created` row parked on a provider rate limit (retry_at set) is NOT
+        # an orphan — it is a promise to the user ("retrying at 09:00") that the
+        # startup path keeps via list_scheduled_runs(); only un-parked rows are
+        # failed here.
         async with conn.execute(
-            "SELECT run_id FROM runs WHERE status IN ('created', 'running')"
+            "SELECT run_id FROM runs WHERE status IN ('created', 'running') "
+            "AND NOT (status = 'created' AND retry_at IS NOT NULL)"
         ) as cursor:
             orphan_ids = [str(row[0]) for row in await cursor.fetchall()]
         completed_at = _now()
@@ -429,6 +509,9 @@ class RunStore:
             result_json=result_json,
             error=error,
         )
+        # A terminal run is never "retrying at …" — drop a stale park marker
+        # (a run cancelled / failed while parked) so no reader re-schedules it.
+        await self.set_retry_at(run_id, None)
 
     async def append_event(self, run_id: str, event: RunEvent) -> int:
         try:
@@ -571,6 +654,12 @@ def _row_to_run(row: Any) -> RunRecord:
         error=row[9],
         language=row[10],
         source_artifact_id=row[11],
+        retry_at=row[12] if len(row) > 12 else None,
+        refresh_integrations=(
+            [part for part in str(row[13]).split(",") if part]
+            if len(row) > 13 and row[13]
+            else None
+        ),
     )
 
 

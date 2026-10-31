@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SplineHero } from '../SplineHero'
+import { usePrivacySettings } from '../../hooks/usePrivacySettings'
 import { TickerSuggestions } from './TickerSuggestions'
 import { useTickerSearch } from '../../hooks/useTickerSearch'
 import { isValidTicker, sanitizeTickerInput } from '../../utils/ticker'
@@ -85,6 +86,8 @@ const MODULES = [
 export function CoverageHero(): React.ReactElement {
   const navigate = useNavigate()
   const { t } = useI18n()
+  // Privacy gate for the decorative Spline scene; unknown → disabled (no request).
+  const privacy = usePrivacySettings()
 
   const [inputValue, setInputValue] = useState('')
   const [inputError, setInputError] = useState('')
@@ -222,7 +225,7 @@ export function CoverageHero(): React.ReactElement {
                 'radial-gradient(ellipse 70% 70% at 50% 44%, black 0%, black 58%, transparent 86%)',
             }}
           >
-            <SplineHero variant="backdrop" />
+            <SplineHero variant="backdrop" disabled={!privacy.isOn('decorative_remote_assets')} />
           </div>
 
           {/* Console group: subcopy (above) · ticker input · popular row (below),

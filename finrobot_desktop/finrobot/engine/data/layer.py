@@ -24,6 +24,7 @@ from finrobot.engine.data.normalize import (
     normalize_forward_estimates,
     normalize_price,
 )
+from finrobot.engine.data.scope import current_scope, scope_token
 from finrobot.engine.data.types import DataType
 from finrobot.engine.data.normalize.currency import normalize_canonical_financials_currency
 from finrobot.engine.data.normalize.contracts import (
@@ -120,6 +121,63 @@ class DataLayer:
         logger.info("Provider '%s' in cooldown (circuit open) — skipping", provider.name)
         return True
 
+    # ── Partial-refresh provider scope (engine/data/scope.py) ─────────────────
+    # A scoped run may only make LIVE calls to the providers it was granted.
+    # Out-of-scope providers are skipped at every provider-selection point —
+    # checked BEFORE the health gate so they are never miscounted as "circuit
+    # open" (no breaker charge, no degraded_circuit_open marker: skipping them is
+    # a policy choice, not ill health) — and their data is served from cache.
+
+    def _scoped_out(self, provider: DataProvider) -> bool:
+        scope = current_scope()
+        if scope is None or scope.allows(provider.name):
+            return False
+        logger.debug("Provider '%s' outside the run's provider scope — cache only", provider.name)
+        return True
+
+    def _scope_has_live_capable(self, data_type: DataType) -> bool:
+        """True when no scope is active, or an in-scope provider can serve ``data_type``."""
+        scope = current_scope()
+        if scope is None:
+            return True
+        return any(scope.allows(p.name) and data_type in p.capabilities() for p in self._providers)
+
+    def _scope_refresh_needed(self, data_type: DataType, cached_provider: str | None) -> bool:
+        """A FRESH cached row must not shadow the integration being refreshed.
+
+        In a scoped run, a row written by an out-of-scope provider (e.g. a
+        24h-fresh yfinance FINANCIALS row) is treated as a miss when an in-scope
+        provider (FMP) can serve the type — otherwise the refresh would re-read
+        exactly the data it exists to replace.
+        """
+        scope = current_scope()
+        if scope is None or not cached_provider or scope.allows(cached_provider):
+            return False
+        return self._scope_has_live_capable(data_type)
+
+    @staticmethod
+    def _scope_cache_note(data_type: DataType, ticker: str, cached_at: datetime) -> str:
+        scope = current_scope()
+        label = (scope.label if scope is not None else "") or "scoped run"
+        age_hours = (datetime.now(tz=timezone.utc) - cached_at).total_seconds() / 3600
+        # Neutral English + the "cache" token: flows into the report's data
+        # notes exactly like the stale-cache warnings (see fetch()).
+        return (
+            f"Partial refresh ({label}): {ticker} / {data_type} served from the existing "
+            f"cache ({age_hours:.0f}h old); that source was not re-queried."
+        )
+
+    def _scope_cached(self, cached: Any, data_type: DataType, ticker: str) -> DataResult:
+        """Serve a cached row to a scoped run without any live call. A fresh row
+        passes through untouched; a TTL-stale one is flagged (warning +
+        from_stale_cache so the canonical关卡 never re-caches it as fresh)."""
+        if not cached.is_stale:
+            return cached.data  # type: ignore[no-any-return]
+        note = self._scope_cache_note(data_type, ticker, cached.cached_at)
+        return cached.data.model_copy(  # type: ignore[no-any-return]
+            update={"warnings": [note, *cached.data.warnings], "from_stale_cache": True}
+        )
+
     def _preferred_canonical_provider(self, data_type: DataType) -> str | None:
         """Name of the provider a canonical FINANCIALS fetch would prefer RIGHT
         NOW — the first chain provider both capable of FINANCIALS and
@@ -147,6 +205,8 @@ class DataLayer:
             return None
         for provider in self._providers:
             if data_type not in provider.capabilities():
+                continue
+            if self._scoped_out(provider):
                 continue
             if not self._health.is_available(provider.name):
                 continue
@@ -225,8 +285,16 @@ class DataLayer:
         # schema bumps, so a fresh hit needs no contract-shape check. Served
         # OUTSIDE the single-flight so a warm cache never waits on a sibling.
         cached = await self._cache.get(data_type, cache_key)
-        if cached is not None and not cached.is_stale:
+        if (
+            cached is not None
+            and not cached.is_stale
+            and not self._scope_refresh_needed(data_type, cached.data.provider)
+        ):
             return cached.data
+        # Scoped run and no in-scope provider can serve this type at all: the
+        # cache (any age) is the only allowed source — never walk the chain.
+        if cached is not None and not self._scope_has_live_capable(data_type):
+            return self._scope_cached(cached, data_type, ticker)
 
         # Slow path: collapse concurrent identical misses onto ONE provider walk
         # (cache-stampede shield). N parallel cold callers for one (data_type,
@@ -235,7 +303,9 @@ class DataLayer:
         # rate-limiting FMP/Finnhub or DoS-ing yfinance. Single-thread-safe like
         # fetch_canonical: no await between the miss check and the registry
         # insert, so two coroutines can never both create the in-flight Task.
-        sf_key = (data_type, cache_key)
+        # The scope token keeps a scoped (cache-only for most providers) flight
+        # from ever being shared with an unscoped caller, and vice versa.
+        sf_key = (data_type, cache_key + scope_token())
         existing = self._inflight_raw.get(sf_key)
         if existing is not None:
             return await existing
@@ -259,7 +329,11 @@ class DataLayer:
         # our miss in fetch() and this body running. Also re-binds ``cached`` for
         # the stale-fallback path below.
         cached = await self._cache.get(data_type, cache_key)
-        if cached is not None and not cached.is_stale:
+        if (
+            cached is not None
+            and not cached.is_stale
+            and not self._scope_refresh_needed(data_type, cached.data.provider)
+        ):
             return cached.data
 
         # 2. Try each provider in order
@@ -268,6 +342,8 @@ class DataLayer:
         circuit_open: list[str] = []
         for provider in self._providers:
             if data_type not in provider.capabilities():
+                continue
+            if self._scoped_out(provider):
                 continue
             if self._health_gated(provider):
                 circuit_open.append(provider.name)
@@ -369,6 +445,18 @@ class DataLayer:
             return primary_result
 
         # 3. All providers failed — return stale cache with PROMINENT warning
+        if cached is not None and current_scope() is not None:
+            # Scoped run: the in-scope provider(s) could not serve it (or none
+            # can) — keep the existing data, labelled honestly rather than as
+            # "all data sources failed" (the others were never asked).
+            note = self._scope_cache_note(data_type, ticker, cached.cached_at)
+            logger.info(note)
+            return cached.data.model_copy(
+                update={
+                    "warnings": [note, *cached.data.warnings],
+                    "from_stale_cache": True,
+                }
+            )
         if cached is not None:
             stale = cached.data
             age_hours = (datetime.now(tz=timezone.utc) - cached.cached_at).total_seconds() / 3600
@@ -459,11 +547,29 @@ class DataLayer:
         # Read the provider-qualified slot for the provider that would win the
         # next walk, so the steady-state hit and the steady-state write share one
         # slot (see ``_preferred_canonical_provider`` / ``cache.canonical_key``).
+        # Scoped run with NO in-scope provider for this type: the last-known
+        # snapshot (any provider slot, any age) is the only allowed source.
+        if not self._scope_has_live_capable(data_type):
+            found = await self.read_canonical_cached(data_type, ticker)
+            if found is not None:
+                snapshot, is_stale = found
+                if is_stale:
+                    note = (
+                        f"Partial refresh: {ticker} / {data_type} canonical snapshot served "
+                        "from the existing cache; that source was not re-queried."
+                    )
+                    snapshot.warnings = [note, *snapshot.warnings]
+                return snapshot
+
         read_provider = self._preferred_canonical_provider(data_type)
         cached = await self._cache.get_canonical(data_type, ticker, provider=read_provider)
         if cached is not None and not cached.is_stale:
             try:
-                return self._deserialize_canonical(data_type, cached.payload_json, from_cache=True)
+                hit = self._deserialize_canonical(data_type, cached.payload_json, from_cache=True)
+                # PRICE / FORWARD_ESTIMATES share one bare slot: a fresh row from
+                # an out-of-scope provider must not shadow the refreshed one.
+                if not self._scope_refresh_needed(data_type, hit.provenance.provider):
+                    return hit
             except ValidationError:
                 # Corrupt canonical row (mangled JSON / contract drift without a
                 # version bump). Delete it and fall through to the provider path
@@ -484,7 +590,7 @@ class DataLayer:
         # rate-limit shield. Safe under asyncio's single thread: there is no
         # await between the miss check and the registry insert, so two coroutines
         # can never both create the in-flight Task.
-        key = (data_type, ticker)
+        key = (data_type, ticker + scope_token())
         existing = self._inflight_canonical.get(key)
         if existing is not None:
             return await existing
@@ -783,11 +889,19 @@ class DataLayer:
         kwarg_suffix = "".join(f":{k}={v}" for k, v in sorted(kwargs.items()))
         cache_key = f"{ticker}:historical:{data_type.value}:{years}{kwarg_suffix}"
         cached = await self._cache.get(DataType.HISTORICAL, cache_key)
-        if cached is not None and not cached.is_stale:
+        if (
+            cached is not None
+            and not cached.is_stale
+            and not self._scope_refresh_needed(data_type, cached.data.provider)
+        ):
             return self._split_yearly(cached.data)
+        if cached is not None and not self._scope_has_live_capable(data_type):
+            return self._split_yearly(self._scope_cached(cached, data_type, ticker))
 
         for provider in self._providers:
             if data_type not in provider.capabilities():
+                continue
+            if self._scoped_out(provider):
                 continue
             if self._health_gated(provider):
                 continue
@@ -842,9 +956,14 @@ class DataLayer:
         provider = next((p for p in self._providers if isinstance(p, EdgarToolsProvider)), None)
         if provider is None:
             return None
+        cache_key = f"{ticker}:historical:{DataType.FINANCIALS.value}:{years}:sec"
+        if self._scoped_out(provider):
+            scoped = await self._cache.get(DataType.HISTORICAL, cache_key)
+            if scoped is None:
+                return None
+            return self._split_yearly(self._scope_cached(scoped, DataType.HISTORICAL, ticker))
         if self._health_gated(provider):
             return None
-        cache_key = f"{ticker}:historical:{DataType.FINANCIALS.value}:{years}:sec"
         cached = await self._cache.get(DataType.HISTORICAL, cache_key)
         if cached is not None and not cached.is_stale:
             return self._split_yearly(cached.data)
@@ -879,9 +998,16 @@ class DataLayer:
         provider = next((p for p in self._providers if isinstance(p, EdgarToolsProvider)), None)
         if provider is None:
             return None
+        cache_key = f"{ticker}:segments"
+        if self._scoped_out(provider):
+            scoped = await self._cache.get(DataType.FILINGS_10K, cache_key)
+            return (
+                self._scope_cached(scoped, DataType.FILINGS_10K, ticker)
+                if scoped is not None
+                else None
+            )
         if self._health_gated(provider):
             return None
-        cache_key = f"{ticker}:segments"
         cached = await self._cache.get(DataType.FILINGS_10K, cache_key)
         if cached is not None and not cached.is_stale:
             return cached.data
@@ -915,6 +1041,13 @@ class DataLayer:
         provider = next((p for p in self._providers if isinstance(p, FMPProvider)), None)
         if provider is None:
             return None
+        if self._scoped_out(provider):
+            scoped = await self._cache.get(DataType.FORWARD_ESTIMATES, f"{ticker}:price_target")
+            return (
+                self._scope_cached(scoped, DataType.FORWARD_ESTIMATES, ticker)
+                if scoped is not None
+                else None
+            )
         if self._health_gated(provider):
             return None
         cache_key = f"{ticker}:price_target"
@@ -948,7 +1081,9 @@ class DataLayer:
         for provider in self._providers:
             if DataType.QUOTE not in provider.capabilities():
                 continue
-            if self._health_gated(provider):
+            # Scoped-out ≡ gated for the quote contract: the caller must keep
+            # its stale quote (rate-limit semantics), never write a None tombstone.
+            if self._scoped_out(provider) or self._health_gated(provider):
                 gated_capable.append(provider.name)
                 continue
             try:
@@ -997,6 +1132,8 @@ class DataLayer:
             for provider in self._providers:
                 if DataType.PRICE_RANGE not in provider.capabilities():
                     continue
+                if self._scoped_out(provider):
+                    continue
                 if self._health_gated(provider):
                     continue
                 try:
@@ -1017,13 +1154,27 @@ class DataLayer:
                 raise last_error
             raise ProviderError(f"No PRICE_RANGE-capable provider available for {ticker}")
 
-        data = await cached_fetch(
-            self._cache,
-            DataType.PRICE_RANGE,
-            ticker.upper(),
-            _fetch,
-            cache_key_suffix=f":{start}:{end}:{interval}",
-        )
+        if not self._scope_has_live_capable(DataType.PRICE_RANGE):
+            # Scoped run, no in-scope price source: last-known bars (any age) or
+            # an honest failure — cached_fetch would otherwise re-stamp a stale
+            # row as fresh on its write-back.
+            scoped = await self._cache.get(
+                DataType.PRICE_RANGE, f"{ticker.upper()}:{start}:{end}:{interval}"
+            )
+            if scoped is None:
+                raise ProviderError(
+                    f"No cached PRICE_RANGE for {ticker} {start}..{end} and no in-scope "
+                    "price provider (partial refresh)"
+                )
+            data = scoped.data.data
+        else:
+            data = await cached_fetch(
+                self._cache,
+                DataType.PRICE_RANGE,
+                ticker.upper(),
+                _fetch,
+                cache_key_suffix=f":{start}:{end}:{interval}",
+            )
         raw_bars = data.get("bars", []) if isinstance(data, dict) else []
         return [PriceBar.model_validate(b) for b in raw_bars]
 
@@ -1039,8 +1190,14 @@ class DataLayer:
         route surfaces its own stale warning) rather than raising.
         """
         cached = await self._cache.get(DataType.PRICE, ticker)
-        if cached is not None and not cached.is_stale:
+        if (
+            cached is not None
+            and not cached.is_stale
+            and not self._scope_refresh_needed(DataType.PRICE, cached.data.provider)
+        ):
             return cached.data
+        if cached is not None and not self._scope_has_live_capable(DataType.PRICE):
+            return self._scope_cached(cached, DataType.PRICE, ticker)
         last_error: ProviderError | None = None
         circuit_open: list[str] = []
         # Quote-only守卫 (2026-06-11): a provider can legitimately serve a live
@@ -1056,6 +1213,8 @@ class DataLayer:
         chosen_provider = ""
         for provider in self._providers:
             if DataType.PRICE not in provider.capabilities():
+                continue
+            if self._scoped_out(provider):
                 continue
             if self._health_gated(provider):
                 circuit_open.append(provider.name)
@@ -1146,6 +1305,11 @@ class DataLayer:
             if circuit_open:
                 result = result.model_copy(update={"circuit_open_providers": circuit_open})
             return result
+        if cached is not None and current_scope() is not None:
+            note = self._scope_cache_note(DataType.PRICE, ticker, cached.cached_at)
+            return cached.data.model_copy(
+                update={"warnings": [note, *cached.data.warnings], "from_stale_cache": True}
+            )
         if cached is not None:
             # Stale beats nothing — but FLAG it. The old comment ("route adds its
             # own warning") only held for the /price route; the canonical path
@@ -1187,7 +1351,7 @@ class DataLayer:
                 continue
             if DataType.QUOTE not in provider.capabilities():
                 continue
-            if self._health_gated(provider):
+            if self._scoped_out(provider) or self._health_gated(provider):
                 continue
             try:
                 secondary = await provider.fetch(ticker, DataType.QUOTE)

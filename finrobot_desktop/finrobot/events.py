@@ -13,6 +13,31 @@ class RunStarted(TypedDict):
     total_steps: int
 
 
+class RunQueued(TypedDict, total=False):
+    """The run is alive but waiting, for one of two reasons:
+
+    - ``reason`` absent / ``"concurrency"`` — every concurrency slot was taken
+      when the run reached the cap, so it is waiting for one. Cleared by the
+      run's first ``step.started``; the UI shows "Queued" in between instead
+      of a spinner that looks hung.
+    - ``reason == "rate_limited"`` — the LLM provider (OpenRouter free tier's
+      per-minute / per-day quota) throttled us, either at the submit-time
+      probe or mid-pipeline. The run is parked until ``retry_at`` (ISO-8601
+      UTC; ``retry_after_s`` is the same wait in seconds) and then resumes
+      automatically — it is NOT failed. ``message`` carries the provider's
+      own (key-free) explanation so the UI can show "rate limited — retrying
+      at 09:00" instead of a dead-end error.
+    """
+
+    event: Required[Literal["run.queued"]]
+    run_id: Required[str]
+    ticker: Required[str]
+    reason: Literal["concurrency", "rate_limited"]
+    retry_at: str | None
+    retry_after_s: float | None
+    message: str | None
+
+
 class StepStarted(TypedDict):
     event: Literal["step.started"]
     run_id: str
@@ -36,6 +61,9 @@ class StepCompleted(TypedDict, total=False):
     # unaffected; the renderer treats a truthy ``degraded`` as an amber warning.
     degraded: bool
     error: str | None
+    # True when a PARTIAL refresh carried this step over unchanged from the
+    # parent report instead of re-running it (engine/pipelines/refresh.py).
+    reused: bool
 
 
 class StepRetry(TypedDict):
@@ -100,6 +128,7 @@ class RunCancelled(TypedDict):
 
 RunEvent: TypeAlias = (
     RunStarted
+    | RunQueued
     | StepStarted
     | StepCompleted
     | StepRetry

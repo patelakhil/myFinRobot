@@ -18,6 +18,7 @@ import { useUiStore } from '../stores/uiStore'
 import { useUpdaterStore } from '../stores/updaterStore'
 import { pickDirectory, isTauri, DEFAULT_WORKSPACE_PATH } from '../lib/tauri'
 import { AI_CHAT_ENABLED } from '../config/features'
+import { usePrivacySettings } from '../hooks/usePrivacySettings'
 
 const WELCOME_SHOWN_KEY = 'finrobot-welcome-shown'
 
@@ -59,8 +60,15 @@ export function AppShell(): React.ReactElement {
   // still surfaces the TitleBar pill within a couple hours, no restart needed.
   // A found update shows the pill; up-to-date / errors stay silent here (see
   // updaterStore.check, which no-ops while a check or install is in flight).
+  //
+  // Privacy gate (Settings → Privacy & network → auto_update_check): the poll
+  // contacts GitHub on a schedule, so it only runs once settings have loaded
+  // AND say yes — an unknown value never fires a network call. Turning it off
+  // mid-session tears the timers down; the manual button in Settings remains.
+  const privacy = usePrivacySettings()
+  const autoUpdate = privacy.isOn('auto_update_check')
   useEffect(() => {
-    if (!isTauri()) return
+    if (!isTauri() || !autoUpdate) return
     const check = () => void useUpdaterStore.getState().check()
     const initial = setTimeout(check, 4000)
     const interval = setInterval(check, 2 * 60 * 60 * 1000)
@@ -68,7 +76,7 @@ export function AppShell(): React.ReactElement {
       clearTimeout(initial)
       clearInterval(interval)
     }
-  }, [])
+  }, [autoUpdate])
 
   // 2026-05-27 perf: pause CSS animations (cosmic-stars × 2 layers,
   // anywhere else gated by body.app-bg) when the Tauri window is hidden

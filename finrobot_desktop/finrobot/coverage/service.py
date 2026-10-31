@@ -30,8 +30,10 @@ from finrobot.artifact.store import ArtifactStore
 from finrobot.coverage.models import (
     CoverageGroup,
     CoverageGroupDetail,
+    CoverageHolding,
     CoverageOverview,
     CoverageRow,
+    HoldingInput,
     NeedsRefreshReason,
     NumberSource,
 )
@@ -109,8 +111,13 @@ async def build_overview(
     run_store: "RunStore | None" = None,
     now: datetime | None = None,
     cache_only: bool = False,
+    holdings: dict[str, HoldingInput] | None = None,
 ) -> CoverageOverview:
     """Assemble the Coverage Table for one group.
+
+    ``holdings`` (ticker → :class:`HoldingInput`, from the portfolio desk) is an
+    optional join: a held name's row carries a :class:`CoverageHolding` marked
+    to the row's own live price, so the card can show what the analyst owns.
 
     Rows are built concurrently — each ticker's chain (artifacts + canonical
     PRICE/FINANCIALS + signal) is independent, so wall-clock is one ticker's
@@ -161,6 +168,7 @@ async def build_overview(
                 now=now,
                 cache_only=cache_only,
                 market_sem=sem,
+                holding=(holdings or {}).get(t.upper()),
             )
             for t in tickers
         )
@@ -191,6 +199,7 @@ async def _assemble_row(
     now: datetime,
     cache_only: bool = False,
     market_sem: "asyncio.Semaphore | None" = None,
+    holding: HoldingInput | None = None,
 ) -> CoverageRow:
     ticker = ticker.upper()
     row = CoverageRow(ticker=ticker)
@@ -236,6 +245,10 @@ async def _assemble_row(
     # quote isn't reverse-solved against a USD DCF.
     if not cache_only and usd_price is not None and usd_price > 0:
         await _apply_market_implied(row, ticker, summaries, artifact_store, usd_price)
+
+    # 2.7 The user's own position in this name, marked to THIS row's price.
+    if holding is not None:
+        row.holding = mark_holding(holding, row)
 
     # 3. Live run state (in-flight batch run / failed attempt).
     if latest_run is not None:
@@ -748,3 +761,43 @@ async def _latest_dcf_result(
                     artifact_id=summary.id,
                 )
     return None
+
+
+# ── Holdings (portfolio join) ────────────────────────────────────────────────
+
+
+def mark_holding(h: HoldingInput, row: CoverageRow) -> CoverageHolding:
+    """Mark a lot-derived holding to the row's live price. Pure.
+
+    P&L is only computed when the quote currency matches the cost currency
+    (an unknown quote currency is assumed to match, as in the portfolio desk)
+    and the holding itself isn't a sum across currencies. Market value is
+    always ``units × price`` — a fact about the quote — but a mismatch
+    withholds the comparison against cost.
+    """
+    out = CoverageHolding(**h.model_dump())
+    if h.units > 0:
+        out.avg_cost_per_unit = h.cost_basis / h.units
+    price = row.price
+    if price is None or price <= 0:
+        # Closed position (units 0) still has a realized result.
+        if h.units <= 0 and h.realized_cost > 0:
+            out.total_pnl = h.realized_pnl
+            out.total_pnl_pct = h.realized_pnl / h.realized_cost
+        return out
+    out.market_value = h.units * price
+    quote = row.currency.upper() if row.currency else None
+    mismatch = h.mixed_currency or (quote is not None and quote != h.cost_currency.upper())
+    out.currency_mismatch = mismatch
+    if mismatch:
+        return out
+    out.unrealized_pnl = out.market_value - h.cost_basis
+    out.unrealized_pnl_pct = (out.unrealized_pnl / h.cost_basis) if h.cost_basis > 0 else None
+    if row.change_pct_1d is not None:
+        denom = 1.0 + row.change_pct_1d / 100.0
+        if denom > 0:
+            out.day_pnl = h.units * (price - price / denom)
+    out.total_pnl = out.unrealized_pnl + h.realized_pnl
+    at_risk = h.cost_basis + h.realized_cost
+    out.total_pnl_pct = (out.total_pnl / at_risk) if at_risk > 0 else None
+    return out

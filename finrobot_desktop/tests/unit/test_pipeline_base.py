@@ -1518,6 +1518,61 @@ class TestRunSemaphoreGating:
         result = await Pipeline(steps=[step]).execute(DepsNoSem(FakeDataLayer(), None), "AAPL")
         assert "s" in result.steps
 
+    @pytest.mark.asyncio
+    async def test_on_queued_fires_only_when_no_slot_is_free(self):
+        """A run that has to wait for the cap is told so before it blocks, and
+        its first step only starts once the slot frees up."""
+        import asyncio
+
+        sem = asyncio.Semaphore(1)
+
+        @dataclass
+        class DepsWithSem:
+            data_layer: FakeDataLayer
+            skill_runtime: object
+            run_semaphore: asyncio.Semaphore
+
+        events: list[str] = []
+
+        class QueueProgress:
+            def __init__(self, ticker: str) -> None:
+                self.ticker = ticker
+
+            async def on_queued(self) -> None:
+                events.append(f"{self.ticker}:queued")
+
+            async def on_step_start(self, step_index: int, total: int, step_name: str) -> None:
+                events.append(f"{self.ticker}:start")
+
+            async def on_step_end(self, *args: object, **kwargs: object) -> None:
+                pass
+
+            async def on_step_retry(self, *args: object) -> None:
+                pass
+
+        async def slow_executor(agent, deps, prompt, structured_context, ticker):
+            await asyncio.sleep(0.02)
+            return "ok"
+
+        def make_pipeline() -> Pipeline:
+            step = PipelineStep(
+                name="s",
+                agent=_make_agent("ok"),
+                validator=TextValidator(validate_is_non_empty),
+                executor=slow_executor,
+            )
+            return Pipeline(steps=[step])
+
+        deps = DepsWithSem(FakeDataLayer(), None, sem)
+        first = asyncio.create_task(
+            make_pipeline().execute(deps, "AAPL", progress=QueueProgress("AAPL"))
+        )
+        await asyncio.sleep(0)  # let AAPL take the only slot
+        await make_pipeline().execute(deps, "MSFT", progress=QueueProgress("MSFT"))
+        await first
+
+        assert events == ["AAPL:start", "MSFT:queued", "MSFT:start"]
+
 
 # ---------------------------------------------------------------------------
 # BUG-058: a non-critical step that DEGRADES (fails validation after all

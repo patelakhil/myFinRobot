@@ -68,6 +68,7 @@ function running() {
     artifactId: 'art1',
     artifactType: 'equity_research',
     cancelling: false,
+    queued: false,
     dismissed: false,
   }
 }
@@ -77,6 +78,7 @@ function completed(over: Record<string, unknown> = {}) {
     artifactId: 'art1',
     artifactType: 'equity_research',
     cancelling: false,
+    queued: false,
     dismissed: false,
     ...over,
   }

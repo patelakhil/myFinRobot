@@ -21,8 +21,8 @@ import {
 } from '../../utils/format'
 import { SourcedNumber } from '../SourcedNumber'
 import { TargetGauge } from '../TargetGauge'
-import type { CoverageRow, MarketImpliedNature } from '../../api/coverage'
-import type { CoverageDensity } from '../../stores/coverageStore'
+import type { CoverageHolding, CoverageRow, MarketImpliedNature } from '../../api/coverage'
+import type { CoverageDensity, HoldingView } from '../../stores/coverageStore'
 
 interface Props {
   row: CoverageRow
@@ -32,6 +32,8 @@ interface Props {
   // its last-known numbers with a refreshing hint — never a blank shimmer.
   marketPending?: boolean
   onOpen: (ticker: string) => void
+  /** Which facet of the user's position (if held) the card shows. */
+  holdingView?: HoldingView
 }
 
 // Badge text + dot ride the bright signal hue (matches the card's top hairline);
@@ -95,6 +97,7 @@ export const CoverageCard = memo(function CoverageCard({
   density,
   marketPending = false,
   onOpen,
+  holdingView = 'pnl',
 }: Props): React.ReactElement {
   const { t, locale } = useI18n()
   const compact = density === 'compact'
@@ -338,6 +341,10 @@ export const CoverageCard = memo(function CoverageCard({
         </div>
       )}
 
+      {!showShimmer && row.holding && holdingView !== 'off' && (
+        <HoldingStrip holding={row.holding} view={holdingView} ccy={ccy} locale={locale} t={t} />
+      )}
+
       <footer className="coverage-card__footer">
         <span
           className={`coverage-card__status coverage-card__status--${status.tone}`}
@@ -350,6 +357,102 @@ export const CoverageCard = memo(function CoverageCard({
     </article>
   )
 })
+
+// The user's position in this name, from the portfolio desk, in the facet the
+// user picked on the page. Holdings never depend on the live price; P&L and
+// today's move do, and are withheld (not faked) on a currency mismatch or a
+// cold row.
+function HoldingStrip({
+  holding: h,
+  view,
+  ccy,
+  locale,
+  t,
+}: {
+  holding: CoverageHolding
+  view: HoldingView
+  ccy: string
+  locale: Locale
+  t: (k: string, p?: Record<string, string | number>) => string
+}): React.ReactElement {
+  const costCcy = h.cost_currency || ccy
+  const withheld = h.currency_mismatch || h.mixed_currency
+  let label: string
+  let main: string
+  let sub: string | null = null
+  let color = 'var(--text-primary)'
+  if (view === 'holdings') {
+    label = t('coverage.holding.label.holdings')
+    main =
+      h.units > 0
+        ? t('coverage.holding.units', {
+            n: formatNumber(h.units, locale, h.units % 1 === 0 ? 0 : 2),
+          })
+        : t('coverage.holding.closed')
+    sub =
+      h.market_value !== null && h.units > 0
+        ? `${formatCurrency(h.market_value, ccy, locale, 0)} · ${t('coverage.holding.avg', {
+            v: formatCurrency(h.avg_cost_per_unit, costCcy, locale),
+          })}`
+        : h.avg_cost_per_unit !== null
+          ? t('coverage.holding.avg', { v: formatCurrency(h.avg_cost_per_unit, costCcy, locale) })
+          : null
+  } else if (view === 'today') {
+    label = t('coverage.holding.label.today')
+    if (withheld) {
+      main = t('coverage.holding.withheld')
+    } else if (h.day_pnl === null) {
+      main = '—'
+    } else {
+      main = `${h.day_pnl > 0 ? '+' : ''}${formatCurrency(h.day_pnl, costCcy, locale)}`
+      color = changeColor(h.day_pnl)
+      sub = t('coverage.holding.units', {
+        n: formatNumber(h.units, locale, h.units % 1 === 0 ? 0 : 2),
+      })
+    }
+  } else {
+    label = t('coverage.holding.label.pnl')
+    if (withheld) {
+      main = t('coverage.holding.withheld')
+    } else if (h.total_pnl === null) {
+      main = '—'
+    } else {
+      main = `${h.total_pnl > 0 ? '+' : ''}${formatCurrency(h.total_pnl, costCcy, locale)}`
+      color = changeColor(h.total_pnl)
+      const parts: string[] = []
+      if (h.total_pnl_pct !== null) {
+        parts.push(`${h.total_pnl_pct > 0 ? '+' : ''}${formatPercent(h.total_pnl_pct, locale, 1)}`)
+      }
+      if (h.realized_cost > 0 && h.unrealized_pnl !== null) {
+        parts.push(
+          t('coverage.holding.split', {
+            unrl: `${h.unrealized_pnl > 0 ? '+' : ''}${formatCurrency(h.unrealized_pnl, costCcy, locale, 0)}`,
+            rlzd: `${h.realized_pnl > 0 ? '+' : ''}${formatCurrency(h.realized_pnl, costCcy, locale, 0)}`,
+          }),
+        )
+      }
+      sub = parts.join(' · ') || null
+    }
+  }
+  const title =
+    h.portfolios.length > 0
+      ? t('coverage.holding.in', { names: h.portfolios.join(', ') })
+      : undefined
+  return (
+    <div
+      className="coverage-card__holding"
+      data-testid="coverage-holding"
+      data-view={view}
+      title={title}
+    >
+      <span className="coverage-card__holding-label">{label}</span>
+      <span className="coverage-card__holding-main" style={{ color }}>
+        {main}
+      </span>
+      {sub && <span className="coverage-card__holding-sub">{sub}</span>}
+    </div>
+  )
+}
 
 function Metric({
   label,

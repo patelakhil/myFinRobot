@@ -29,10 +29,36 @@ class FakeEventSource {
     this.closed = true
   }
 
-  /** Emit a named SSE event with a JSON payload, like the backend stream. */
-  emit(type: string, data: Record<string, unknown>): void {
+  /** The run ids this (aggregated) stream multiplexes, from its ?ids= param. */
+  get ids(): string[] {
+    const m = this.url.match(/[?&]ids=([^&]*)/)
+    return m ? decodeURIComponent(m[1]).split(',').filter(Boolean) : []
+  }
+
+  /** The ?cursor= resume snapshot the store passed on (re)open, if any. */
+  get cursor(): string | null {
+    const m = this.url.match(/[?&]cursor=([^&]*)/)
+    return m ? decodeURIComponent(m[1]) : null
+  }
+
+  /** Emit a named SSE event the way the backend's aggregated stream frames it:
+   *  `{run_id, ticker, event: {...}}` with an `id:` cursor snapshot. Defaults
+   *  route to the shared test ticker / the stream's first id so the many
+   *  single-run-shaped `emit('step.started', {...})` calls keep working. */
+  emit(
+    type: string,
+    data: Record<string, unknown>,
+    routing: { run_id?: string; ticker?: string; lastEventId?: string } = {},
+  ): void {
     const fn = this.listeners.get(type)
-    if (fn) fn({ data: JSON.stringify(data) } as MessageEvent)
+    if (!fn) return
+    const run_id = routing.run_id ?? (data.run_id as string | undefined) ?? this.ids[0] ?? ''
+    const ticker = routing.ticker ?? (data.ticker as string | undefined) ?? TICKER
+    const payload = { run_id, ticker, event: { ...data, event: type } }
+    fn({
+      data: JSON.stringify(payload),
+      lastEventId: routing.lastEventId ?? '',
+    } as MessageEvent)
   }
 }
 
@@ -48,6 +74,9 @@ async function startRun(pipelineType: string): Promise<FakeEventSource> {
 function stepsState() {
   return useRunStreamStore.getState().runs[TICKER]
 }
+
+/** Let the store's coalesced (microtask) stream re-open settle. */
+const flush = () => new Promise<void>((r) => setTimeout(r, 0))
 
 beforeEach(() => {
   FakeEventSource.instances = []
@@ -108,6 +137,189 @@ describe('step drift (BUG-033)', () => {
     expect(run.steps[4].status).toBe('running')
     // Gap-filled index 3 is a pending placeholder, not undefined.
     expect(run.steps[3].status).toBe('pending')
+  })
+})
+
+describe('queued runs', () => {
+  it('run.queued marks the run queued until its first step starts', async () => {
+    const es = await startRun('research')
+    expect(stepsState().queued).toBe(false)
+    es.emit('run.started', { total_steps: 8 })
+    es.emit('run.queued', { run_id: 'run-test-1', ticker: TICKER })
+    expect(stepsState().queued).toBe(true)
+    expect(stepsState().status).toBe('running')
+    es.emit('step.started', { step: 1, total: 8, name: 'data_collection' })
+    expect(stepsState().queued).toBe(false)
+  })
+})
+
+describe('shared multiplexed stream — socket budget (BUG-031 / rate-limit parks)', () => {
+  // The browser allows ~6 HTTP/1.1 sockets per origin. One EventSource PER run
+  // ate one each, so 5+ live runs (a batch, or several runs parked for hours
+  // on an OpenRouter quota) starved /api/health and POST /api/runs → the UI
+  // said "Network connection failed" and disabled every Run Research button.
+  const tickers = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'GOOG', 'META']
+
+  function fetchCreatingRunsPerTicker(): void {
+    let n = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ run_id: `run-${++n}` }),
+      })) as unknown as typeof fetch,
+    )
+  }
+
+  afterEach(() => {
+    useRunStreamStore.setState({ runs: {} })
+    for (const t of tickers) useRunStreamStore.getState().clear(t)
+  })
+
+  it('seven live runs use exactly ONE open EventSource, not seven', async () => {
+    fetchCreatingRunsPerTicker()
+    for (const t of tickers) await useRunStreamStore.getState().startRun('research', t)
+    const open = FakeEventSource.instances.filter((es) => !es.closed)
+    expect(open).toHaveLength(1)
+    expect(open[0].ids).toHaveLength(7)
+    expect(open[0].url).toContain('/api/runs/events?ids=')
+    // Frames route to the right ticker by the payload's run_id/ticker.
+    open[0].emit('run.started', { total_steps: 8 }, { run_id: 'run-3', ticker: 'NVDA' })
+    expect(useRunStreamStore.getState().runs['NVDA'].steps).toHaveLength(8)
+    expect(useRunStreamStore.getState().runs['AAPL'].steps).toHaveLength(0)
+  })
+
+  it('a run reaching a terminal state leaves the stream; the rest stay on one socket', async () => {
+    fetchCreatingRunsPerTicker()
+    for (const t of tickers.slice(0, 3)) await useRunStreamStore.getState().startRun('research', t)
+    const es = FakeEventSource.instances.filter((x) => !x.closed)[0]
+    es.emit(
+      'run.completed',
+      { duration_s: 1, result_url: '/api/runs/run-2' },
+      { run_id: 'run-2', ticker: 'MSFT', lastEventId: 'run-1:4,run-2:9,run-3:2' },
+    )
+    await flush() // coalesced re-open runs on a microtask (+ token lookup)
+    const open = FakeEventSource.instances.filter((x) => !x.closed)
+    expect(open).toHaveLength(1)
+    expect(open[0].ids.sort()).toEqual(['run-1', 'run-3'])
+    // The re-open resumes the survivors from their last seq (no replay storm).
+    expect(open[0].cursor).toBe('run-1:4,run-3:2')
+    expect(useRunStreamStore.getState().runs['MSFT'].status).toBe('completed')
+  })
+
+  it('closes the socket entirely once no run is live', async () => {
+    fetchCreatingRunsPerTicker()
+    await useRunStreamStore.getState().startRun('research', 'AAPL')
+    const es = FakeEventSource.instances.filter((x) => !x.closed)[0]
+    es.emit('run.failed', { error: 'boom' }, { run_id: 'run-1', ticker: 'AAPL' })
+    await flush()
+    expect(FakeEventSource.instances.filter((x) => !x.closed)).toHaveLength(0)
+  })
+})
+
+describe('partial refresh — carried-over steps', () => {
+  it('step.completed{reused:true} marks the step completed AND reused', async () => {
+    const es = await startRun('research')
+    es.emit('run.started', { total_steps: 8 })
+    es.emit('step.completed', {
+      step: 5,
+      total: 8,
+      name: 'ownership_governance_analysis',
+      duration_s: 0,
+      degraded: false,
+      error: null,
+      reused: true,
+    })
+    const step = stepsState().steps[4]
+    expect(step.status).toBe('completed')
+    expect(step.reused).toBe(true)
+    es.emit('step.completed', { step: 1, total: 8, name: 'data_collection', duration_s: 3.2 })
+    expect(stepsState().steps[0].reused).toBe(undefined)
+  })
+})
+
+describe('rate-limit-queued runs (BUG-20260615-rl)', () => {
+  const RETRY_AT = '2026-06-16T09:00:00+00:00'
+
+  it('run.queued{reason=rate_limited} parks the run with retryAt, not an error', async () => {
+    const es = await startRun('research')
+    es.emit('run.queued', {
+      run_id: 'run-test-1',
+      ticker: TICKER,
+      reason: 'rate_limited',
+      retry_at: RETRY_AT,
+      retry_after_s: 64800,
+      message: 'AI model rate-limited (probe); queued — retrying automatically in 18h.',
+    })
+    const run = stepsState()
+    expect(run.status).toBe('running') // alive, NOT failed
+    expect(run.error).toBeNull()
+    expect(run.queued).toBe(true)
+    expect(run.queuedReason).toBe('rate_limited')
+    expect(run.retryAt).toBe(RETRY_AT)
+    expect(run.queuedMessage).toContain('rate-limited')
+    // The park ends when the backend actually starts the run.
+    es.emit('run.started', { total_steps: 8 })
+    expect(stepsState().queued).toBe(false)
+    expect(stepsState().queuedReason).toBeNull()
+    expect(stepsState().retryAt).toBeNull()
+  })
+
+  it('a plain run.queued (no reason) is the classic concurrency queue', async () => {
+    const es = await startRun('research')
+    es.emit('run.queued', { run_id: 'run-test-1', ticker: TICKER })
+    expect(stepsState().queued).toBe(true)
+    expect(stepsState().queuedReason).toBe('concurrency')
+    expect(stepsState().retryAt).toBeNull()
+  })
+
+  it('POST /api/runs answering queued_reason=rate_limited parks the run up front', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          run_id: 'run-test-1',
+          status: 'created',
+          queued_reason: 'rate_limited',
+          retry_at: RETRY_AT,
+          retry_after_s: 64800,
+          message: 'AI model rate-limited; research is queued and will retry automatically in 18h.',
+        }),
+      })) as unknown as typeof fetch,
+    )
+    await startRun('research')
+    const run = stepsState()
+    expect(run.runId).toBe('run-test-1')
+    expect(run.status).toBe('running')
+    expect(run.queued).toBe(true)
+    expect(run.queuedReason).toBe('rate_limited')
+    expect(run.retryAt).toBe(RETRY_AT)
+  })
+
+  it('restart reattach re-shows a parked row (retry_at set) as rate-limited, not a spinner', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => [
+          {
+            run_id: 'run-parked-1',
+            status: 'created',
+            pipeline_type: 'research',
+            ticker: 'MSFT',
+            created_at: '2026-06-15T15:00:00+00:00',
+            retry_at: RETRY_AT,
+          },
+        ],
+      })) as unknown as typeof fetch,
+    )
+    await useRunStreamStore.getState().reattachActiveRuns()
+    const run = useRunStreamStore.getState().runs['MSFT']
+    expect(run.queued).toBe(true)
+    expect(run.queuedReason).toBe('rate_limited')
+    expect(run.retryAt).toBe(RETRY_AT)
+    useRunStreamStore.setState({ runs: {} })
   })
 })
 
@@ -196,6 +408,7 @@ describe('terminal-side-effect dedupe (BUG-085)', () => {
           artifactId: null,
           artifactType: null,
           cancelling: false,
+          queued: false,
         },
       },
     }))
@@ -270,6 +483,7 @@ describe('duplicate-start lock (P1-30)', () => {
       artifactId: 'art_prev',
       artifactType: 'equity_research',
       cancelling: false,
+      queued: false,
     }
     useRunStreamStore.setState((s) => ({ runs: { ...s.runs, [TICKER]: completed } }))
 
@@ -320,7 +534,7 @@ describe('restart reattach (P1-30)', () => {
 
     // One SSE subscription against THIS run's stream…
     expect(FakeEventSource.instances).toHaveLength(1)
-    expect(FakeEventSource.instances[0].url).toContain('/api/runs/run-live-1/events')
+    expect(FakeEventSource.instances[0].url).toContain('/api/runs/events?ids=run-live-1')
     // …and the replayed event log (no Last-Event-ID → from seq 0) rebuilds steps.
     FakeEventSource.instances[0].emit('run.started', { total_steps: 8 })
     expect(useRunStreamStore.getState().runs['AAPL'].steps).toHaveLength(8)

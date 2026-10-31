@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TypeAlias
 
+from pydantic import BaseModel
 from pydantic_ai import Agent
 
 from finrobot.engine.data.types import DataType
@@ -23,9 +24,14 @@ class PipelineStepError(RuntimeError):
     it and transitions the run to ``failed`` with this message.
     """
 
-    def __init__(self, step_name: str, error: str) -> None:
+    def __init__(self, step_name: str, error: str, *, retry_after_s: float | None = None) -> None:
         self.step_name = step_name
         self.error = error
+        # Non-None ONLY when the step died on a provider RATE LIMIT whose
+        # cool-down is known: the seconds the provider still wants us to wait.
+        # routes/runs.py uses it to re-queue the run until the quota resets
+        # (and tell the user WHEN) instead of marking it failed outright.
+        self.retry_after_s = retry_after_s
         super().__init__(f"Critical step '{step_name}' failed: {error}")
 
 
@@ -75,6 +81,31 @@ class PipelineStep:
     Inputs / normalizations the executor refreshes (``data_collection``,
     ``price_fx_to_usd``) are valid regardless of this step's output and must NOT
     be listed."""
+    data_dependencies: tuple[DataType, ...] = ()
+    """Every data type this step's output depends on — fetched by its executor
+    OR consumed from an upstream step's structured output (e.g. catalyst_analysis
+    reads the 8-K events data_collection fetched, so FILINGS_8K is listed).
+    Consulted ONLY by a partial refresh (``engine/pipelines/refresh.py``): a step
+    none of whose dependencies is re-pulled by the refreshed integrations is
+    carried over from the parent report instead of re-run. Empty (the default)
+    means "unknown" → the step always re-runs (conservative)."""
+    carry_over: tuple[CarryOver, ...] = ()
+    """How to restore this step's outputs from a parent artifact in a partial
+    refresh: each entry maps an artifact ``outputs.structured`` key back onto the
+    structured_context key (and model) the downstream steps read. Empty → the
+    step is never carried over (always re-run)."""
+
+
+@dataclass(frozen=True)
+class CarryOver:
+    """One structured output a partial refresh may restore from the parent artifact."""
+
+    structured_key: str
+    """The structured_context key downstream steps / the builder read."""
+    artifact_key: str
+    """The key the artifact builder persisted it under in ``outputs.structured``."""
+    model: type[BaseModel] | None = None
+    """Model to re-validate the persisted dump into (None = keep the dict)."""
 
 
 def iter_skill_sections(skill_section: SkillSection | None) -> tuple[str, ...]:

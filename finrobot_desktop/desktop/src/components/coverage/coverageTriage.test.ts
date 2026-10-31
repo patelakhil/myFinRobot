@@ -34,6 +34,7 @@ function row(over: Partial<CoverageRow>): CoverageRow {
     market_stale: false,
     needs_refresh: [],
     warnings: [],
+    holding: null,
     sources: {
       price: null,
       change_pct_1d: null,

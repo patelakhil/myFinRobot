@@ -14,6 +14,7 @@ import { SETTINGS_ALLOWED } from './config/deployment'
 import { lazy, Suspense, useEffect } from 'react'
 import { AppShell } from './layout/AppShell'
 import { CoveragePage } from './pages/CoveragePage'
+import { PortfolioPage } from './pages/PortfolioPage'
 import { ResearchPage } from './pages/ResearchPage'
 import { StockWorkspace } from './views/StockWorkspace'
 
@@ -86,9 +87,11 @@ export const router = createBrowserRouter(
       children: [
         { index: true, element: <Navigate to="/research" replace /> },
 
-        // Research is the search-first homepage; Coverage is the archive desk.
+        // Research is the search-first homepage; Coverage is the archive desk;
+        // Portfolio is the holdings desk (what the user actually owns).
         { path: 'research', element: <ResearchPage /> },
         { path: 'coverage', element: <CoveragePage /> },
+        { path: 'portfolio', element: <PortfolioPage /> },
 
         // The old /stocks landing retired into Research; the per-ticker
         // drill-down (StockWorkspace) and report detail keep their routes.

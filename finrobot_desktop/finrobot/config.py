@@ -113,10 +113,13 @@ class ProviderConfig(BaseModel):
     models: list[str] = Field(default_factory=list)
 
 
-# Built-in providers shipped with FinRobot. Kept deliberately to the two majors
-# (Anthropic + OpenAI); anything else (DeepSeek / Moonshot / Qwen / OpenRouter /
-# a local vLLM) the user wires up as a custom OpenAI-compatible provider. These
-# are code-owned and NOT persisted to settings.json — only ``custom_providers`` are.
+# Built-in providers shipped with FinRobot. Kept deliberately small — Anthropic
+# and OpenAI directly, plus OpenRouter as the one-key gateway to everything else
+# (DeepSeek / Qwen / Llama / Gemini / Mistral / …, tool-calling included, no
+# separate account per vendor). Any OTHER OpenAI-compatible backend (Moonshot, a
+# local vLLM, a private gateway) the user still wires up as a custom provider.
+# These three are code-owned and NOT persisted to settings.json — only
+# ``custom_providers`` are.
 #
 # ``models`` is a short list of *suggestions* only — the model id field in the UI
 # is free text, so the user can run any model the provider exposes (we can't keep
@@ -134,6 +137,27 @@ BUILTIN_PROVIDERS: tuple[ProviderConfig, ...] = (
         kind="openai-compatible",
         base_url="https://api.openai.com/v1",
         models=["gpt-4o", "gpt-4o-mini"],
+    ),
+    ProviderConfig(
+        id="openrouter",
+        label="OpenRouter",
+        # OpenRouter speaks the OpenAI chat-completions API 1:1 (including
+        # `tools=`, which every FinRobot agent needs for function calling), so
+        # it needs no special-cased kind — one API key then routes model_id to
+        # whichever upstream vendor serves it. model_id keeps OpenRouter's own
+        # "<vendor>/<model>" form (e.g. "openai/gpt-4o"), which survives our
+        # "<provider>:<model_id>" parse unchanged since it only splits on the
+        # FIRST ':'.
+        kind="openai-compatible",
+        base_url="https://openrouter.ai/api/v1",
+        models=[
+            "openai/gpt-4o",
+            "anthropic/claude-3.7-sonnet",
+            "google/gemini-2.0-flash-001",
+            "deepseek/deepseek-chat",
+            "meta-llama/llama-3.3-70b-instruct",
+            "qwen/qwen-2.5-72b-instruct",
+        ],
     ),
 )
 
@@ -234,6 +258,32 @@ class FinRobotSettings(BaseSettings):
     sec_identity_dismissed_at: datetime | None = None
     sec_holdings_auto_refresh: bool = False
 
+    # ── Privacy & network ─────────────────────────────────────────────────────
+    # Every outbound contact that is NOT a user-configured integration (an LLM
+    # provider or a keyed data provider) sits behind one of these switches so
+    # the user can see and decide what leaves the machine. All default ON to
+    # preserve existing behaviour; the Settings → Privacy & network panel
+    # exposes them. Each is a pure gate — turning one off removes the call,
+    # nothing else changes.
+    web_search_enabled: bool = True
+    """Give the chat agent the keyless DuckDuckGo web-search tool. When the
+    model decides to search, a model-written query derived from the chat goes
+    to DuckDuckGo. Off → the tool is not registered; chat still answers from
+    configured data providers and local artifacts."""
+    auto_update_check: bool = True
+    """Desktop build: poll GitHub Releases for a newer signed build shortly
+    after launch and every two hours. Off → only the manual "Check for
+    updates" button in Settings contacts GitHub."""
+    decorative_remote_assets: bool = True
+    """Load the 3D hero scene on the Research page from spline.design / unpkg.
+    Purely cosmetic; off → the CSS-only fallback renders and those hosts are
+    never contacted."""
+    startup_warmups: bool = True
+    """At boot, pre-fetch the SEC symbol-autocomplete index (sec.gov) and warm
+    quotes for studied tickers (yfinance) so first paint is instant. Off → both
+    happen lazily on first use instead (the same requests, later, only when
+    you actually search or open the desk)."""
+
     # Infrastructure
     cache_db_path: str = ""  # resolved at runtime by paths.default_data_cache_db_path()
     skills_dir: str = ""  # resolved at runtime by paths.default_skills_dir() (bundle-aware)
@@ -267,6 +317,17 @@ class FinRobotSettings(BaseSettings):
             "Absolute 1-day % move (in percentage points) at/above which a "
             "watchlist name is pre-flagged as a mover in the chat snapshot."
         ),
+    )
+
+    # Portfolio desk: cadence of the background alert / research-signal pass
+    # (price above/below, 52-week, moving-average cross, position P&L). Closed
+    # markets are a calendar no-op inside the pass (one cache read per ticker),
+    # so a 15-minute tick is cheap off-hours and one provider call per held
+    # ticker during the session.
+    portfolio_alert_interval_s: float = Field(
+        default=15 * 60,
+        ge=60,
+        description="Seconds between background alert evaluation passes (min 60).",
     )
 
     # Backtest: dynamic ``module:ClassName`` strategy loading is OFF by default

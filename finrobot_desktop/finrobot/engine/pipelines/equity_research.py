@@ -21,6 +21,7 @@ from finrobot.engine.models.financial import (
     DDMInputs,
     FinancialData,
     HistoricalMetrics,
+    PeerComps,
     ThesisResult,
     StepOutput,
     ValuationSynthesis,
@@ -69,6 +70,7 @@ from finrobot.engine.data.historical_loaders import (
 )
 from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.compute.operators.ownership import compute_ownership_governance
+from finrobot.engine.models.sec import OwnershipGovernanceAnalysis
 from finrobot.engine.compute.coordinators.technical_payload import (
     TECHNICAL_DCF_UNAVAILABLE_MARKER,
     TechnicalAnalysis,
@@ -85,6 +87,7 @@ from finrobot.engine.pipelines.base import (
     StructuredValidator,
     TextValidator,
 )
+from finrobot.engine.pipelines.step import CarryOver
 from finrobot.engine.pipelines._helpers import (
     build_sensitivity_ranges,
     execute_financial_data_step,
@@ -1626,6 +1629,10 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                     validate_is_non_empty,
                 ),
                 executor=_execute_catalyst_analysis,
+                # Partial refresh: news + retail sentiment it fetches, plus the
+                # 8-K events it reads from data_collection's SEC payload.
+                data_dependencies=(DataType.NEWS, DataType.SENTIMENT, DataType.FILINGS_8K),
+                carry_over=(CarryOver("catalyst_analysis", "catalyst_analysis", CatalystAnalysis),),
                 # NOT deterministic: the executor calls classify_news, an LLM
                 # classification whose re-run can legitimately produce
                 # different (passing) output — a validation retry has a real
@@ -1643,6 +1650,19 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                     lambda out: validate_has_peers(out, min_peers=3),
                 ),
                 executor=execute_peer_analysis,
+                # Partial refresh: the candidate screen, every peer's canonical
+                # financials / price, their XBRL cross-checks and history — plus
+                # the target's own FinancialData it benchmarks against.
+                data_dependencies=(
+                    DataType.PEER_CANDIDATES,
+                    DataType.FINANCIALS,
+                    DataType.PRICE,
+                    DataType.QUOTE,
+                    DataType.PROFILE,
+                    DataType.XBRL_FACTS,
+                    DataType.HISTORICAL,
+                ),
+                carry_over=(CarryOver("peer_analysis", "peer_analysis", PeerComps),),
             ),
             PipelineStep(
                 name="financial_modeling",
@@ -1674,6 +1694,22 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 executor=_execute_ownership_governance_analysis,
                 # Deterministic governance compute — ignores the re-prompt (BUG-059).
                 deterministic=True,
+                # Partial refresh: SEC-only inputs (Form 4 / 13F / DEF 14A / 13D-G
+                # / SOX-302 cert) — an FMP / Finnhub / sentiment refresh can't move it.
+                data_dependencies=(
+                    DataType.INSIDER_TRADES,
+                    DataType.INSTITUTIONAL_HOLDINGS,
+                    DataType.PROXY_STATEMENT,
+                    DataType.SCHEDULE_13,
+                    DataType.CEO_CERTIFICATION,
+                ),
+                carry_over=(
+                    CarryOver(
+                        "ownership_governance_analysis",
+                        "ownership_governance",
+                        OwnershipGovernanceAnalysis,
+                    ),
+                ),
             ),
             PipelineStep(
                 name="technical_analysis",

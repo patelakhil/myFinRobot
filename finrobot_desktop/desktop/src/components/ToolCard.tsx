@@ -57,6 +57,8 @@ const TOOL_META: Record<string, ToolMeta> = {
   query_financial_data: { label: 'Financial Data', icon: <IconDatabase /> },
   query_coverage_universe: { label: 'Watchlist', icon: <IconList /> },
   activate_skill: { label: 'Skill', icon: <IconSpark /> },
+  partial_refresh_reports: { label: 'Partial Refresh', icon: <IconReport /> },
+  list_data_integrations: { label: 'Data Integrations', icon: <IconDatabase /> },
 }
 
 function toolMeta(toolName: string): ToolMeta {

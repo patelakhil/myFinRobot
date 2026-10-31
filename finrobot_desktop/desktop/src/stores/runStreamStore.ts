@@ -7,11 +7,17 @@
 // track of it. Lifting state to a store makes route changes invisible to the
 // run, and lets the Sidebar show an "active runs" badge across the whole app.
 //
-// EventSource instances are not serialisable, so they live in a module-level
-// Map<ticker, EventSource> instead of in the store. The backend SSE endpoint
-// (/api/runs/{id}/events) supports Last-Event-ID resume, so browser-native
-// EventSource auto-reconnect will pick up where it left off on network
-// hiccups — without any extra code here.
+// Transport: ONE shared EventSource for every live run, over the backend's
+// aggregated stream (/api/runs/events?ids=a,b,c — BUG-031). The browser caps
+// HTTP/1.1 connections per origin at ~6; a per-run EventSource ate one socket
+// per live run, so 5+ concurrent runs (a Coverage batch, or several runs
+// PARKED for hours on a provider rate limit) starved the health probe and
+// POST /api/runs of a socket — the UI then reported "Network connection
+// failed" and disabled every Run Research button while the backend was
+// perfectly healthy. The shared stream costs exactly one socket no matter how
+// many runs are live. It is re-opened (with a `cursor` snapshot so nothing
+// replays) whenever the live-run set changes, and the browser's native
+// Last-Event-ID reconnect covers network hiccups in between.
 //
 // Concurrency: one active run per ticker (Map keyed by ticker). startRun
 // REFUSES to start while the ticker already has a live run — a second POST
@@ -23,7 +29,7 @@
 import { create } from 'zustand'
 import { BASE_URL } from '../api/client'
 import { withCapabilityToken } from '../api/capability'
-import { fetchWithTimeout } from '../api/fetch'
+import { fetchWithTimeout, RUN_SPAWN_TIMEOUT_MS } from '../api/fetch'
 import { FetchHttpError } from '../utils/errorMessage'
 import { tSync, useUiPrefs } from '../i18n'
 
@@ -42,6 +48,9 @@ export interface RunStep {
   /** Current retry attempt (from step.retry SSE). Shown as "重试中 n/3" so a
    * step working through a transient 429 doesn't look hung. */
   attempt?: number
+  /** A PARTIAL refresh carried this step over unchanged from the report being
+   * updated (step.completed `reused`) — no fetches, no LLM call. */
+  reused?: boolean
 }
 
 export type RunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
@@ -50,6 +59,7 @@ export type RunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
  *  tests/audit/test_sse_event_contract.py against routes/runs.py. */
 type RunEventName =
   | 'run.started'
+  | 'run.queued'
   | 'step.started'
   | 'step.completed'
   | 'step.retry'
@@ -85,6 +95,22 @@ export interface RunState {
    * status stays 'running' until the backend confirms — the backend owns the
    * truth about when spend actually stopped. */
   cancelling: boolean
+  /** Waiting for a free slot under the backend's concurrency cap (run.queued),
+   * cleared by the first step.started. status stays 'running' — the run is
+   * live, just not started — but the UI says "Queued" instead of a spinner
+   * that looks hung behind slow runs. */
+  queued: boolean
+  /** WHY the run is queued (run.queued `reason`). 'rate_limited' means the AI
+   * provider (OpenRouter free-tier per-day / per-minute quota) throttled us:
+   * the backend parked the run and resumes it by itself at `retryAt` — it is
+   * NOT failed, and the UI must say "rate limited · retrying at 09:00" rather
+   * than the generic "Queued" (or worse, an error). Absent/'concurrency' is the
+   * classic waiting-for-a-slot case. */
+  queuedReason?: 'concurrency' | 'rate_limited' | null
+  /** ISO-8601 instant a rate-limit-parked run resumes (null otherwise). */
+  retryAt?: string | null
+  /** Key-free provider explanation for a rate-limit park (for tooltips). */
+  queuedMessage?: string | null
 }
 
 interface RunStreamState {
@@ -179,9 +205,35 @@ function setStepAt(steps: RunStep[], index: number, next: RunStep): RunStep[] {
   return out
 }
 
-// ── Module-level EventSource registry (not in store: not serialisable) ──────
+// ── Module-level shared EventSource (not in store: not serialisable) ────────
 
-const sources = new Map<string, EventSource>()
+/** The one multiplexed connection, or null when no run is live. */
+let sharedSource: EventSource | null = null
+/** run_id → ticker for every run the shared stream currently carries. */
+const liveRuns = new Map<string, string>()
+/** Per-run resume cursor (seq) learned from each frame's `id:` snapshot, so a
+ *  re-open after the live set changes resumes instead of replaying. */
+const cursors = new Map<string, number>()
+/** Coalesces several same-tick live-set changes into one re-open. */
+let reopenScheduled = false
+/** Backend cap on ids per aggregated stream (routes/runs.py _MAX_MULTIPLEX_IDS). */
+const MAX_MULTIPLEX_IDS = 50
+
+function parseCursorSnapshot(lastEventId: string): void {
+  // `a:5,b:3` — the full per-id snapshot the backend puts on every frame.
+  for (const pair of lastEventId.split(',')) {
+    const [runId, seq] = pair.split(':')
+    const n = Number(seq)
+    if (runId && Number.isFinite(n)) cursors.set(runId, n)
+  }
+}
+
+function cursorParam(ids: string[]): string {
+  return ids
+    .filter((id) => cursors.has(id))
+    .map((id) => `${id}:${cursors.get(id)}`)
+    .join(',')
+}
 
 // Per-ticker in-flight startRun promises. startRun writes its 'running'
 // occupation into the store synchronously BEFORE the POST, but a true
@@ -202,6 +254,17 @@ interface BackendRunSummary {
   pipeline_type: string
   ticker: string
   created_at: string
+  /** Set while the run is parked on a provider rate limit (RunSummary.retry_at). */
+  retry_at?: string | null
+}
+
+/** POST /api/runs body (routes/runs.py CreateRunResponse). */
+interface BackendCreateRunResponse {
+  run_id: string
+  queued_reason?: 'rate_limited' | null
+  retry_at?: string | null
+  retry_after_s?: number | null
+  message?: string | null
 }
 
 // Per-ticker onerror counts. After SSE_ERROR_LIMIT errors with status still
@@ -228,14 +291,36 @@ function noteSseSuccess(ticker: string): void {
 // runId (a re-run gets a fresh runId, so its effect fires once again — correct).
 const notifiedTerminal = new Set<string>()
 
+/** Drop a ticker from the shared stream (its run is terminal / forgotten) and
+ *  re-open the stream without it — or close it when nothing is live. */
 function closeAndForget(ticker: string): void {
-  const es = sources.get(ticker)
-  if (es) {
-    es.close()
-    sources.delete(ticker)
+  for (const [runId, t] of liveRuns) {
+    if (t === ticker) {
+      liveRuns.delete(runId)
+      cursors.delete(runId)
+    }
   }
   sseErrorCounts.delete(ticker)
   sseSuccessStreaks.delete(ticker)
+  // Close NOW (a terminal run must not keep its socket a tick longer); the
+  // survivors, if any, get a fresh connection on the next microtask.
+  if (sharedSource) {
+    sharedSource.close()
+    sharedSource = null
+  }
+  scheduleReopen()
+}
+
+/** Bound for runStreamStore internals: (re)open the shared stream on the next
+ *  microtask so a burst of live-set changes costs one connection, not N. */
+let reopenImpl: () => Promise<void> = async () => {}
+function scheduleReopen(): void {
+  if (reopenScheduled) return
+  reopenScheduled = true
+  void Promise.resolve().then(() => {
+    reopenScheduled = false
+    return reopenImpl()
+  })
 }
 
 // ── Store ───────────────────────────────────────────────────────────────────
@@ -266,7 +351,26 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
         const cur = get().runs[ticker]
         const pipelineType = cur?.pipelineType ?? 'research'
         const names = stepNamesForPipeline(pipelineType, totalSteps)
-        patch(ticker, { steps: names.map((name) => ({ name, status: 'pending' as const })) })
+        // run.started means the run is actually executing now — any
+        // rate-limit park it was in is over (a concurrency-queue run.queued may
+        // still follow, which re-sets `queued` with its own reason).
+        patch(ticker, {
+          steps: names.map((name) => ({ name, status: 'pending' as const })),
+          queued: false,
+          queuedReason: null,
+          retryAt: null,
+          queuedMessage: null,
+        })
+        return { terminal: false }
+      }
+      case 'run.queued': {
+        const reason = data.reason === 'rate_limited' ? 'rate_limited' : 'concurrency'
+        patch(ticker, {
+          queued: true,
+          queuedReason: reason,
+          retryAt: typeof data.retry_at === 'string' ? data.retry_at : null,
+          queuedMessage: typeof data.message === 'string' ? data.message : null,
+        })
         return { terminal: false }
       }
       case 'step.started': {
@@ -284,6 +388,10 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
             attempt: undefined,
           }),
           progress: Math.max(0, (step - 1) / (data.total as number)),
+          queued: false,
+          queuedReason: null,
+          retryAt: null,
+          queuedMessage: null,
         })
         return { terminal: false }
       }
@@ -303,6 +411,7 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
             status: degraded ? 'degraded' : 'completed',
             duration_s: data.duration_s as number,
             degradeReason: degraded ? ((data.error as string | null) ?? undefined) : undefined,
+            reused: data.reused === true ? true : undefined,
           }),
           progress: step / (data.total as number),
         })
@@ -359,65 +468,114 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
     }
   }
 
+  /** Register a run on the shared stream and (re)open it. */
   async function attachSse(runId: string, ticker: string): Promise<void> {
-    closeAndForget(ticker)
+    // One live run per ticker: forget any previous run for this ticker first.
+    for (const [id, t] of liveRuns) if (t === ticker && id !== runId) liveRuns.delete(id)
+    liveRuns.set(runId, ticker)
+    await reopenSharedStream()
+  }
+
+  /** Any delivered frame is transport-level proof the connection works —
+   *  health accounting lives here at the transport seam, not per event type. */
+  function onMultiplexFrame(name: RunEventName, e: Event): void {
+    const me = e as MessageEvent
+    if (typeof me.lastEventId === 'string' && me.lastEventId) parseCursorSnapshot(me.lastEventId)
+    const payload = JSON.parse(me.data) as {
+      run_id?: string
+      ticker?: string
+      event?: Record<string, unknown>
+    }
+    const ticker = payload.ticker ?? (payload.run_id ? liveRuns.get(payload.run_id) : undefined)
+    if (!ticker) return
+    // A late frame for a run this session no longer tracks (it was forgotten
+    // or superseded by a newer run for the same ticker) must not clobber it.
+    if (payload.run_id && liveRuns.get(payload.run_id) !== ticker) return
+    noteSseSuccess(ticker)
+    const data = payload.event ?? {}
+    const { terminal } = reduceRunEvent(ticker, name, data)
+    if (terminal) closeAndForget(ticker)
+  }
+
+  /** (Re)open the ONE shared EventSource for the current live-run set. */
+  async function reopenSharedStream(): Promise<void> {
+    if (sharedSource) {
+      sharedSource.close()
+      sharedSource = null
+    }
+    // Self-heal the registry: only runs the store still tracks as THE live
+    // run for their ticker belong on the wire (a forgotten / replaced run —
+    // e.g. state reset by a view — must not keep an id in the ?ids= list).
+    const runs = get().runs
+    for (const [runId, ticker] of liveRuns) {
+      const cur = runs[ticker]
+      if (!cur || cur.runId !== runId || cur.status !== 'running') {
+        liveRuns.delete(runId)
+        cursors.delete(runId)
+      }
+    }
+    const ids = [...liveRuns.keys()].slice(-MAX_MULTIPLEX_IDS)
+    if (ids.length === 0) return
     // EventSource cannot set an Authorization header, so the capability token
     // rides as ?token= (the backend accepts it there for SSE). No-op in browser dev.
-    const url = await withCapabilityToken(`${BASE_URL}/api/runs/${runId}/events`)
+    const params = new URLSearchParams({ ids: ids.join(',') })
+    const cursor = cursorParam(ids)
+    if (cursor) params.set('cursor', cursor)
+    const url = await withCapabilityToken(`${BASE_URL}/api/runs/events?${params.toString()}`)
+    // A newer re-open may have raced this one while awaiting the token.
+    if (sharedSource) return
     const es = new EventSource(url)
-    sources.set(ticker, es)
+    sharedSource = es
 
     // Explicit per-event `addEventListener('<name>', …)` calls (not a loop) so
     // the SSE-contract audit (tests/audit/test_sse_event_contract.py) can
     // statically pin that the frontend listens for every backend event. Each
-    // forwards to the shared reducer; terminal events tear down this dedicated
-    // connection. `single` binds the ticker + closes on terminal.
-    const single = (name: RunEventName) => (e: Event) => {
-      // Any delivered event is transport-level proof the connection works —
-      // health accounting lives here at the transport seam, not per event type.
-      noteSseSuccess(ticker)
-      const data = JSON.parse((e as MessageEvent).data)
-      const { terminal } = reduceRunEvent(ticker, name, data)
-      if (terminal) closeAndForget(ticker)
-    }
-    es.addEventListener('run.started', single('run.started'))
-    es.addEventListener('step.started', single('step.started'))
-    es.addEventListener('step.completed', single('step.completed'))
-    es.addEventListener('step.retry', single('step.retry'))
-    es.addEventListener('artifact.ready', single('artifact.ready'))
-    es.addEventListener('run.completed', single('run.completed'))
-    es.addEventListener('run.failed', single('run.failed'))
-    es.addEventListener('run.cancelled', single('run.cancelled'))
+    // forwards to the shared reducer via the multiplex frame unwrapper.
+    es.addEventListener('run.started', (e) => onMultiplexFrame('run.started', e))
+    es.addEventListener('run.queued', (e) => onMultiplexFrame('run.queued', e))
+    es.addEventListener('step.started', (e) => onMultiplexFrame('step.started', e))
+    es.addEventListener('step.completed', (e) => onMultiplexFrame('step.completed', e))
+    es.addEventListener('step.retry', (e) => onMultiplexFrame('step.retry', e))
+    es.addEventListener('artifact.ready', (e) => onMultiplexFrame('artifact.ready', e))
+    es.addEventListener('run.completed', (e) => onMultiplexFrame('run.completed', e))
+    es.addEventListener('run.failed', (e) => onMultiplexFrame('run.failed', e))
+    es.addEventListener('run.cancelled', (e) => onMultiplexFrame('run.cancelled', e))
 
     es.onerror = () => {
-      const cur = get().runs[ticker]
-      if (!cur) {
-        closeAndForget(ticker)
+      if (sharedSource !== es) return // a stale connection we already replaced
+      const liveTickers = new Set(liveRuns.values())
+      if (liveTickers.size === 0) {
+        es.close()
+        sharedSource = null
         return
       }
-      // If the run already completed or failed, clean up the stale connection.
-      if (cur.status !== 'running') {
-        closeAndForget(ticker)
-        return
-      }
-      // Run is still marked 'running'. Browser EventSource auto-reconnects
-      // (with Last-Event-ID) on transient network errors, so we tolerate a few
-      // consecutive errors before giving up. Once we hit SSE_ERROR_LIMIT with
-      // no recovery, the run_id is likely invalid or the backend is down —
-      // force-fail so the UI shows an actionable error instead of a frozen
-      // progress bar.
-      sseSuccessStreaks.delete(ticker)
-      const count = (sseErrorCounts.get(ticker) ?? 0) + 1
-      sseErrorCounts.set(ticker, count)
-      if (count >= SSE_ERROR_LIMIT) {
-        patch(ticker, {
-          status: 'failed',
-          error: `Run stream disconnected (${SSE_ERROR_LIMIT} consecutive errors). Check the backend service and retry.`,
-        })
-        closeAndForget(ticker)
+      // Browser EventSource auto-reconnects (with Last-Event-ID) on transient
+      // network errors, so we tolerate a few consecutive errors before giving
+      // up. The shared connection carries every live run, so the error is
+      // booked against each of them; a run that already left 'running' is
+      // simply dropped from the stream. Once a run hits SSE_ERROR_LIMIT with
+      // no recovery, the backend is likely down — force-fail it so the UI
+      // shows an actionable error instead of a frozen progress bar.
+      for (const ticker of liveTickers) {
+        const cur = get().runs[ticker]
+        if (!cur || cur.status !== 'running') {
+          closeAndForget(ticker)
+          continue
+        }
+        sseSuccessStreaks.delete(ticker)
+        const count = (sseErrorCounts.get(ticker) ?? 0) + 1
+        sseErrorCounts.set(ticker, count)
+        if (count >= SSE_ERROR_LIMIT) {
+          patch(ticker, {
+            status: 'failed',
+            error: `Run stream disconnected (${SSE_ERROR_LIMIT} consecutive errors). Check the backend service and retry.`,
+          })
+          closeAndForget(ticker)
+        }
       }
     }
   }
+  reopenImpl = reopenSharedStream
 
   return {
     runs: {},
@@ -457,6 +615,7 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
             artifactId: null,
             artifactType: null,
             cancelling: false,
+            queued: false,
           },
         },
       }))
@@ -480,7 +639,7 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
                 ...(sourceArtifactId ? { source_artifact_id: sourceArtifactId } : {}),
               }),
             },
-            5_000,
+            RUN_SPAWN_TIMEOUT_MS,
           )
           if (!resp.ok) {
             // Prefer the backend's human-readable `detail` (e.g. the 503 from
@@ -493,9 +652,24 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
             if (detail) throw new Error(detail)
             throw new FetchHttpError(resp.status, resp.statusText)
           }
-          const { run_id }: { run_id: string } = await resp.json()
+          const created = (await resp.json()) as BackendCreateRunResponse
+          const run_id = created.run_id
 
-          patch(ticker, { runId: run_id })
+          // A run accepted-but-PARKED on a provider rate limit (OpenRouter
+          // daily quota hit the submit-time probe) is reported up front so the
+          // card reads "rate limited · retrying at 09:00" immediately — the
+          // backend's run.queued event will confirm it once the stream opens.
+          if (created.queued_reason === 'rate_limited') {
+            patch(ticker, {
+              runId: run_id,
+              queued: true,
+              queuedReason: 'rate_limited',
+              retryAt: created.retry_at ?? null,
+              queuedMessage: created.message ?? null,
+            })
+          } else {
+            patch(ticker, { runId: run_id })
+          }
           await attachSse(run_id, ticker)
           return run_id
         } catch (err) {
@@ -602,6 +776,12 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
                 artifactId: null,
                 artifactType: null,
                 cancelling: false,
+                // A row parked on a provider rate limit (retry_at set) is
+                // re-shown as "rate limited · retrying at …", not a spinner.
+                queued: typeof run.retry_at === 'string',
+                queuedReason: typeof run.retry_at === 'string' ? 'rate_limited' : null,
+                retryAt: typeof run.retry_at === 'string' ? run.retry_at : null,
+                queuedMessage: null,
               },
             },
           }))

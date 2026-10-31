@@ -126,6 +126,11 @@ _NON_SECRET_FIELDS: tuple[str, ...] = (
     "sec_user_agent",
     "sec_identity_dismissed_at",  # 2026-05 EdgarTools — landing banner dismiss state
     "sec_holdings_auto_refresh",
+    # Privacy & network gates (see FinRobotSettings docstrings).
+    "web_search_enabled",
+    "auto_update_check",
+    "decorative_remote_assets",
+    "startup_warmups",
     "log_level",
     "log_to_file",
     "log_retention_days",
@@ -171,6 +176,11 @@ class SettingsResponse(BaseModel):
     # landing banner; null = never dismissed (banner still shows on landing).
     sec_identity_dismissed_at: datetime | None = None
     sec_holdings_auto_refresh: bool
+    # Privacy & network gates — every non-integration outbound contact.
+    web_search_enabled: bool = True
+    auto_update_check: bool = True
+    decorative_remote_assets: bool = True
+    startup_warmups: bool = True
     log_level: str
     log_to_file: bool
     log_retention_days: int
@@ -199,6 +209,10 @@ class SettingsUpdate(BaseModel):
     sec_user_agent: str | None = None
     sec_identity_dismissed_at: datetime | None = None
     sec_holdings_auto_refresh: bool | None = None
+    web_search_enabled: bool | None = None
+    auto_update_check: bool | None = None
+    decorative_remote_assets: bool | None = None
+    startup_warmups: bool | None = None
     log_level: LogLevel | None = None
     log_to_file: bool | None = None
     log_retention_days: int | None = Field(default=None, ge=0)
@@ -763,6 +777,10 @@ async def _build_response(request: Request) -> SettingsResponse:
         sec_identity_active=_is_valid_identity(settings.sec_user_agent),
         sec_identity_dismissed_at=settings.sec_identity_dismissed_at,
         sec_holdings_auto_refresh=settings.sec_holdings_auto_refresh,
+        web_search_enabled=settings.web_search_enabled,
+        auto_update_check=settings.auto_update_check,
+        decorative_remote_assets=settings.decorative_remote_assets,
+        startup_warmups=settings.startup_warmups,
         log_level=settings.log_level,
         log_to_file=settings.log_to_file,
         log_retention_days=settings.log_retention_days,

@@ -13,6 +13,10 @@ import { formatDate } from '../../utils/format'
 import { openExternal } from '../../lib/tauri'
 import { SecretInput } from './controls'
 import { SEC_IDENTITY_EXAMPLE, isValidSecIdentity, secHeaderIdentityPreview } from './secIdentity'
+import { useState } from 'react'
+import { PartialRefreshModal } from '../../components/refresh/PartialRefreshModal'
+import { useToastStore } from '../../stores/toastStore'
+import { useRunStreamStore } from '../../stores/runStreamStore'
 
 /** Where a user signs up for each data-source API key. Shown as a "Get a key"
  * link next to every provider's hint so an analyst never has to guess where to
@@ -203,6 +207,10 @@ export function DataSourcesPanel({
 }: DataSourcesPanelProps): React.ReactElement {
   const { t } = useI18n()
   const queryClient = useQueryClient()
+  const addToast = useToastStore((s) => s.addToast)
+  const reattachActiveRuns = useRunStreamStore((s) => s.reattachActiveRuns)
+  // "Update existing reports" — partial refresh with the newly enabled source(s).
+  const [refreshOpen, setRefreshOpen] = useState(false)
 
   // ── Derived ──────────────────────────────────────────────────────────────
   // Shape-guard, not just null-guard: an unexpected health payload (proxy
@@ -541,6 +549,55 @@ export function DataSourcesPanel({
           }
         />
       </div>
+
+      {/* Enabling a source (e.g. FMP) only affects NEW research. This brings it
+      into the EXISTING reports without re-running them in full: only the
+      picked source is queried, everything else is reused. */}
+      <div className="settings-provider-list" data-testid="partial-refresh-entry">
+        <DataSourceRow
+          health={undefined}
+          name={t('settings.dataSources.partialRefreshTitle')}
+          hint={t('settings.dataSources.partialRefreshHint')}
+          control={
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setRefreshOpen(true)}
+              disabled={
+                !(
+                  fmpConfigured ||
+                  finnhubConfigured ||
+                  adanosConfigured ||
+                  alphaVantageConfigured ||
+                  secIdentityActive
+                )
+              }
+              data-testid="settings-partial-refresh"
+            >
+              {t('settings.dataSources.partialRefreshButton')}
+            </button>
+          }
+        />
+      </div>
+      {refreshOpen && (
+        <PartialRefreshModal
+          tickers={null}
+          scopeLabel={t('settings.dataSources.partialRefreshScope')}
+          onClose={() => setRefreshOpen(false)}
+          onStarted={(res) => {
+            setRefreshOpen(false)
+            void reattachActiveRuns()
+            addToast({
+              type: res.runs.length > 0 ? 'info' : 'success',
+              title: t('refresh.toast.started', { n: res.runs.length }),
+              description:
+                res.skipped.length > 0
+                  ? t('refresh.toast.skipped', { n: res.skipped.length })
+                  : undefined,
+            })
+          }}
+        />
+      )}
     </section>
   )
 }

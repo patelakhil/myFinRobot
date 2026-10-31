@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 import sqlite3
 import time
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
@@ -30,12 +32,14 @@ from finrobot.events import (
     RunCompleted,
     RunEvent,
     RunFailed,
+    RunQueued,
     RunStarted,
     StepCompleted,
     StepRetry,
     StepStarted,
 )
 from finrobot.obs import bind_run
+from finrobot.rate_limit_hint import format_cooldown
 from finrobot.run_store import TERMINAL_RUN_STATUSES, RunRecord, RunStore
 from finrobot.warning_text import safe_error_text
 
@@ -62,9 +66,110 @@ _SSE_POLL_BACKOFF_FACTOR = 2.0
 # cap check in stream_runs_events.
 _MAX_MULTIPLEX_IDS = 50
 
+# Idle keep-alive cadence for the aggregated stream (comment frames carry no
+# event and are ignored by EventSource, but keep the socket demonstrably open
+# while a rate-limit-parked run sits silent for hours).
+_SSE_KEEPALIVE_S = 15.0
 
-async def ensure_llm_reachable(request: Request) -> None:
-    """503 unless the configured (model, key) has passed one live probe.
+
+# ── Run-level rate-limit queueing (BUG-20260615-rl, part 2) ──────────────────
+#
+# Part 1 (engine/pipelines/runner.py) queues a rate-limited STEP on the
+# provider's advertised cool-down. This is the RUN-level half: when the
+# provider is throttling us for longer than a step can reasonably wait — the
+# classic case being OpenRouter's free-tier "free-models-per-day" quota, which
+# rejects even the submit-time probe with 429 — the run is PARKED (status
+# stays `created`, `retry_at` persisted, `run.queued{reason=rate_limited}`
+# streamed) and resumes by itself when the quota resets, instead of being
+# rejected with "fix the API key" (the key is fine; it's throttled) or marked
+# failed for the user to re-submit by hand "tomorrow".
+#
+# Bounds: a park never exceeds _RATE_LIMIT_MAX_DEFER_S (a provider demanding
+# more than that fails fast with the exact cool-down in the message), a run is
+# re-parked at most _RATE_LIMIT_MAX_REQUEUES times, and a parked run holds NO
+# concurrency slot (the semaphore is acquired inside Pipeline.execute, after
+# the park) so queued runs never starve live ones.
+_RATE_LIMIT_MAX_DEFER_S = 36 * 3600.0
+_RATE_LIMIT_DEFAULT_DEFER_S = 60.0
+_RATE_LIMIT_MAX_REQUEUES = 3
+
+# Probe outcomes that mean "the provider is not answering RIGHT NOW, but the
+# key/config is not known to be wrong" — the run is queued and re-probed
+# later instead of rejected. `timeout` is what a throttled provider looks
+# like once the probe is wall-clock bounded (the OpenAI SDK sleeps through
+# Retry-After before retrying); `connect` is a network blip / proxy hiccup.
+# auth / not_found / no_model stay hard rejections: no amount of waiting
+# fixes a wrong key or model id.
+_DEFERRABLE_PROBE_CODES: frozenset[str] = frozenset({"rate_limited", "timeout", "connect"})
+# How long to wait for the post-boot agent warmup when a parked run (restored
+# from the DB after a restart) wakes before the engine is ready.
+_AGENTS_READY_POLL_S = 1.0
+_AGENTS_READY_MAX_WAIT_S = 600.0
+
+
+@dataclass(frozen=True)
+class RateLimitDeferral:
+    """ "Park this run until the provider's quota resets" — the retry plan."""
+
+    retry_after_s: float
+    detail: str
+    origin: Literal["probe", "pipeline"] = "probe"
+    # The probe classification that caused the park (rate_limited / timeout /
+    # connect / pipeline). Only used for the user-facing wording.
+    code: str = "rate_limited"
+
+    @property
+    def retry_at(self) -> datetime:
+        return datetime.now(timezone.utc) + timedelta(seconds=self.retry_after_s)
+
+    @property
+    def retry_at_iso(self) -> str:
+        return self.retry_at.isoformat()
+
+    def user_message(self) -> str:
+        # Key-free: `detail` is the classified probe text / sanitized step
+        # error, which never embeds the API key (it is sent as a header).
+        cause = {
+            "timeout": "AI provider not answering",
+            "connect": "AI provider unreachable",
+        }.get(self.code, "AI model rate-limited")
+        return (
+            f"{cause} ({self.origin}); queued — retrying automatically in "
+            f"{format_cooldown(self.retry_after_s)}. {self.detail}".strip()
+        )
+
+    @classmethod
+    def from_retry_at(cls, retry_at_iso: str, detail: str = "") -> "RateLimitDeferral":
+        """Rebuild a deferral from a persisted ``retry_at`` (startup restore).
+        A stale instant (already past) becomes a zero wait → immediate re-probe."""
+        try:
+            retry_at = datetime.fromisoformat(retry_at_iso)
+        except ValueError:
+            return cls(retry_after_s=0.0, detail=detail)
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=timezone.utc)
+        remaining = (retry_at - datetime.now(timezone.utc)).total_seconds()
+        return cls(retry_after_s=max(0.0, remaining), detail=detail)
+
+
+def _probe_failure_detail(code: str, detail: str) -> str:
+    """The 503 text for a non-rate-limit probe failure, with a fix hint that
+    matches the classified cause (the old one-size-fits-all "fix the API key"
+    sent users chasing the wrong fix for a network blip or a throttle)."""
+    base = f"AI model connection check failed ({code}): {detail or 'provider unreachable'}"
+    if code in ("auth", "no_key"):
+        return f"{base} — fix the API key in Settings → AI Model."
+    if code in ("not_found", "no_model"):
+        return f"{base} — fix the model id in Settings → AI Model."
+    if code in ("connect", "timeout"):
+        return f"{base} — check your network / the provider base URL in Settings → AI Model."
+    return f"{base} — check the provider configuration in Settings → AI Model."
+
+
+async def ensure_llm_reachable(request: Request) -> RateLimitDeferral | None:
+    """503 unless the configured (model, key) has passed one live probe —
+    EXCEPT when the probe was merely rate-limited, which returns a
+    ``RateLimitDeferral`` so the caller can queue the run instead.
 
     Shared by every endpoint that spawns multi-step LLM work (runs).
     ``is_model_configured`` only proves a key EXISTS; this proves it can
@@ -73,6 +178,11 @@ async def ensure_llm_reachable(request: Request) -> None:
     collection and dying inside the first agent step. ``LlmProbeGate`` caches
     success per (model, key) fingerprint (pre-seeded by a green Settings
     auto-test), so steady-state submits make no extra LLM calls.
+
+    A 429 on the probe is NOT a broken key: OpenRouter's free tier answers
+    "Rate limit exceeded: free-models-per-day" with a reset time. Rejecting
+    that with "fix the API key" was both wrong and a dead end (the user had
+    to remember to come back the next day). Now it becomes a queued run.
     """
     # getattr tolerance mirrors run_rate_limiter: unit-test apps skip the server
     # lifespan that normally creates the gate. Unlike the limiter we don't skip
@@ -81,15 +191,29 @@ async def ensure_llm_reachable(request: Request) -> None:
     if gate is None:
         gate = LlmProbeGate()
         request.app.state.llm_probe_gate = gate
-    ok, code, detail = await gate.ensure(request.app.state.deps.settings)
-    if not ok:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                f"AI model connection check failed ({code}): "
-                f"{detail or 'provider unreachable'} — fix the API key in Settings → AI Model."
-            ),
+    result = await gate.ensure_detailed(request.app.state.deps.settings)
+    if result.ok:
+        return None
+    if result.code in _DEFERRABLE_PROBE_CODES:
+        wait = (
+            result.retry_after_s
+            if result.retry_after_s is not None
+            else _RATE_LIMIT_DEFAULT_DEFER_S
         )
+        if wait > _RATE_LIMIT_MAX_DEFER_S:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"AI model rate-limited: the provider's quota resets in "
+                    f"{format_cooldown(wait)}, longer than the "
+                    f"{format_cooldown(_RATE_LIMIT_MAX_DEFER_S)} a run can stay queued — "
+                    f"try again after it resets. {result.detail}"
+                ),
+            )
+        return RateLimitDeferral(
+            retry_after_s=wait, detail=result.detail, origin="probe", code=result.code
+        )
+    raise HTTPException(status_code=503, detail=_probe_failure_detail(result.code, result.detail))
 
 
 def _next_poll_interval(interval: float, *, had_events: bool) -> float:
@@ -113,6 +237,13 @@ class CreateRunRequest(BaseModel):
     meta.parent_artifact_id so the version-diff view can default to comparing
     against the version it was re-run from. None for fresh runs."""
 
+    refresh_integrations: list[str] | None = None
+    """PARTIAL refresh of ``source_artifact_id`` (required with it): only these
+    integration ids (e.g. ``["fmp"]``) may be queried live; every other source
+    is served from cache and steps they cannot affect are carried over from the
+    source report. None / empty = a normal full run. See
+    engine/pipelines/refresh.py."""
+
     @classmethod
     def model_validate_strict(cls, data: Any) -> "CreateRunRequest":
         # Pydantic would happily accept ticker="" — reject early so the
@@ -133,6 +264,15 @@ class CreateRunResponse(BaseModel):
     pipeline_type: str
     ticker: str
     created_at: str
+    # Populated when the run was accepted but PARKED on a provider rate limit
+    # (OpenRouter daily/minute quota hit the submit-time probe): the UTC
+    # instant it resumes, the wait in seconds, and a key-free explanation.
+    # The desktop shows "queued — retrying at 09:00" instead of an error
+    # toast. All None for a run that started normally.
+    queued_reason: Literal["rate_limited"] | None = None
+    retry_at: str | None = None
+    retry_after_s: float | None = None
+    message: str | None = None
 
 
 class RunResult(BaseModel):
@@ -154,6 +294,43 @@ class RunDetail(BaseModel):
     failed_validations: list[dict[str, str]] = []
     steps: dict[str, str] | None = None
     error: str | None = None
+    refresh_integrations: list[str] | None = None
+
+
+def validate_refresh_integrations(
+    request: Request, integrations: list[str] | None, source_artifact_id: str | None
+) -> list[str] | None:
+    """Normalize + validate a partial-refresh integration list (ValueError → 400).
+
+    A partial refresh needs a report to refresh (``source_artifact_id``), known
+    integration ids, and integrations that are actually configured right now —
+    refreshing "with FMP" while no FMP key is set would silently produce a
+    cache-only copy of the old report.
+    """
+    from finrobot.engine.data.integrations import (
+        get_integration,
+        is_configured,
+        unknown_integrations,
+    )
+
+    ids = list(dict.fromkeys(i.strip() for i in (integrations or []) if i and i.strip()))
+    if not ids:
+        return None
+    if not source_artifact_id:
+        raise ValueError("A partial refresh needs source_artifact_id (the report to update).")
+    unknown = unknown_integrations(ids)
+    if unknown:
+        raise ValueError(f"Unknown integration(s): {', '.join(unknown)}")
+    settings = request.app.state.deps.settings
+    not_configured = [
+        i for i in ids if (spec := get_integration(i)) is None or not is_configured(spec, settings)
+    ]
+    if not_configured:
+        raise ValueError(
+            f"Integration(s) not configured: {', '.join(not_configured)} — add the key in "
+            "Settings → Data Sources first."
+        )
+    return ids
 
 
 async def spawn_run(
@@ -163,6 +340,7 @@ async def spawn_run(
     *,
     language: str | None = None,
     source_artifact_id: str | None = None,
+    refresh_integrations: list[str] | None = None,
 ) -> RunRecord:
     """Create a run record and spawn its pipeline task.
 
@@ -210,7 +388,10 @@ async def spawn_run(
     # 等到跑研报才炸" the Settings auto-test was added to kill. Probe once per
     # (model, key) fingerprint; success is cached (and pre-seeded by a green
     # Settings test), so steady-state submits stay free.
-    await ensure_llm_reachable(request)
+    # Validate a partial-refresh request BEFORE the live probe: a bad request
+    # must not cost an LLM ping.
+    refresh_ids = validate_refresh_integrations(request, refresh_integrations, source_artifact_id)
+    deferral = await ensure_llm_reachable(request)
 
     factories = get_pipeline_factories()
     if pipeline_type not in factories:
@@ -225,8 +406,17 @@ async def spawn_run(
         norm,
         language=language,
         source_artifact_id=source_artifact_id,
+        refresh_integrations=refresh_ids,
     )
-    task = asyncio.create_task(_run_pipeline(record.run_id, request))
+    if deferral is not None:
+        # Persist the park BEFORE the task exists so (a) the create response
+        # and GET /api/runs already say "retrying at …" and (b) a restart
+        # between now and the task's first tick restores the run instead of
+        # failing it as an orphan.
+        retry_at = deferral.retry_at_iso
+        await store.set_retry_at(record.run_id, retry_at)
+        record = record.model_copy(update={"retry_at": retry_at})
+    task = asyncio.create_task(_run_pipeline(record.run_id, request, deferral=deferral))
     request.app.state.run_tasks[record.run_id] = task
     return record
 
@@ -250,9 +440,28 @@ async def create_run(request_body: CreateRunRequest, request: Request) -> Create
             request_body.ticker,
             language=request_body.language,
             source_artifact_id=request_body.source_artifact_id,
+            refresh_integrations=request_body.refresh_integrations,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=safe_error_text(exc, limit=500)) from exc
+    # isinstance (not `is not None`): test doubles hand back MagicMock records
+    # whose every attribute is truthy.
+    if isinstance(record.retry_at, str):
+        deferral = RateLimitDeferral.from_retry_at(record.retry_at)
+        return CreateRunResponse(
+            run_id=record.run_id,
+            status="created",
+            pipeline_type=record.pipeline_type,
+            ticker=record.ticker,
+            created_at=record.created_at,
+            queued_reason="rate_limited",
+            retry_at=record.retry_at,
+            retry_after_s=round(deferral.retry_after_s, 1),
+            message=(
+                "AI provider busy or rate-limited; research is queued and will retry "
+                f"automatically in {format_cooldown(deferral.retry_after_s)}."
+            ),
+        )
     return CreateRunResponse(
         run_id=record.run_id,
         status="created",
@@ -275,6 +484,12 @@ class RunSummary(BaseModel):
     created_at: str
     completed_at: str | None = None
     error: str | None = None
+    # Set while the run is parked on a provider rate limit (see
+    # CreateRunResponse.retry_at) — the desktop's restart-reattach uses it to
+    # render the row as "queued — retrying at …" rather than a bare spinner.
+    retry_at: str | None = None
+    # Partial-refresh integrations for this run (None = full run).
+    refresh_integrations: list[str] | None = None
 
 
 @router.get("", response_model=list[RunSummary])
@@ -313,6 +528,10 @@ async def list_runs(
             created_at=r.created_at,
             completed_at=r.completed_at,
             error=r.error,
+            retry_at=r.retry_at if isinstance(r.retry_at, str) else None,
+            refresh_integrations=(
+                r.refresh_integrations if isinstance(r.refresh_integrations, list) else None
+            ),
         )
         for r in records
     ]
@@ -368,7 +587,9 @@ def _format_multiplex_sse(
 
 
 @router.get("/events")
-async def stream_runs_events(ids: str, request: Request) -> StreamingResponse:
+async def stream_runs_events(
+    ids: str, request: Request, cursor: str | None = None
+) -> StreamingResponse:
     """Aggregated SSE stream multiplexing the events of several runs.
 
     ONE EventSource for a whole Coverage batch instead of one per run. The
@@ -422,7 +643,14 @@ async def stream_runs_events(ids: str, request: Request) -> StreamingResponse:
     if not known_ids:
         raise HTTPException(status_code=404, detail=f"No runs found for ids: {ids}")
 
-    cursors = _parse_multiplex_cursor(request.headers.get("last-event-id"))
+    # Resume point: the browser re-sends the last `id:` line as Last-Event-ID
+    # on its automatic reconnects, but a FRESHLY opened EventSource cannot set
+    # headers — and the desktop now re-opens this one shared stream whenever
+    # its live-run set changes (a run started / finished). The ``cursor``
+    # query param carries the same ``id:seq,…`` snapshot for that case so the
+    # still-live runs resume where they were instead of replaying every event
+    # from seq 0. Header wins when both are present (it is the fresher one).
+    cursors = _parse_multiplex_cursor(request.headers.get("last-event-id") or cursor)
     # Seed cursors for every known id (default 0 = from the start) so the id:
     # line always carries a complete snapshot.
     for run_id in known_ids:
@@ -431,10 +659,20 @@ async def stream_runs_events(ids: str, request: Request) -> StreamingResponse:
     async def event_stream() -> AsyncIterator[str]:
         terminal: set[str] = set()
         poll_interval = _SSE_POLL_MIN_INTERVAL
+        last_write = time.monotonic()
         while True:
             if await request.is_disconnected():
                 logger.debug("Aggregated SSE client disconnected — stopping poll")
                 return
+
+            # A run parked on a provider rate limit emits nothing for hours.
+            # A comment line every _SSE_KEEPALIVE_S keeps the idle connection
+            # visibly alive through proxies / webview socket reapers that
+            # drop a silent response, so the park never reads as "stream
+            # disconnected" on the desktop.
+            if time.monotonic() - last_write >= _SSE_KEEPALIVE_S:
+                last_write = time.monotonic()
+                yield ": keepalive\n\n"
 
             had_events = False
             for run_id in known_ids:
@@ -443,6 +681,7 @@ async def stream_runs_events(ids: str, request: Request) -> StreamingResponse:
                 events = await store.get_events_after(run_id, cursors[run_id])
                 for stored in events:
                     had_events = True
+                    last_write = time.monotonic()
                     cursors[run_id] = stored.seq
                     yield _format_multiplex_sse(cursors, run_id, tickers[run_id], stored.event)
 
@@ -503,6 +742,9 @@ async def get_run(run_id: str, request: Request) -> RunDetail:
         failed_validations=failed_validations,
         steps=steps_dict,
         error=record.error,
+        refresh_integrations=(
+            record.refresh_integrations if isinstance(record.refresh_integrations, list) else None
+        ),
     )
 
 
@@ -609,7 +851,9 @@ async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
-async def _run_pipeline(run_id: str, request: Request) -> None:
+async def _run_pipeline(
+    run_id: str, request: Request, *, deferral: RateLimitDeferral | None = None
+) -> None:
     # Concurrency is no longer gated here. The app-wide cap (Semaphore(4),
     # built in server.lifespan) is carried on app.state.deps.run_semaphore and
     # acquired INSIDE Pipeline.execute, so every run path — REST, chat
@@ -619,10 +863,106 @@ async def _run_pipeline(run_id: str, request: Request) -> None:
     # slot, so the "created → running" window now INCLUDES the queue wait while
     # the run waits for a free slot; only the per-step pipeline work follows.
     with bind_run(run_id):
-        await _run_pipeline_impl(run_id, request)
+        await _run_pipeline_impl(run_id, request, deferral=deferral)
 
 
-async def _run_pipeline_impl(run_id: str, request: Request) -> None:
+class RateLimitQueueExhausted(RuntimeError):
+    """A parked run could not be resumed: the provider kept throttling past
+    the queue window / re-queue budget, or came back with a non-rate-limit
+    failure. Carries the user-facing reason; the run-task boundary turns it
+    into the terminal ``failed`` state like any other RuntimeError."""
+
+
+async def _park_for_rate_limit(
+    run_id: str,
+    request: Request,
+    store: RunStore,
+    record: RunRecord,
+    deferral: RateLimitDeferral,
+) -> None:
+    """Hold the run (status `created`, NO concurrency slot) until the provider's
+    quota resets, then confirm with a fresh probe before letting it run.
+
+    Each park is announced with ``run.queued{reason=rate_limited, retry_at}``
+    so the UI shows "queued — retrying at 09:00" (and the event log replays
+    it on reattach), and persisted via ``retry_at`` so a restart restores it.
+    After the wait the probe is repeated: still throttled → park again on the
+    new hint (bounded by the total queue window); any OTHER failure → the
+    run fails with that classified reason; OK → return and run.
+    """
+    total_waited = 0.0
+    current = deferral
+    settings = request.app.state.deps.settings
+    for _ in range(_RATE_LIMIT_MAX_REQUEUES + 1):
+        retry_at = current.retry_at_iso
+        await store.set_retry_at(run_id, retry_at)
+        await _append(
+            store,
+            RunQueued(
+                event="run.queued",
+                run_id=run_id,
+                ticker=record.ticker,
+                reason="rate_limited",
+                retry_at=retry_at,
+                retry_after_s=round(current.retry_after_s, 1),
+                message=safe_error_text(current.user_message(), limit=400),
+            ),
+        )
+        logger.info(
+            "Run %s parked on provider rate limit (%s): retrying at %s (%.0fs)",
+            run_id,
+            current.origin,
+            retry_at,
+            current.retry_after_s,
+        )
+        await asyncio.sleep(current.retry_after_s)
+        total_waited += current.retry_after_s
+
+        gate: LlmProbeGate | None = getattr(request.app.state, "llm_probe_gate", None)
+        if gate is None:
+            gate = LlmProbeGate()
+            request.app.state.llm_probe_gate = gate
+        result = await gate.ensure_detailed(settings)
+        if result.ok:
+            return
+        if result.code not in _DEFERRABLE_PROBE_CODES:
+            raise RateLimitQueueExhausted(_probe_failure_detail(result.code, result.detail))
+        wait = (
+            result.retry_after_s
+            if result.retry_after_s is not None
+            else _RATE_LIMIT_DEFAULT_DEFER_S
+        )
+        if total_waited + wait > _RATE_LIMIT_MAX_DEFER_S:
+            raise RateLimitQueueExhausted(
+                f"AI model still rate-limited after queueing for "
+                f"{format_cooldown(total_waited)}; the provider wants another "
+                f"{format_cooldown(wait)}, past the {format_cooldown(_RATE_LIMIT_MAX_DEFER_S)} "
+                f"queue window — giving up; re-run once the quota resets. {result.detail}"
+            )
+        current = RateLimitDeferral(
+            retry_after_s=wait, detail=result.detail, origin="probe", code=result.code
+        )
+    raise RateLimitQueueExhausted(
+        f"AI model still rate-limited after {_RATE_LIMIT_MAX_REQUEUES + 1} scheduled retries "
+        f"({format_cooldown(total_waited)} queued) — giving up; re-run once the quota resets."
+    )
+
+
+async def _wait_for_agents_ready(request: Request) -> None:
+    """A parked run restored at boot may wake before the post-yield agent
+    warmup has finished — give it a bounded chance to finish rather than
+    handing empty sub_agents to the pipeline factory."""
+    waited = 0.0
+    while not getattr(request.app.state, "agents_ready", True):
+        if waited >= _AGENTS_READY_MAX_WAIT_S:
+            raise RateLimitQueueExhausted("AI engine did not finish starting; re-run the research.")
+        await asyncio.sleep(_AGENTS_READY_POLL_S)
+        waited += _AGENTS_READY_POLL_S
+
+
+async def _run_pipeline_impl(
+    run_id: str, request: Request, *, deferral: RateLimitDeferral | None = None
+) -> None:
     store: RunStore = request.app.state.run_store
     record = await store.get_run(run_id)
     if record is None:
@@ -633,8 +973,11 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
     # the sidecar cold-start import path (tests/unit/test_cold_import.py).
     from pydantic_ai import UnexpectedModelBehavior
     from pydantic_ai.exceptions import AgentRunError
+    from finrobot.engine.pipelines.step import PipelineStepError
 
     started = time.monotonic()
+    pending: RateLimitDeferral | None = deferral
+    requeues = 0
     try:
         # Everything from here lives inside the try: the factory lookup
         # (KeyError when a pipeline was deregistered across a version bump),
@@ -642,20 +985,63 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
         # run BEFORE any handler existed — the task died with no terminal
         # state, the run sat at created/running forever and the SSE stream
         # never broke until the next restart's reconciler.
-        factories = get_pipeline_factories()
-        pipeline = factories[record.pipeline_type](request.app.state.sub_agents)
-        await store.update_run(run_id, status="running")
-        await _append(
-            store,
-            RunStarted(
-                event="run.started",
-                run_id=run_id,
-                pipeline_type=record.pipeline_type,
-                ticker=record.ticker,
-                total_steps=len(pipeline.steps),
-            ),
-        )
-        await _execute_pipeline_run(run_id, request, store, record, pipeline, started)
+        while True:
+            if pending is not None:
+                await _park_for_rate_limit(run_id, request, store, record, pending)
+                pending = None
+                await _wait_for_agents_ready(request)
+                # Un-park: from here on a restart treats the run as a normal
+                # orphan (it is genuinely executing, not waiting).
+                await store.set_retry_at(run_id, None)
+                # The clock starts when the run actually begins executing —
+                # a 20h park must not read as a 20h pipeline.
+                started = time.monotonic()
+            factories = get_pipeline_factories()
+            pipeline = factories[record.pipeline_type](request.app.state.sub_agents)
+            await store.update_run(run_id, status="running")
+            await _append(
+                store,
+                RunStarted(
+                    event="run.started",
+                    run_id=run_id,
+                    pipeline_type=record.pipeline_type,
+                    ticker=record.ticker,
+                    total_steps=len(pipeline.steps),
+                ),
+            )
+            try:
+                await _execute_pipeline_run(run_id, request, store, record, pipeline, started)
+            except PipelineStepError as step_exc:
+                # A critical step died on a PROVIDER RATE LIMIT with a known
+                # cool-down (part 1 already queued it as long as a step may):
+                # park the WHOLE run until the quota resets and start over,
+                # instead of failing it. Bounded by the re-queue budget and
+                # the queue window; anything else propagates as before.
+                wait = step_exc.retry_after_s
+                if (
+                    wait is not None
+                    and requeues < _RATE_LIMIT_MAX_REQUEUES
+                    and wait <= _RATE_LIMIT_MAX_DEFER_S
+                ):
+                    requeues += 1
+                    pending = RateLimitDeferral(
+                        retry_after_s=wait,
+                        detail=safe_error_text(step_exc.error, limit=300),
+                        origin="pipeline",
+                    )
+                    await store.update_run(run_id, status="created")
+                    logger.warning(
+                        "Run %s: step '%s' rate-limited beyond the step queue window — "
+                        "re-queueing the run (%d/%d) for %.0fs",
+                        run_id,
+                        step_exc.step_name,
+                        requeues,
+                        _RATE_LIMIT_MAX_REQUEUES,
+                        wait,
+                    )
+                    continue
+                raise
+            break
     except asyncio.CancelledError:
         # Two callers cancel run tasks: POST /api/runs/{id}/cancel (records
         # intent in app.state.cancel_requested first) and server shutdown
@@ -724,6 +1110,8 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
             # The store itself is down — nothing more to persist; the restart
             # reconciler collects the orphan.
             logger.exception("Run %s: failed to persist terminal state", run_id)
+        else:
+            await _fire_run_finished_hook(request, record, status="failed", error=safe_error)
     finally:
         request.app.state.run_tasks.pop(run_id, None)
         cancel_requested_set(request).discard(run_id)
@@ -751,6 +1139,12 @@ async def _execute_pipeline_run(
     started: float,
 ) -> None:
     class RunProgress:
+        async def on_queued(self) -> None:
+            await _append(
+                store,
+                RunQueued(event="run.queued", run_id=run_id, ticker=record.ticker),
+            )
+
         async def on_step_start(self, step_index: int, total: int, name: str) -> None:
             await _append(
                 store,
@@ -789,6 +1183,23 @@ async def _execute_pipeline_run(
                 ),
             )
 
+        async def on_step_reused(self, step_index: int, total: int, name: str) -> None:
+            # Partial refresh carried this step over from the parent report.
+            await _append(
+                store,
+                StepCompleted(
+                    event="step.completed",
+                    run_id=run_id,
+                    step=step_index,
+                    total=total,
+                    name=name,
+                    duration_s=0.0,
+                    degraded=False,
+                    error=None,
+                    reused=True,
+                ),
+            )
+
         async def on_step_retry(self, step_index: int, name: str, attempt: int, error: str) -> None:
             await _append(
                 store,
@@ -803,12 +1214,14 @@ async def _execute_pipeline_run(
                 ),
             )
 
+    refresh_plan = await _build_refresh_plan(request, record)
     result = await pipeline.execute(
         request.app.state.deps,
         record.ticker,
         progress=RunProgress(),
         lang=record.language,
         source_artifact_id=record.source_artifact_id,
+        refresh=refresh_plan,
     )
     duration_s = round(time.monotonic() - started, 1)
     result_json = _result_to_json(result)
@@ -870,6 +1283,69 @@ async def _execute_pipeline_run(
         from finrobot.routes.dashboard import invalidate_dashboard_caches
 
         invalidate_dashboard_caches()
+    await _fire_run_finished_hook(
+        request, record, status="completed", artifact_id=artifact_id, artifact_type=artifact_type
+    )
+
+
+async def _build_refresh_plan(request: Request, record: RunRecord) -> Any:
+    """The RefreshPlan for a partial-refresh run (None for a full run).
+
+    The parent artifact is loaded so unaffected steps can be carried over; if it
+    has vanished (deleted between submit and run) the run still honours the
+    provider scope — it just re-runs every step (nothing to carry over).
+    """
+    integrations = record.refresh_integrations
+    if not isinstance(integrations, list) or not integrations:
+        return None
+    from finrobot.engine.pipelines.refresh import build_refresh_plan
+
+    parent = None
+    artifact_store = getattr(request.app.state, "artifact_store", None)
+    if artifact_store is not None and record.source_artifact_id:
+        try:
+            parent = await artifact_store.get(record.source_artifact_id)
+        except (OSError, ValueError, sqlite3.Error):
+            logger.warning("Partial refresh: could not load parent %s", record.source_artifact_id)
+    return build_refresh_plan(
+        integrations,
+        data_layer=getattr(request.app.state.deps, "data_layer", None),
+        parent=parent,
+    )
+
+
+async def _fire_run_finished_hook(
+    request: Request,
+    record: RunRecord,
+    *,
+    status: str,
+    artifact_id: str | None = None,
+    artifact_type: str | None = None,
+    error: str | None = None,
+) -> None:
+    """Notify an optional app-level observer that a run reached a terminal state.
+
+    ``app.state.run_finished_hook`` is set by the server lifespan (the
+    Portfolio desk's ResearchNotifier, which turns completions for HELD tickers
+    into bell notifications). Fired AFTER the terminal state is persisted so an
+    observer reading the store sees the finished run. Best-effort: a failing
+    hook is logged and never affects the run's own outcome.
+    """
+    hook = getattr(request.app.state, "run_finished_hook", None)
+    if hook is None or not callable(hook):
+        return
+    try:
+        result = hook(
+            record, status=status, artifact_id=artifact_id, artifact_type=artifact_type, error=error
+        )
+        # Only await a real awaitable — test harnesses that MagicMock app.state
+        # hand back a non-awaitable stub here, which must stay a silent no-op.
+        if inspect.isawaitable(result):
+            await result
+    except asyncio.CancelledError:
+        raise
+    except (sqlite3.Error, RuntimeError, OSError, ValueError, TypeError, KeyError, AttributeError):
+        logger.exception("run_finished_hook failed for run %s", record.run_id)
 
 
 async def _resolve_artifact_type(request: Request, artifact_id: str) -> str | None:

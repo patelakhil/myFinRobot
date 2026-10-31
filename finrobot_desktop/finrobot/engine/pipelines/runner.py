@@ -4,12 +4,14 @@ import asyncio
 import contextlib
 import json
 import logging
+import math
 import time
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from finrobot.engine.deps import FinRobotDeps
+    from finrobot.engine.pipelines.refresh import RefreshPlan
     from finrobot.engine.skills.registry import SkillRegistry
 
 import httpx
@@ -37,14 +39,63 @@ from finrobot.engine.pipelines.result import PipelineResult
 from finrobot.engine.pipelines.step import PipelineStep, PipelineStepError, iter_skill_sections
 from finrobot.engine.pipelines.validators import ValidationResult
 from finrobot.engine.skills.pipeline_methodology import render_pipeline_methodology
+from finrobot.rate_limit_hint import (
+    FATAL_SUBSTRINGS,
+    RATE_LIMIT_SUBSTRINGS,
+    coerce_retry_after_value,
+    extract_retry_after_seconds,
+    is_rate_limit_exception,
+    retry_after_from_text,
+)
 from finrobot.warning_text import safe_error_text
 
 # Seconds to wait before each executor-exception retry (index = attempt number).
+# Used when the upstream response carries NO usable rate-limit hint (see
+# ``_extract_retry_after_seconds`` below) — i.e. the original, config-only
+# back-off. Still the fallback for generic timeouts/connection errors, which
+# have no "come back in N seconds" signal to honour.
 _RETRY_DELAYS = [2, 5, 10]
 
 # Substrings that mark an exception as recoverable (rate-limit / transient).
 # All comparisons are lower-cased.
 _RECOVERABLE_SUBSTRINGS = ("429", "rate limit", "too many requests", "timeout")
+
+# ── Response-driven rate-limit queueing (BUG-20260615-rl) ────────────────────
+#
+# Previously every recoverable exception — including an OpenRouter 429 — was
+# retried on the SAME fixed [2, 5, 10]s schedule regardless of what the
+# provider actually asked for. OpenRouter (like OpenAI) returns a `Retry-After`
+# (seconds or HTTP-date) or `X-RateLimit-Reset` (epoch ms) header on 429s; a
+# per-minute throttle's real cool-down is routinely 15-60s, well past the 17s
+# the old fixed schedule ever waited — so the run burned its whole retry
+# budget and was marked FAILED while the provider would have let the very
+# next request through a few seconds later, forcing the user to notice and
+# retry by hand (often "the next day" once they assume it's a hard quota).
+#
+# The fix: when a rate-limit exception exposes a Retry-After-shaped hint
+# (header on the underlying httpx.Response reachable via the pydantic_ai
+# `raise ... from e` cause chain, OR a "try again in Ns" phrase some providers
+# inline into the error body), QUEUE for that long instead of the static
+# delay, and — only for this specific, provider-confirmed case — grant a
+# bounded number of EXTRA attempts beyond ``max_retries`` so a short per-minute
+# throttle can clear without exhausting the normal validation-retry budget.
+# Both the per-wait and total-queued time are capped so a daily-quota 429
+# (Retry-After: 86400) can never hang a run / hold its concurrency slot for
+# hours — it fails FAST with the exact cool-down in the message instead.
+_RATE_LIMIT_MAX_SINGLE_WAIT_S = 90.0
+_RATE_LIMIT_MAX_TOTAL_QUEUE_S = 300.0
+_RATE_LIMIT_MAX_BONUS_ATTEMPTS = 6
+
+# The hint-extraction helpers live in the stdlib-only ``finrobot.rate_limit_hint``
+# module (shared with the submit-time LLM probe gate in routes/runs.py, which
+# must stay off the pydantic_ai cold-start path). Re-bound under the private
+# names the pipeline tests target.
+_RATE_LIMIT_SUBSTRINGS = RATE_LIMIT_SUBSTRINGS
+_coerce_retry_after_value = coerce_retry_after_value
+_retry_after_from_text = retry_after_from_text
+_extract_retry_after_seconds = extract_retry_after_seconds
+_is_rate_limit_exception = is_rate_limit_exception
+
 
 # Substrings that mark an exception as a non-recoverable error that must NOT be
 # retried. Two classes:
@@ -56,23 +107,7 @@ _RECOVERABLE_SUBSTRINGS = ("429", "rate limit", "too many requests", "timeout")
 #     a green ✓ on the step followed by a confusing crash downstream at
 #     peer_analysis ("target FinancialData not available"). Aborting now surfaces
 #     the real context-length message instead.
-_FATAL_SUBSTRINGS = (
-    "insufficient balance",
-    "maximum context length",
-    "context_length_exceeded",
-    "reduce the length of the messages",
-    # Auth / bad-request errors are NOT transient — retrying just burns quota and
-    # delays a clear failure. A wrong API key, an unknown model id, or a 4xx are
-    # the user's config to fix, not something a retry will heal.
-    "invalid api key",
-    "incorrect api key",
-    "authentication",
-    "unauthorized",
-    "invalid_api_key",
-    "permission",
-    "model not found",
-    "does not exist",
-)
+_FATAL_SUBSTRINGS = FATAL_SUBSTRINGS
 
 # The step-boundary exception set: a NON-critical step whose executor raises a
 # non-recoverable error must DEGRADE (failed_validations + continue), not kill
@@ -97,6 +132,29 @@ _STEP_BOUNDARY_EXCEPTIONS = (
     json.JSONDecodeError,
     httpx.HTTPError,
 )
+
+
+def _stamp_integration_tags(
+    artifact: Any, deps: "FinRobotDeps", refresh: "RefreshPlan | None"
+) -> None:
+    """Tag the artifact with the integrations wired for this run (+ refresh tags).
+
+    Best-effort metadata: any failure leaves the tags untouched rather than
+    blocking the persist.
+    """
+    from finrobot.engine.data.integrations import INTEGRATIONS_TAG_PREFIX, integrations_tag
+
+    try:
+        providers = getattr(getattr(deps, "data_layer", None), "_providers", None) or []
+        names = [str(p.name) for p in providers if isinstance(getattr(p, "name", None), str)]
+        tags = [t for t in artifact.meta.tags if not t.startswith(INTEGRATIONS_TAG_PREFIX)]
+        if names:
+            tags.append(integrations_tag(names))
+        if refresh is not None:
+            tags.extend(t for t in refresh.tags() if t not in tags)
+        artifact.meta.tags = tags
+    except (AttributeError, TypeError, ValueError):
+        logger.debug("Could not stamp integration tags", exc_info=True)
 
 
 def _resolve_step_methodology(step: PipelineStep, skill_runtime: "SkillRegistry | None") -> str:
@@ -442,6 +500,12 @@ class Pipeline:
     steps: list[PipelineStep]
     max_retries: int = 3
     artifact_builder: ArtifactBuilder | None = None
+    last_rate_limit_retry_after_s: float | None = field(default=None, init=False, repr=False)
+    """Set by ``_run_step`` when a step gave up on a PROVIDER RATE LIMIT whose
+    advertised cool-down is known: the seconds the provider still wants us to
+    wait. Threaded onto the ``PipelineStepError`` a critical step raises so the
+    run-task boundary (routes/runs.py) can re-QUEUE the whole run until the
+    quota resets instead of marking it failed. None for every other failure."""
     """Optional callable that converts a PipelineResult into an Artifact.
 
     When set and deps.artifact_store is not None, execute() will call
@@ -459,8 +523,18 @@ class Pipeline:
         progress: ProgressCallback | None = None,
         lang: str | None = None,
         source_artifact_id: str | None = None,
+        refresh: "RefreshPlan | None" = None,
         **kwargs: object,
     ) -> "PipelineResult":
+        """Run every step and persist the artifact.
+
+        ``refresh`` (a partial refresh, see ``engine/pipelines/refresh.py``)
+        restricts LIVE provider calls to the refreshed integrations for the
+        whole run — via a context-scoped provider allow-list the DataLayer
+        honours, so every nested fetch (including ones spawned in gathered
+        tasks) inherits it — and lets unaffected steps be carried over from the
+        parent artifact instead of re-run.
+        """
         # Gate the WHOLE run on the app-wide concurrency cap when deps carries
         # one (BUG-017). Acquiring here — not in routes/runs.py — means EVERY
         # caller that passes deps with a semaphore is capped: the REST runner,
@@ -469,15 +543,28 @@ class Pipeline:
         # double-acquire / deadlock risk). deps.run_semaphore is None for
         # single-invocation CLI/SDK processes → nullcontext → no cap.
         semaphore = getattr(deps, "run_semaphore", None)
+        # No free slot → tell the caller before blocking, so a run waiting
+        # behind slow ones reads as queued rather than hung. Optional hook: only
+        # the REST progress (routes/runs.py) implements it.
+        on_queued = getattr(progress, "on_queued", None)
+        if semaphore is not None and semaphore.locked() and on_queued is not None:
+            await on_queued()
+        scope_cm: contextlib.AbstractContextManager[object] = contextlib.nullcontext()
+        if refresh is not None:
+            from finrobot.engine.data.scope import provider_scope
+
+            scope_cm = provider_scope(refresh.live_providers, label=refresh.label)
         async with semaphore if semaphore is not None else contextlib.nullcontext():
-            return await self._execute_steps(
-                deps,
-                ticker,
-                progress=progress,
-                lang=lang,
-                source_artifact_id=source_artifact_id,
-                **kwargs,
-            )
+            with scope_cm:
+                return await self._execute_steps(
+                    deps,
+                    ticker,
+                    progress=progress,
+                    lang=lang,
+                    source_artifact_id=source_artifact_id,
+                    refresh=refresh,
+                    **kwargs,
+                )
 
     async def _execute_steps(
         self,
@@ -486,6 +573,7 @@ class Pipeline:
         progress: ProgressCallback | None = None,
         lang: str | None = None,
         source_artifact_id: str | None = None,
+        refresh: "RefreshPlan | None" = None,
         **kwargs: object,
     ) -> "PipelineResult":
         results: dict[str, str] = {}
@@ -510,6 +598,24 @@ class Pipeline:
             logger.info(f"Step {i}/{total}: {step.name}...")
             if progress is not None:
                 await progress.on_step_start(i, total, step.name)
+
+            # Partial refresh: restore a step the refreshed integrations cannot
+            # affect from the parent report — no fetches, no LLM call.
+            if refresh is not None:
+                restored = refresh.rehydrate(step)
+                if restored is not None:
+                    structured_results.update(restored)
+                    results[step.name] = refresh.carried_text(step)
+                    refresh.carried_over.append(step.name)
+                    logger.info(f"Step {i}/{total}: {step.name} ↺ carried over")
+                    if progress is not None:
+                        on_reused = getattr(progress, "on_step_reused", None)
+                        if on_reused is not None:
+                            await on_reused(i, total, step.name)
+                        else:
+                            await progress.on_step_end(i, total, step.name, 0.0, None)
+                    continue
+                refresh.rerun.append(step.name)
 
             step_data = await self._gather_data(
                 deps,
@@ -605,7 +711,11 @@ class Pipeline:
                         step.name,
                         validation_error,
                     )
-                    raise PipelineStepError(step.name, validation_error)
+                    raise PipelineStepError(
+                        step.name,
+                        validation_error,
+                        retry_after_s=self.last_rate_limit_retry_after_s,
+                    )
 
             if progress is not None:
                 # Pass validation_error through so a degraded (non-critical,
@@ -618,6 +728,9 @@ class Pipeline:
                 logger.info(f"Step {i}/{total}: {step.name} ⚠ degraded")
             else:
                 logger.info(f"Step {i}/{total}: {step.name} ✓")
+
+        if refresh is not None:
+            run_warnings.append(refresh.summary_warning())
 
         pipeline_result = PipelineResult(
             steps=results,
@@ -644,6 +757,9 @@ class Pipeline:
                 # only the fallback when the chain is absent (legacy / fresh runs).
                 if source_artifact_id is not None:
                     artifact.meta.parent_artifact_id = source_artifact_id
+                # Record which integrations were wired for this run so a later
+                # partial refresh can tell which reports never saw e.g. FMP.
+                _stamp_integration_tags(artifact, deps, refresh)
                 # Output-contract total gate: the single persist boundary every
                 # artifact type converges on. Whole-artifact invariants the
                 # upstream fragment gates are structurally blind to (headline
@@ -753,22 +869,38 @@ class Pipeline:
         Non-recoverable exceptions (e.g. "Insufficient Balance" 402) propagate
         immediately without consuming any retry budget.
 
+        A RATE-LIMIT exception (429 / "rate limit" / "too many requests") that
+        exposes a provider-advertised cool-down (Retry-After header / reset
+        header / "try again in Ns" message text — see
+        ``_extract_retry_after_seconds``) is QUEUED for that long instead of the
+        static [2, 5, 10]s schedule, and — once the normal ``max_retries``
+        budget is exhausted — gets a bounded number of EXTRA queued attempts
+        (``_RATE_LIMIT_MAX_BONUS_ATTEMPTS``, capped at
+        ``_RATE_LIMIT_MAX_TOTAL_QUEUE_S`` total wait) so a short per-minute
+        throttle clears without failing the run. A cool-down that would exceed
+        the total queue window (e.g. a daily quota) aborts immediately with the
+        exact wait the provider asked for in the message, instead of queueing
+        for hours or silently retrying the same fixed schedule forever.
+
         Returns the validation error string if the step failed after all retries,
         or None if the step succeeded.
         """
         # ── helpers ────────────────────────────────────────────────────────────
 
         async def _attempt_with_exc_retry(
-            current_prompt: str, budget: int
-        ) -> tuple["ValidationResult | None", str | None, int]:
+            current_prompt: str,
+        ) -> tuple["ValidationResult | None", str | None, BaseException | None]:
             """Run _attempt, catching recoverable exceptions as retry signals.
 
-            Returns (validation_result, exc_error_str, remaining_budget).
-            - If the attempt succeeds or fails validation normally, exc_error_str is None.
-            - If a recoverable exception fires, validation_result is None and
-              exc_error_str carries the error message.
-            - A non-recoverable exception propagates immediately (budget is not
-              consumed).
+            Returns (validation_result, exc_error_str, exc_obj).
+            - If the attempt succeeds or fails validation normally, exc_error_str
+              and exc_obj are both None.
+            - If a recoverable exception fires, validation_result is None,
+              exc_error_str carries the sanitized message, and exc_obj is the
+              raw exception (kept so the rate-limit-queue logic below can read
+              response headers off it — never shown to the user directly).
+            - A non-recoverable exception propagates immediately (no retry
+              budget consumed).
             """
             try:
                 val = await self._attempt(
@@ -781,14 +913,15 @@ class Pipeline:
                     step_kwargs,
                     run_warnings=run_warnings,
                 )
-                return val, None, budget
+                return val, None, None
             except BaseException as exc:
                 if not _is_recoverable_exception(exc):
                     raise
-                return None, safe_error_text(exc), budget
+                return None, safe_error_text(exc), exc
 
         # ── first attempt ──────────────────────────────────────────────────────
-        validation, exc_err, _ = await _attempt_with_exc_retry(prompt, self.max_retries)
+        self.last_rate_limit_retry_after_s = None
+        validation, exc_err, exc_obj = await _attempt_with_exc_retry(prompt)
 
         # Fast path: first attempt succeeded with valid output.
         if validation is not None and validation.passed:
@@ -814,7 +947,28 @@ class Pipeline:
             return validation.error
 
         # ── unified retry loop ─────────────────────────────────────────────────
-        for attempt in range(self.max_retries):
+        # `std_attempt` mirrors the old `attempt` counter 1:1 (bounds the
+        # config-driven budget + _RETRY_DELAYS indexing — unchanged semantics,
+        # so every pre-existing call-count assertion keeps holding). Only once
+        # it is exhausted does the loop condition fall through to the bonus
+        # arm, which is gated on the CURRENT failure actually being a
+        # provider-confirmed rate limit — anything else ends the loop exactly
+        # where it always did.
+        std_attempt = 0
+        bonus_attempt = 0
+        rate_limit_queued_s = 0.0
+        queue_window_exceeded = False
+
+        while std_attempt < self.max_retries or (
+            exc_err is not None
+            and exc_obj is not None
+            and _is_rate_limit_exception(exc_obj)
+            and bonus_attempt < _RATE_LIMIT_MAX_BONUS_ATTEMPTS
+            and rate_limit_queued_s < _RATE_LIMIT_MAX_TOTAL_QUEUE_S
+        ):
+            in_bonus_phase = std_attempt >= self.max_retries
+            total_attempt_no = std_attempt + bonus_attempt + 1
+
             # Determine the error label and the prompt to use on the next attempt.
             if exc_err is not None:
                 error_label = exc_err
@@ -841,35 +995,130 @@ class Pipeline:
                 )
 
             logger.warning(
-                "Step '%s' retry %d/%d: %s",
+                "Step '%s' retry %d%s: %s",
                 step.name,
-                attempt + 1,
-                self.max_retries,
+                total_attempt_no,
+                " (rate-limit queue)" if in_bonus_phase else f"/{self.max_retries}",
                 error_label,
             )
             if progress is not None:
-                await progress.on_step_retry(step_index, step.name, attempt + 1, error_label)
+                await progress.on_step_retry(step_index, step.name, total_attempt_no, error_label)
 
             # Back-off only for executor exceptions (not for validation failures,
             # which benefit from an immediate re-prompt rather than sleeping).
-            if exc_err is not None and attempt < len(_RETRY_DELAYS):
-                await asyncio.sleep(_RETRY_DELAYS[attempt])
+            if exc_err is not None:
+                assert exc_obj is not None
+                retry_after = (
+                    _extract_retry_after_seconds(exc_obj)
+                    if _is_rate_limit_exception(exc_obj)
+                    else None
+                )
+                # Defense in depth: a non-finite value can never reach here
+                # given the guard inside _coerce_retry_after_value, but a
+                # future extraction path must not be trusted blindly either.
+                if retry_after is not None and not math.isfinite(retry_after):
+                    retry_after = None
+                if retry_after is not None:
+                    # Provider told us exactly how long to wait — queue for
+                    # that (capped), not the blind fixed schedule.
+                    wait_s = min(max(retry_after, 0.0), _RATE_LIMIT_MAX_SINGLE_WAIT_S)
+                    if (
+                        retry_after > _RATE_LIMIT_MAX_TOTAL_QUEUE_S
+                        or rate_limit_queued_s + wait_s > _RATE_LIMIT_MAX_TOTAL_QUEUE_S
+                    ):
+                        # A cool-down longer than the whole step queue window
+                        # (a daily quota asking for hours) is not something a
+                        # capped 90s nap can wait out — retrying early would
+                        # just hammer the provider. Hand it straight up: the
+                        # run-task boundary re-parks the WHOLE run until the
+                        # quota resets (routes/runs.py).
+                        # Honouring it would blow the total queue budget (e.g.
+                        # a daily-quota 429 asking for hours) — stop queueing
+                        # and fail fast with the real number in the message
+                        # instead of blocking this run's concurrency slot.
+                        queue_window_exceeded = True
+                        break
+                    logger.info(
+                        "Step '%s': provider asked for a %.1fs cool-down "
+                        "(rate limit) — queueing instead of failing "
+                        "(%.1fs/%.0fs total queued so far).",
+                        step.name,
+                        wait_s,
+                        rate_limit_queued_s + wait_s,
+                        _RATE_LIMIT_MAX_TOTAL_QUEUE_S,
+                    )
+                    await asyncio.sleep(wait_s)
+                    rate_limit_queued_s += wait_s
+                elif in_bonus_phase:
+                    # Bonus phase is only entered for a confirmed rate limit,
+                    # but this particular exception didn't expose a parsable
+                    # hint — use a bounded generic cool-down rather than
+                    # hammering the provider every loop iteration.
+                    fallback_wait = min(
+                        _RATE_LIMIT_MAX_SINGLE_WAIT_S / 3,
+                        _RATE_LIMIT_MAX_TOTAL_QUEUE_S - rate_limit_queued_s,
+                    )
+                    await asyncio.sleep(max(fallback_wait, 0.0))
+                    rate_limit_queued_s += max(fallback_wait, 0.0)
+                elif std_attempt < len(_RETRY_DELAYS):
+                    await asyncio.sleep(_RETRY_DELAYS[std_attempt])
 
-            validation, exc_err, _ = await _attempt_with_exc_retry(
-                retry_prompt, self.max_retries - attempt - 1
-            )
+            validation, exc_err, exc_obj = await _attempt_with_exc_retry(retry_prompt)
 
             if validation is not None and validation.passed:
                 return None
 
+            if in_bonus_phase:
+                bonus_attempt += 1
+            else:
+                std_attempt += 1
+
         # ── all retries exhausted ──────────────────────────────────────────────
+        total_attempts_made = std_attempt + bonus_attempt
+        if queue_window_exceeded:
+            assert exc_err is not None and exc_obj is not None
+            retry_after = _extract_retry_after_seconds(exc_obj)
+            self.last_rate_limit_retry_after_s = retry_after
+            final_error = (
+                f"executor error after {total_attempts_made} retries "
+                f"({rate_limit_queued_s:.0f}s queued on rate-limit cool-downs): "
+                f"provider requires "
+                f"{'another ' + format(retry_after, '.0f') + 's' if retry_after is not None else 'a longer'} "
+                f"wait, which exceeds the {_RATE_LIMIT_MAX_TOTAL_QUEUE_S:.0f}s queue "
+                f"window — aborting instead of blocking the run; retry once the "
+                f"provider's rate limit resets. {exc_err}"
+            )
+            logger.warning(
+                "Pipeline step '%s' still rate-limited after queueing %.0fs "
+                "(provider wants more) — exceeds the %.0fs queue window; "
+                "aborting instead of continuing to block: %s",
+                step.name,
+                rate_limit_queued_s,
+                _RATE_LIMIT_MAX_TOTAL_QUEUE_S,
+                exc_err,
+            )
+            return final_error
+
         if exc_err is not None:
-            final_error = f"executor error after {self.max_retries} retries: {exc_err}"
+            assert exc_obj is not None
+            if _is_rate_limit_exception(exc_obj):
+                # Still throttled after every attempt: carry the provider's
+                # latest cool-down (or None if it never said) so a critical
+                # step's abort can be turned into a run-level re-queue.
+                self.last_rate_limit_retry_after_s = _extract_retry_after_seconds(exc_obj)
+            if bonus_attempt:
+                final_error = (
+                    f"executor error after {total_attempts_made} retries "
+                    f"({self.max_retries} standard + {bonus_attempt} rate-limit "
+                    f"queue, {rate_limit_queued_s:.0f}s queued total): {exc_err}"
+                )
+            else:
+                final_error = f"executor error after {total_attempts_made} retries: {exc_err}"
             logger.warning(
                 "Pipeline step '%s' executor failed after %d retries: %s. "
                 "Continuing with best-effort output.",
                 step.name,
-                self.max_retries,
+                total_attempts_made,
                 exc_err,
             )
             return final_error
@@ -879,7 +1128,7 @@ class Pipeline:
             "Pipeline step '%s' failed validation after %d retries: %s. "
             "Continuing with best-effort output.",
             step.name,
-            self.max_retries,
+            total_attempts_made,
             validation.error,
         )
         return validation.error

@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useI18n } from '../i18n'
-import { useCoverageStore } from '../stores/coverageStore'
+import { HOLDING_VIEWS, useCoverageStore, type HoldingView } from '../stores/coverageStore'
 import { useCoverageGroups, useCoverageOverview } from '../hooks/useCoverage'
 import { CoverageEmptyState } from '../components/coverage/CoverageEmptyState'
 import { CoverageCardGrid } from '../components/coverage/CoverageCardGrid'
@@ -34,6 +34,10 @@ export function CoveragePage(): React.ReactElement {
   // One shipped density (comfort). The toggle was cut; the store field stays so
   // the card/grid sizing props keep working, pinned to comfort.
   const density = useCoverageStore((s) => s.density)
+  // Holding strip facet (holdings / P&L / today / off) — shown on held names'
+  // cards; the switcher only appears when the wall contains at least one.
+  const holdingView = useCoverageStore((s) => s.holdingView)
+  const setHoldingView = useCoverageStore((s) => s.setHoldingView)
 
   // Market-degraded retry bar (BUG-032): the cache-only paint filled the table
   // but the network revalidate failed, so the numbers are last-known (possibly
@@ -52,6 +56,7 @@ export function CoveragePage(): React.ReactElement {
 
   // The whole universe, always — ordered urgent-first for a stable, useful wall.
   const visibleRows = useMemo(() => sortCoverageRows(rows, DEFAULT_SORT), [rows])
+  const anyHeld = useMemo(() => rows.some((r) => r.holding !== null), [rows])
 
   // Re-arm the market-degraded retry bar on each fresh failure: when marketError
   // flips false→true (e.g. a retry failed again, or a new group's revalidate
@@ -114,10 +119,12 @@ export function CoveragePage(): React.ReactElement {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
+          gap: 16,
           marginBottom: 14,
           flexShrink: 0,
         }}
       >
+        {anyHeld && <HoldingViewSwitch value={holdingView} onChange={setHoldingView} />}
         <CoverageRefreshControl
           refreshing={overviewQuery.refreshing}
           noop={overviewQuery.refreshNoop}
@@ -163,9 +170,46 @@ export function CoveragePage(): React.ReactElement {
             density={density}
             marketPending={overviewQuery.marketPending}
             onOpen={(ticker) => navigate(`/stocks/${ticker}`)}
+            holdingView={holdingView}
           />
         )}
       </div>
+    </div>
+  )
+}
+
+// Which facet of the user's position a held name's card shows. A tiny
+// segmented control — the only chrome on this page besides refresh — because
+// "what do I want to see about what I own" is a per-person preference
+// (holdings vs overall P&L vs today's move), persisted in coverageStore.
+function HoldingViewSwitch({
+  value,
+  onChange,
+}: {
+  value: HoldingView
+  onChange: (v: HoldingView) => void
+}): React.ReactElement {
+  const { t } = useI18n()
+  return (
+    <div
+      className="coverage-holding-switch"
+      role="radiogroup"
+      aria-label={t('coverage.holding.switchAria')}
+      data-testid="holding-view-switch"
+    >
+      {HOLDING_VIEWS.map((v) => (
+        <button
+          key={v}
+          type="button"
+          role="radio"
+          aria-checked={value === v}
+          className={`coverage-holding-switch__opt${value === v ? ' is-active' : ''}`}
+          onClick={() => onChange(v)}
+          data-testid={`holding-view-${v}`}
+        >
+          {t(`coverage.holding.view.${v}`)}
+        </button>
+      ))}
     </div>
   )
 }

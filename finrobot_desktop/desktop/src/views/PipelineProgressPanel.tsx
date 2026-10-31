@@ -12,12 +12,13 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRunStreamStore } from '../stores/runStreamStore'
 import { useI18n, tSync } from '../i18n'
+import { formatRetryAt } from '../utils/format'
 
 // Backend Pipeline.max_retries — mirrored here only to render "重试中 n/3".
 const MAX_RETRIES = 3
 
 // Backend step names → i18n key suffixes. Labels/help resolved via t() at render.
-const STEP_KEYS: Record<string, string> = {
+export const STEP_KEYS: Record<string, string> = {
   data_collection: 'dataCollection',
   catalyst_analysis: 'catalystAnalysis',
   peer_analysis: 'peerAnalysis',
@@ -53,7 +54,7 @@ export function PipelineProgressPanel({
   const dismiss = useRunStreamStore((s) => s.dismiss)
   const cancelRun = useRunStreamStore((s) => s.cancelRun)
   const navigate = useNavigate()
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
 
   // 1s heartbeat while running — re-renders so the elapsed counters tick. This
   // is the core "is it alive or hung?" signal: a long step (SEC fetches run
@@ -146,9 +147,18 @@ export function PipelineProgressPanel({
                   ? t('workspace.pipeline.statusCancelled', {
                       name: labelForPipeline(run.pipelineType),
                     })
-                  : t('workspace.pipeline.statusGenerating', {
-                      name: labelForPipeline(run.pipelineType),
-                    })}
+                  : run.queued && run.queuedReason === 'rate_limited'
+                    ? t('workspace.pipeline.statusRateLimited', {
+                        name: labelForPipeline(run.pipelineType),
+                        time: formatRetryAt(run.retryAt, locale),
+                      })
+                    : run.queued
+                      ? t('workspace.pipeline.statusQueued', {
+                          name: labelForPipeline(run.pipelineType),
+                        })
+                      : t('workspace.pipeline.statusGenerating', {
+                          name: labelForPipeline(run.pipelineType),
+                        })}
           </span>
           {run.status === 'running' && (
             <span
@@ -332,6 +342,14 @@ export function PipelineProgressPanel({
                 >
                   {t('workspace.pipeline.degraded')}
                   {typeof step.duration_s === 'number' ? ` · ${step.duration_s.toFixed(1)}s` : ''}
+                </span>
+              ) : step.status === 'completed' && step.reused ? (
+                <span
+                  style={{ ...numStyle, color: 'var(--text-muted)' }}
+                  title={t('workspace.pipeline.reusedHint')}
+                  data-testid={`pipeline-step-reused-${step.name}`}
+                >
+                  {t('workspace.pipeline.reused')}
                 </span>
               ) : step.status === 'completed' && typeof step.duration_s === 'number' ? (
                 <span style={numStyle}>{step.duration_s.toFixed(1)}s</span>

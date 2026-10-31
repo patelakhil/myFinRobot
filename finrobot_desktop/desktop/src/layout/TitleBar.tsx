@@ -22,6 +22,7 @@ import { UpdatePill } from '../components/UpdatePill'
 import { AI_CHAT_ENABLED } from '../config/features'
 import { SETTINGS_ALLOWED } from '../config/deployment'
 import { BrandAbout } from '../components/BrandAbout'
+import { NotificationBell } from '../components/NotificationBell'
 
 interface NavDoor {
   /** i18n message id resolved at render time. */
@@ -66,6 +67,16 @@ const CoverageIcon = (
   </svg>
 )
 
+// Portfolio — a briefcase (the book of what the user actually holds).
+const PortfolioIcon = (
+  <svg {...ICON_PROPS}>
+    <rect x="3" y="8" width="18" height="12" rx="2" />
+    <path d="M9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+    <path d="M3 13h18" />
+    <path d="M10 13v2h4v-2" />
+  </svg>
+)
+
 // Settings — the universally-legible cog.
 const SettingsIcon = (
   <svg {...ICON_PROPS}>
@@ -74,8 +85,8 @@ const SettingsIcon = (
   </svg>
 )
 
-// The three top-level product doors (router.tsx: "Research, Coverage, and
-// Settings"). Research owns the per-ticker workspace (/stocks/:ticker);
+// The top-level product doors (router.tsx: Research, Coverage, Portfolio, and
+// Settings). Research owns the per-ticker workspace (/stocks/:ticker);
 // Settings is standalone.
 const DOORS: NavDoor[] = [
   {
@@ -89,6 +100,12 @@ const DOORS: NavDoor[] = [
     path: '/coverage',
     activePaths: ['/coverage'],
     icon: CoverageIcon,
+  },
+  {
+    labelKey: 'nav.portfolio',
+    path: '/portfolio',
+    activePaths: ['/portfolio'],
+    icon: PortfolioIcon,
   },
   {
     labelKey: 'nav.settings',
@@ -156,8 +173,9 @@ export function TitleBar(): React.ReactElement {
         })}
       </nav>
 
-      {/* Right rail — conditional update pill + AI panel toggle. */}
+      {/* Right rail — notification bell + conditional update pill + AI panel toggle. */}
       <div className="tb-rail">
+        <NotificationBell />
         <UpdatePill />
         {AI_CHAT_ENABLED ? (
           <button

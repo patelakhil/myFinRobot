@@ -61,6 +61,11 @@ interface Props {
   variant?: 'hero' | 'floating' | 'backdrop'
   /** Show the cyan "AI Analyst" chip in the corner. Defaults true on hero, false elsewhere. */
   showStatusChip?: boolean
+  /** Privacy gate (Settings → Privacy & network → decorative_remote_assets).
+   *  True → never import the viewer or touch spline.design / unpkg; the
+   *  CSS-only rings render instead. Callers pass true while the setting is
+   *  still unknown, so a default the user turned off can't leak a request. */
+  disabled?: boolean
 }
 
 declare module 'react' {
@@ -80,7 +85,11 @@ declare module 'react' {
   }
 }
 
-export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.ReactElement {
+export function SplineHero({
+  variant = 'hero',
+  showStatusChip,
+  disabled = false,
+}: Props): React.ReactElement {
   const containerRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading')
   const [visible, setVisible] = useState(true)
@@ -96,8 +105,10 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
   // The actual render condition: tab visible + scrolled into view. When either
   // flips false we render the static FakeRobotRings fallback (or nothing for
   // the backdrop variant) instead of the WebGL viewer — that's the heat saver.
-  // There is no user opt-out: the robot is always on by design.
-  const allowed = pageActive && visible && hasLayout
+  // The only opt-out is the privacy gate (`disabled`): the remote scene is
+  // cosmetic, so a user who'd rather not contact spline.design/unpkg gets the
+  // rings permanently.
+  const allowed = !disabled && pageActive && visible && hasLayout
 
   // Unmount the WebGL viewer only when the tab is actually HIDDEN
   // (visibilitychange) — that's the real heat-saver. We deliberately do NOT

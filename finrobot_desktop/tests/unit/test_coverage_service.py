@@ -1034,3 +1034,38 @@ def test_refresh_noop_not_serialized_per_row() -> None:
     payload (the client reads the overview-level refresh_noop)."""
     dumped = CoverageRow(ticker="AAPL", market_refresh_noop=True).model_dump()
     assert "market_refresh_noop" not in dumped
+
+
+# ── Portfolio holding join ───────────────────────────────────────────────────
+
+
+def test_mark_holding_computes_pnl_and_withholds_on_mismatch() -> None:
+    from finrobot.coverage.models import CoverageRow, HoldingInput
+    from finrobot.coverage.service import mark_holding
+
+    h = HoldingInput(
+        units=10, cost_basis=1000.0, cost_currency="USD", realized_pnl=50.0, realized_cost=200.0
+    )
+    row = CoverageRow(ticker="AAPL", price=120.0, change_pct_1d=5.0, currency="USD")
+    out = mark_holding(h, row)
+    assert out.avg_cost_per_unit == 100.0
+    assert out.market_value == 1200.0
+    assert out.unrealized_pnl == 200.0 and out.unrealized_pnl_pct == 0.2
+    # day move: price 120 after +5% → prev 114.2857 → 5.714/unit × 10
+    assert out.day_pnl == pytest.approx(10 * (120 - 120 / 1.05))
+    assert out.total_pnl == 250.0 and out.total_pnl_pct == pytest.approx(250 / 1200)
+    assert out.currency_mismatch is False
+
+    hk = mark_holding(h, CoverageRow(ticker="0700.HK", price=300.0, currency="HKD"))
+    assert hk.market_value == 3000.0 and hk.unrealized_pnl is None and hk.currency_mismatch is True
+
+    cold = mark_holding(h, CoverageRow(ticker="AAPL"))
+    assert cold.market_value is None and cold.avg_cost_per_unit == 100.0
+
+    closed = mark_holding(
+        HoldingInput(
+            units=0, cost_basis=0, cost_currency="USD", realized_pnl=-40.0, realized_cost=400.0
+        ),
+        CoverageRow(ticker="GONE"),
+    )
+    assert closed.total_pnl == -40.0 and closed.total_pnl_pct == pytest.approx(-0.1)
