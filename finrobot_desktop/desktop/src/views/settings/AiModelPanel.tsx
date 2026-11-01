@@ -273,7 +273,7 @@ export function AiModelPanel({
                 className="settings-input"
                 value={draftProvider.name}
                 onChange={(e) => setDraftProvider((d) => ({ ...d, name: e.target.value }))}
-                placeholder="OpenRouter"
+                placeholder="Moonshot"
                 autoComplete="off"
               />
             </div>
@@ -287,7 +287,7 @@ export function AiModelPanel({
                 onChange={(e) =>
                   setDraftProvider((d) => ({ ...d, baseUrl: e.target.value.trim() }))
                 }
-                placeholder="https://openrouter.ai/api/v1"
+                placeholder="https://api.moonshot.cn/v1"
                 autoComplete="off"
                 spellCheck={false}
               />

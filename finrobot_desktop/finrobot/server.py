@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,6 +38,8 @@ from finrobot.routes.coverage import router as coverage_router
 from finrobot.routes.dashboard import router as dashboard_router
 from finrobot.routes.data import router as data_router
 from finrobot.routes.health import router as health_router
+from finrobot.routes.portfolio import router as portfolio_router
+from finrobot.routes.refresh import router as refresh_router
 from finrobot.routes.runs import router as runs_router
 from finrobot.routes.search import router as search_router
 from finrobot.routes.sec_holdings import router as sec_holdings_router
@@ -48,6 +50,11 @@ from finrobot.routes.valuation import router as valuation_router
 from finrobot.coverage.prompt import format_coverage_snapshot
 from finrobot.coverage.service import build_overview
 from finrobot.coverage.sqlite_store import CoverageStore
+from finrobot.portfolio.prompt import format_portfolio_snapshot
+from finrobot.portfolio.service import build_all_overviews
+from finrobot.portfolio.alert_engine import ResearchNotifier, alert_loop
+from finrobot.portfolio.alert_store import AlertStore
+from finrobot.portfolio.sqlite_store import PortfolioStore
 from finrobot.ratelimit import RunRateLimiter
 from finrobot.run_store import RunStore
 from finrobot.secret_store import SecretStore, create_secret_store
@@ -165,6 +172,15 @@ async def warm_quote_cache(
         app.state.quotes_warmed_ticker_count = ticker_count
 
 
+class _StateOnlyRequest:
+    """The slice of ``starlette.Request`` the run task actually touches
+    (``request.app.state``), for runs re-spawned from the lifespan where no
+    HTTP request exists (rate-limit-queued runs restored after a restart)."""
+
+    def __init__(self, app: FastAPI) -> None:
+        self.app = app
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Ensure ~/.finrobot/ exists before any storage class tries to open a
@@ -276,12 +292,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # second connection to the same db file).
     coverage_store = CoverageStore()
 
+    # Portfolio Desk store — the user's actual holdings (portfolios + trade
+    # lots). Built BEFORE deps for the same reason as coverage_store: carried on
+    # FinRobotDeps so the chat orchestrator's query_portfolio_holdings tool (and
+    # the per-turn portfolio snapshot block) reach the SAME instance the REST
+    # portfolio routes use — never a second connection to portfolio.db.
+    portfolio_store = PortfolioStore()
+
     deps = FinRobotDeps(
         data_layer=data_layer,
         settings=settings,
         skill_runtime=registry,
         artifact_store=artifact_store,
         coverage_store=coverage_store,
+        portfolio_store=portfolio_store,
         run_semaphore=run_semaphore,
     )
 
@@ -301,6 +325,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.settings_path = settings_path
     app.state.run_store = RunStore()
     app.state.run_tasks = {}
+    # Let the chat orchestrator start BACKGROUND runs (partial refresh of
+    # existing reports) through the very same spawn path as POST /api/runs —
+    # probe gate + rate-limit parking, concurrency cap, SSE, restart-restore —
+    # instead of executing N pipelines inline inside one chat turn.
+    deps.run_store = app.state.run_store
+
+    async def _spawn_from_chat(pipeline_type: str, ticker: str, **kw: Any) -> Any:
+        from fastapi import HTTPException
+
+        from finrobot.routes.runs import spawn_run
+
+        try:
+            return await spawn_run(
+                cast("Request", _StateOnlyRequest(app)), pipeline_type, ticker, **kw
+            )
+        except HTTPException as exc:
+            # The HTTP vocabulary (503 "model not configured", 429 …) means
+            # nothing to a chat tool — surface the human-readable detail as the
+            # per-report skip reason instead.
+            raise ValueError(str(exc.detail)) from exc
+
+    deps.run_spawner = _spawn_from_chat
     # run_ids whose cancellation was requested via POST /api/runs/{id}/cancel.
     # The run task's CancelledError handler consults this to tell a user cancel
     # (persist terminal status `cancelled`) from a shutdown cancel (re-raise;
@@ -335,6 +381,33 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.info("Startup: reconciled %d orphaned run(s) to failed", reconciled)
     except (OSError, RuntimeError):
         logger.exception("Run reconcile on startup failed")
+    # Restore runs PARKED on a provider rate limit (status `created` with a
+    # persisted retry_at — the reconciler above deliberately leaves them
+    # alone). A desktop restart must not turn "queued — retrying at 09:00" into
+    # "failed: interrupted by server restart": each one gets its wait-then-run
+    # task back, resuming at the stored instant (or immediately if it passed).
+    try:
+        scheduled = await app.state.run_store.list_scheduled_runs()
+    except (OSError, RuntimeError):
+        logger.exception("Scheduled-run restore on startup failed")
+        scheduled = []
+    if scheduled:
+        from finrobot.routes.runs import RateLimitDeferral, _run_pipeline
+
+        for rec in scheduled:
+            if rec.retry_at is None:  # pragma: no cover - filtered by the query
+                continue
+            deferral = RateLimitDeferral.from_retry_at(
+                rec.retry_at, detail="restored after restart"
+            )
+            app.state.run_tasks[rec.run_id] = asyncio.create_task(
+                _run_pipeline(
+                    rec.run_id,
+                    cast("Request", _StateOnlyRequest(app)),
+                    deferral=deferral,
+                )
+            )
+        logger.info("Startup: restored %d rate-limit-queued run(s)", len(scheduled))
     # Bound run_events growth: drop the SSE event log of runs that finished more
     # than RUN_EVENT_RETENTION_DAYS ago (the runs rows stay as history). Without
     # this the table grew unbounded and every SSE poll paid the larger scan on
@@ -350,6 +423,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # CoverageStore() here would open a duplicate connection to coverage.db and
     # leave the chat tool reading a different handle than the REST routes.
     app.state.coverage_store = coverage_store
+    # Reuse the SAME PortfolioStore built above (carried on deps) — own aiosqlite
+    # db at ~/.finrobot/portfolio.db. Local-SQLite reads, so it never waits on
+    # engine_ready.
+    app.state.portfolio_store = portfolio_store
+    # Alerts + the notification feed (bell). Same db file, own tables/class.
+    # The ResearchNotifier is the run pipeline's completion observer: a run on a
+    # HELD ticker → "research completed / verdict changed / run failed" in the
+    # feed. The periodic alert_loop (background task below) evaluates the user's
+    # price / 52-week / moving-average / P&L rules and the research signals.
+    app.state.alert_store = AlertStore()
+    app.state.run_finished_hook = ResearchNotifier(
+        alert_store=app.state.alert_store,
+        portfolio_store=app.state.portfolio_store,
+        artifact_store=artifact_store,
+    ).on_run_finished
     # Bounded LRU dict for transcript writers.  Using OrderedDict lets us
     # evict the least-recently-used entry in O(1) when the cap is reached.
     # TranscriptWriter is open-on-write (no persistent file handle), so
@@ -419,6 +507,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # warmup (module-level warm_quote_cache, H3) sees the migrated
         # tickers instead of an empty SQLite on first post-upgrade boot.
         await _rebuild_summaries_background()
+        # Privacy gate: the quote warm-up is a pure latency optimisation (the
+        # desk makes the same fetches on first open). With startup_warmups off
+        # we skip it and flip quotes_warmed so the health poll never waits.
+        if not settings.startup_warmups:
+            app.state.quotes_warmed = True
+            logger.info("Startup warmups disabled — quote cache warms on first desk open")
+            return
         # AND after the provider chain is live — data_layer is the same object the
         # warmup task fills, but it holds no providers until then.
         await engine_ready_event.wait()
@@ -444,6 +539,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # ~/.finrobot/) so the homepage typeahead serves from memory. Non-fatal:
         # warm_symbol_index never raises (a fetch failure degrades to an empty /
         # stale index), but guard the gather anyway.
+        # Privacy gate: with startup_warmups off, nothing is fetched at boot —
+        # routes/search loads the index lazily (ensure_symbol_index) on the
+        # first user-initiated search instead.
+        if not settings.startup_warmups:
+            logger.info("Startup warmups disabled — symbol index will load on first search")
+            return
         from finrobot.engine.data.symbol_index import warm_symbol_index
 
         try:
@@ -530,7 +631,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         finally:
             app.state.agents_ready = True
 
+    async def _alert_loop_background() -> None:
+        await alert_loop(
+            alert_store=app.state.alert_store,
+            portfolio_store=app.state.portfolio_store,
+            get_data_layer=lambda: app.state.deps.data_layer,
+            artifact_store=artifact_store,
+            is_engine_ready=lambda: bool(getattr(app.state, "engine_ready", False)),
+            interval_s=settings.portfolio_alert_interval_s,
+        )
+
     app.state.background_tasks = [
+        asyncio.create_task(_alert_loop_background()),
         asyncio.create_task(_archive_stale_background()),
         asyncio.create_task(_evict_data_cache_background()),
         asyncio.create_task(_migrate_then_warm_background()),
@@ -565,6 +677,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await app.state.coverage_store.close()
     except (OSError, RuntimeError):
         logger.exception("CoverageStore shutdown error")
+    try:
+        await app.state.portfolio_store.close()
+    except (OSError, RuntimeError):
+        logger.exception("PortfolioStore shutdown error")
+    try:
+        await app.state.alert_store.close()
+    except (OSError, RuntimeError):
+        logger.exception("AlertStore shutdown error")
     from finrobot.engine.data.quote_batch import close_quote_cache_singleton
 
     try:
@@ -650,6 +770,8 @@ app.include_router(runs_router)
 app.include_router(artifacts_router)
 app.include_router(chat_sessions_router)
 app.include_router(coverage_router)
+app.include_router(portfolio_router)
+app.include_router(refresh_router)
 app.include_router(dashboard_router)
 app.include_router(valuation_router)
 app.include_router(sentiment_router)
@@ -714,6 +836,7 @@ def _build_runtime_instructions(
     context_bundle: dict[str, Any] | None,
     *,
     coverage_block: str | None = None,
+    portfolio_block: str | None = None,
 ) -> str | None:
     """Compose per-request instructions from the UI locale + ContextBar bundle.
 
@@ -727,6 +850,12 @@ def _build_runtime_instructions(
     turn so the assistant can answer portfolio-level questions and surface
     pre-computed movers without a tool call; absent (None) when there is no
     watchlist or its assembly failed.
+
+    ``portfolio_block`` is the per-turn HOLDINGS snapshot (what the user
+    actually owns — units, cost, P&L — projected by
+    ``portfolio.prompt.format_portfolio_snapshot``), distinct from the
+    watchlist above (what they're studying). Absent when there is no
+    portfolio or its assembly failed.
     """
     lines: list[str] = []
 
@@ -747,6 +876,9 @@ def _build_runtime_instructions(
 
     if coverage_block:
         lines.append(coverage_block)
+
+    if portfolio_block:
+        lines.append(portfolio_block)
 
     return "\n\n".join(lines) if lines else None
 
@@ -1157,6 +1289,42 @@ async def _build_coverage_snapshot_block(request: Request) -> str | None:
         return None
 
 
+async def _build_portfolio_snapshot_block(request: Request) -> str | None:
+    """Assemble the per-turn holdings snapshot for the chat system context.
+
+    Mirrors ``_build_coverage_snapshot_block``: reads every portfolio that has
+    at least one lot and projects them through ``build_all_overviews(cache_only
+    =True)`` — the instant, network-free first paint (local SQLite + the
+    canonical price CACHE only), so injecting it never adds chat latency or
+    fires a provider call. Best-effort by contract: a missing store / no
+    portfolios / an assembly error all yield ``None`` and the conversation
+    proceeds with no portfolio context. Never raises into the chat handler.
+    """
+    state = request.app.state
+    portfolio_store: PortfolioStore | None = getattr(state, "portfolio_store", None)
+    deps: FinRobotDeps | None = getattr(state, "deps", None)
+    if portfolio_store is None or deps is None:
+        return None
+    try:
+        overviews = await build_all_overviews(
+            portfolio_store,
+            data_layer=deps.data_layer,
+            artifact_store=deps.artifact_store,
+            run_store=getattr(state, "run_store", None),
+            alert_store=getattr(state, "alert_store", None),
+            cache_only=True,
+        )
+        if not overviews:
+            return None
+        threshold = deps.settings.coverage_anomaly_change_threshold
+        return format_portfolio_snapshot(overviews, change_threshold=threshold)
+    except _COVERAGE_SNAPSHOT_DEGRADABLE:
+        # Same non-fatal contract as the coverage snapshot — a cold/absent
+        # Portfolio Desk is ordinary, not an error to page on.
+        logger.info("Portfolio snapshot for chat context unavailable", exc_info=True)
+        return None
+
+
 async def _chat_impl(
     request: Request,
     body_json: dict[str, Any],
@@ -1218,10 +1386,16 @@ async def _chat_impl(
     # coverage store, no system group, assembly error) leaves coverage_block None
     # and the conversation proceeds exactly as before (back-compat).
     coverage_block = await _build_coverage_snapshot_block(request)
+    # Per-turn HOLDINGS snapshot: what the user actually owns (units, cost,
+    # P&L) across their portfolios — distinct from the watchlist above (what
+    # they're studying). Same best-effort contract: any failure leaves
+    # portfolio_block None.
+    portfolio_block = await _build_portfolio_snapshot_block(request)
     # Per-request instructions layered on top of instructions.md: UI locale +
-    # ContextBar bundle + watchlist snapshot. None when none apply (back-compat).
+    # ContextBar bundle + watchlist snapshot + portfolio snapshot. None when
+    # none apply (back-compat).
     runtime_instructions = _build_runtime_instructions(
-        locale, context_bundle, coverage_block=coverage_block
+        locale, context_bundle, coverage_block=coverage_block, portfolio_block=portfolio_block
     )
     # Per-request deps copy carrying the UI locale so the orchestrator's pipeline
     # tool generates the report body in the user's language (shallow replace —

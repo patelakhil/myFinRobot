@@ -29,10 +29,16 @@ class TestDefaults:
     def test_default_providers_are_the_builtins(self):
         s = FinRobotSettings()
         ids = [p.id for p in s.providers]
-        # Only the two majors are built in; everything else is a custom provider.
-        assert ids == ["anthropic", "openai"]
+        # Anthropic + OpenAI directly, plus OpenRouter as the one-key gateway to
+        # everything else; any OTHER backend is a custom provider.
+        assert ids == ["anthropic", "openai", "openrouter"]
         openai = s.provider_by_id("openai")
         assert openai is not None and openai.kind == "openai-compatible"
+        openrouter = s.provider_by_id("openrouter")
+        assert openrouter is not None
+        assert openrouter.kind == "openai-compatible"
+        assert openrouter.base_url == "https://openrouter.ai/api/v1"
+        assert openrouter.models  # suggestions are non-empty
 
     def test_custom_providers_extend_the_registry(self):
         s = get_settings(
@@ -163,6 +169,23 @@ class TestCreateModel:
         assert isinstance(model._provider, OpenAIProvider)
         # base_url is normalised with a trailing slash by the OpenAI client.
         assert model._provider.base_url.rstrip("/") == "https://my-host/v1"
+
+    def test_openrouter_model_id_keeps_its_vendor_slash(self):
+        """OpenRouter model ids are themselves "<vendor>/<model>" (e.g.
+        "openai/gpt-4o"); model_name's "<provider>:<model_id>" parse must only
+        split on the FIRST ':', leaving that slash untouched."""
+        from pydantic_ai.models.openai import OpenAIChatModel
+        from pydantic_ai.providers.openai import OpenAIProvider
+
+        s = get_settings(
+            model_name="openrouter:anthropic/claude-3.7-sonnet",
+            provider_keys={"openrouter": "sk-or-test"},
+        )
+        model = s.create_model()
+        assert isinstance(model, OpenAIChatModel)
+        assert model.model_name == "anthropic/claude-3.7-sonnet"
+        assert isinstance(model._provider, OpenAIProvider)
+        assert model._provider.base_url.rstrip("/") == "https://openrouter.ai/api/v1"
 
     def test_test_provider_returns_test_model(self):
         from pydantic_ai.models.test import TestModel

@@ -11,7 +11,7 @@ import { fetchWithTimeout } from '../api/fetch'
 import { useToastStore } from '../stores/toastStore'
 import { mapErrorToUserMessage, FetchHttpError } from '../utils/errorMessage'
 import { useI18n, tSync } from '../i18n'
-import { Icon, ICON_MODEL, ICON_DATA, ICON_UPDATE } from './settings/controls'
+import { Icon, ICON_MODEL, ICON_DATA, ICON_PRIVACY, ICON_UPDATE } from './settings/controls'
 import { useSettingsSave } from './settings/useSettingsSave'
 import { AiModelPanel, type DraftProvider, type LlmTestState } from './settings/AiModelPanel'
 import {
@@ -21,6 +21,7 @@ import {
 } from './settings/DataSourcesPanel'
 import { SecHoldingsSection } from './settings/SecHoldingsSection'
 import { UpdatesSection } from './settings/UpdatesSection'
+import { PrivacyPanel } from './settings/PrivacyPanel'
 import { ClearKeyConfirmModal } from './settings/ClearKeyConfirmModal'
 import { AI_CHAT_ENABLED } from '../config/features'
 
@@ -35,6 +36,7 @@ export { isValidSecIdentity, secHeaderIdentityPreview } from './settings/secIden
 const NAV_ITEMS = [
   { id: 'aiModel', icon: ICON_MODEL, labelKey: 'settings.section.aiModel' },
   { id: 'dataSources', icon: ICON_DATA, labelKey: 'settings.section.dataSources' },
+  { id: 'privacy', icon: ICON_PRIVACY, labelKey: 'settings.nav.privacy' },
   { id: 'updates', icon: ICON_UPDATE, labelKey: 'settings.nav.updates' },
 ] as const
 
@@ -438,6 +440,16 @@ export default function SettingsView() {
                 {/* SEC 13F holdings — part of the Data Sources panel */}
                 <SecHoldingsSection />
               </>
+            )}
+
+            {activePanel === 'privacy' && (
+              <PrivacyPanel
+                modelName={settingsResp.model_name ?? ''}
+                availableProviders={settingsResp.available_providers ?? []}
+                adanosConfigured={adanosConfigured}
+                alphaVantageConfigured={alphaVantageConfigured}
+                secIdentityActive={settingsResp.sec_identity_active ?? false}
+              />
             )}
 
             {activePanel === 'updates' && <UpdatesSection />}

@@ -31,6 +31,7 @@ from finrobot.coverage.models import (
     CoverageGroupDetail,
     CoverageGroupSummary,
     CoverageOverview,
+    HoldingInput,
 )
 from finrobot.coverage.service import (
     build_overview,
@@ -112,6 +113,32 @@ def _invalidate(group_id: str) -> None:
     # and the network table.
     _OVERVIEW_CACHE.pop((group_id, True), None)
     _OVERVIEW_CACHE.pop((group_id, False), None)
+
+
+def invalidate_all_overviews() -> None:
+    """Drop every cached overview. Called by the portfolio routes on any lot
+    mutation — a held name's card carries its position, so an edit there must
+    show on the coverage desk immediately, not after the 60s TTL."""
+    _OVERVIEW_CACHE.clear()
+
+
+async def _holdings(request: Request) -> dict[str, HoldingInput]:
+    """ticker → HoldingInput across all portfolios (empty when no desk)."""
+    store = getattr(request.app.state, "portfolio_store", None)
+    if store is None:
+        return {}
+    from finrobot.portfolio.service import holdings_for_coverage
+
+    try:
+        details = []
+        for summary in await store.list_portfolios():
+            detail = await store.get_portfolio(summary.id)
+            if detail is not None:
+                details.append(detail)
+        return holdings_for_coverage(details)
+    except (RuntimeError, OSError, ValueError) as exc:
+        logger.warning("Coverage overview: holdings join skipped: %s", exc)
+        return {}
 
 
 # ── Dependency accessors ─────────────────────────────────────────────────────
@@ -222,6 +249,7 @@ async def group_overview(
         data_layer=data_layer,
         run_store=getattr(request.app.state, "run_store", None),
         cache_only=cache_only,
+        holdings=await _holdings(request),
     )
     _OVERVIEW_CACHE[key] = (now_ts, overview)
     # A network revalidate just rewrote the canonical cache; drop the stale

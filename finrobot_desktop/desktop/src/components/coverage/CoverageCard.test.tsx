@@ -42,6 +42,7 @@ function row(over: Partial<CoverageRow>): CoverageRow {
     market_stale: false,
     needs_refresh: [],
     warnings: [],
+    holding: null,
     sources: {
       price: null,
       change_pct_1d: null,
@@ -244,5 +245,77 @@ describe('CoverageCard verdict signal chroma', () => {
     expect(signal({ latest_verdict: null })).toBe('neutral')
     expect(signal({ latest_verdict: 'WITHHELD' })).toBe('neutral')
     expect(signal({ latest_verdict: 'REVIEW' })).toBe('neutral')
+  })
+})
+
+describe('CoverageCard — holding strip (portfolio join)', () => {
+  const holding = {
+    units: 10,
+    cost_basis: 1500,
+    cost_currency: 'USD',
+    realized_pnl: 50,
+    realized_cost: 300,
+    portfolios: ['Core'],
+    mixed_currency: false,
+    avg_cost_per_unit: 150,
+    market_value: 2000,
+    unrealized_pnl: 500,
+    unrealized_pnl_pct: 1 / 3,
+    day_pnl: 80,
+    total_pnl: 550,
+    total_pnl_pct: 550 / 1800,
+    currency_mismatch: false,
+  }
+
+  function renderWith(view: 'holdings' | 'pnl' | 'today' | 'off', over = {}) {
+    render(
+      <MemoryRouter>
+        <CoverageCard
+          row={row({ holding: { ...holding, ...over } })}
+          density="comfort"
+          onOpen={vi.fn()}
+          holdingView={view}
+        />
+      </MemoryRouter>,
+    )
+  }
+
+  it('shows overall P&L with the unrealized/realized split', () => {
+    renderWith('pnl')
+    const strip = screen.getByTestId('coverage-holding')
+    expect(strip).toHaveTextContent('Your P&L')
+    expect(strip).toHaveTextContent('+$550.00')
+    expect(strip).toHaveTextContent('unrl +$500 · rlzd +$50')
+    expect(strip).toHaveAttribute('title', 'In: Core')
+  })
+
+  it('shows units and market value in holdings view', () => {
+    renderWith('holdings')
+    const strip = screen.getByTestId('coverage-holding')
+    expect(strip).toHaveTextContent('You hold')
+    expect(strip).toHaveTextContent('10 units')
+    expect(strip).toHaveTextContent('$2,000')
+    expect(strip).toHaveTextContent('avg $150.00')
+  })
+
+  it("shows today's move in today view", () => {
+    renderWith('today')
+    expect(screen.getByTestId('coverage-holding')).toHaveTextContent('+$80.00')
+  })
+
+  it('withholds P&L on a currency mismatch and hides when off', () => {
+    renderWith('pnl', { currency_mismatch: true, total_pnl: null })
+    expect(screen.getByTestId('coverage-holding')).toHaveTextContent('withheld')
+  })
+
+  it('renders nothing for an unheld name or when hidden', () => {
+    render(
+      <MemoryRouter>
+        <CoverageCard row={row({})} density="comfort" onOpen={vi.fn()} holdingView="pnl" />
+      </MemoryRouter>,
+    )
+    expect(screen.queryByTestId('coverage-holding')).not.toBeInTheDocument()
+    renderWith('off')
+    expect(screen.queryByTestId('coverage-holding')).not.toBeInTheDocument()
   })
 })

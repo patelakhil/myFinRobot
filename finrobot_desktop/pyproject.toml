@@ -72,6 +72,7 @@ addopts = "-m 'not integration'"
 markers = [
     "integration: tests that call real external APIs (yfinance, LLM)",
     "slow: tests that take > 10 seconds",
+    "chaos: fault-injection / monkey tests that randomise upstream failure shapes (see tests/chaos/)",
 ]
 
 # Coverage is measurement-only (no fail-under gate) and EXPLICITLY opted in —

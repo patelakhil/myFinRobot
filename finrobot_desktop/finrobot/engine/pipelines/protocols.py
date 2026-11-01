@@ -19,6 +19,10 @@ class ProgressCallback(Protocol):
     This is a structural Protocol: any object implementing these three async
     methods can be passed to Pipeline.execute(progress=...). CLI, server SSE,
     and SDK consumers each provide their own implementation.
+
+    An implementation may also define ``async def on_queued(self) -> None``;
+    Pipeline.execute calls it (when present) if the run has to wait for a
+    concurrency slot before its first step.
     """
 
     async def on_step_start(self, step_index: int, total: int, step_name: str) -> None: ...

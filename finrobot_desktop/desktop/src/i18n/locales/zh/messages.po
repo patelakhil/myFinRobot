@@ -1757,6 +1757,14 @@ msgid "workspace.pipeline.statusGenerating"
 msgstr "正在生成 {name}"
 
 #. js-lingui-explicit-id
+msgid "workspace.pipeline.statusQueued"
+msgstr "排队中：{name} 将在当前分析完成后开始"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.statusRateLimited"
+msgstr "排队中：AI 模型已限流，{name} 将于 {time} 自动重试"
+
+#. js-lingui-explicit-id
 msgid "workspace.pipeline.statusDone"
 msgstr "{name} · 完成"
 
@@ -2853,6 +2861,14 @@ msgid "settings.test.result.http"
 msgstr "服务商返回错误"
 
 #. js-lingui-explicit-id
+msgid "settings.test.result.rate_limited"
+msgstr "密钥有效，但服务商正在限流（429）——研究任务将排队并自动重试"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.timeout"
+msgstr "服务商响应超时——研究任务将排队并自动重试"
+
+#. js-lingui-explicit-id
 msgid "settings.test.result.unknown"
 msgstr "连接测试失败"
 
@@ -3171,3 +3187,1287 @@ msgstr "在固定 {growth}% 增长下，${target} 超出 1–{maxHorizon}y 的�
 #. js-lingui-explicit-id
 msgid "valuation.implied.reason.gordonUndefined"
 msgstr "在固定 {growth}% 增长下，终值增长 {tg}% 未低于 WACC {wacc}%——Gordon 模型无定义，无法求解年限。"
+
+#. js-lingui-explicit-id
+msgid "nav.portfolio"
+msgstr "持仓"
+
+#. js-lingui-explicit-id
+msgid "portfolio.loading"
+msgstr "加载持仓…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.footnote"
+msgstr "成本与均价按买入批次（按数量加权）计算。市值与盈亏使用数据层的实时价格，且仅在报价货币与成本货币一致时计算；当日盈亏为该持仓在最近一个交易日的变动。所有数字均由代码计算，点击任一市场数据可查看来源。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.error.listFailed"
+msgstr "无法连接持仓服务——可能仍在启动。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.error.overviewFailed"
+msgstr "无法加载该组合的持仓。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.error.marketFailed"
+msgstr "实时价格刷新失败——显示的是最近已知值。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.error.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
+msgid "portfolio.error.dismiss"
+msgstr "关闭"
+
+#. js-lingui-explicit-id
+msgid "portfolio.noLots.body"
+msgstr "该组合还没有任何买入记录。手动添加一笔买入，或从券商导出的 CSV 导入。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.switch"
+msgstr "切换组合"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.rename"
+msgstr "重命名"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.meta"
+msgstr "{lots} 笔买入 · {tickers} 只标的 · {ccy}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.import"
+msgstr "导入 CSV"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.export"
+msgstr "导出 CSV"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.addLot"
+msgstr "添加买入"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.deletePortfolio"
+msgstr "删除此组合"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.deleteShort"
+msgstr "删除"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.newPortfolio"
+msgstr "新建另一个组合"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.newShort"
+msgstr "新建"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.newName"
+msgstr "组合 {n}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.refresh.label"
+msgstr "刷新价格"
+
+#. js-lingui-explicit-id
+msgid "portfolio.refresh.refreshing"
+msgstr "刷新中…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.refresh.upToDate"
+msgstr "已是最新收盘"
+
+#. js-lingui-explicit-id
+msgid "portfolio.refresh.updated"
+msgstr "已更新"
+
+#. js-lingui-explicit-id
+msgid "portfolio.refresh.asOf"
+msgstr "价格更新于 {age} · 刷新"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.marketValue"
+msgstr "市值"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.costBasis"
+msgstr "总成本"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.unrealized"
+msgstr "浮动盈亏"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.dayPnl"
+msgstr "当日盈亏"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.positions"
+msgstr "持仓数"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.lots"
+msgstr "{n} 笔买入"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.unpriced"
+msgstr "{n} 个持仓没有实时价格，未计入市值与盈亏：{tickers}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.excluded"
+msgstr "{n} 个非 {ccy} 计价的持仓已列出但未计入合计：{tickers}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.ticker"
+msgstr "代码"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.units"
+msgstr "数量"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.avgCost"
+msgstr "均价"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.costBasis"
+msgstr "成本"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.price"
+msgstr "现价"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.marketValue"
+msgstr "市值"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.unrealized"
+msgstr "浮动盈亏"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.dayPnl"
+msgstr "当日盈亏"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.weight"
+msgstr "权重"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.actions"
+msgstr ""
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.toggleLots"
+msgstr "展开 {ticker} 的 {n} 笔买入"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.openWorkspace"
+msgstr "在研究页打开 {ticker}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.lotCount"
+msgstr "{n} 笔买入"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.closed"
+msgstr "收盘 {date}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.mismatch"
+msgstr "未计算"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.mismatchTitle"
+msgstr "报价货币为 {quote}，成本以 {cost} 记账——不跨货币计算盈亏。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.addLot"
+msgstr "添加买入"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.addLotFor"
+msgstr "为 {ticker} 添加一笔买入"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.removePosition"
+msgstr "移除持仓"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.removePositionFor"
+msgstr "移除 {ticker} 的全部买入"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.date"
+msgstr "买入日期"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.units"
+msgstr "数量"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.cost"
+msgstr "单价"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.total"
+msgstr "总成本"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.pnl"
+msgstr "盈亏"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.note"
+msgstr "备注"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.edit"
+msgstr "编辑"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.delete"
+msgstr "删除"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.editAria"
+msgstr "编辑 {date} 买入的 {ticker}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.deleteAria"
+msgstr "删除 {date} 买入的 {ticker}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.addTitle"
+msgstr "添加一笔买入"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.editTitle"
+msgstr "编辑买入"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.ticker"
+msgstr "代码"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.date"
+msgstr "买入日期"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.units"
+msgstr "数量"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.cost"
+msgstr "单位成本"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.currency"
+msgstr "货币"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.note"
+msgstr "备注（可选）"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.notePlaceholder"
+msgstr "如：券商、策略、是否含手续费…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.add"
+msgstr "添加"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.save"
+msgstr "保存"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.saving"
+msgstr "保存中…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.tickerRequired"
+msgstr "请输入代码"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.tickerInvalid"
+msgstr "仅限 A–Z、0–9、. 或 -（最多 12 位），如 AAPL 或 BRK.B"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.unitsRequired"
+msgstr "请输入数量"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.unitsPositive"
+msgstr "数量必须大于 0"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.costRequired"
+msgstr "请输入单位成本"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.costNegative"
+msgstr "成本不能为负"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.dateRequired"
+msgstr "请选择买入日期"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.dateFuture"
+msgstr "买入日期不能晚于今天"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.currency"
+msgstr "货币须为 3 位代码（USD、EUR、HKD…）"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.title"
+msgstr "从 CSV 导入持仓"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.lede"
+msgstr "选择券商导出的 CSV 或直接粘贴。列按名称匹配（ticker/symbol、units/shares/qty、cost/price、date），或按位置依次为：代码、数量、单位成本、买入日期。也可直接粘贴从券商网页复制的持仓表；若无日期列，买入日期记为今天。有问题的行会被列出并跳过，其余正常导入。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.chooseFile"
+msgstr "选择文件…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.dropHint"
+msgstr "或将 .csv 拖到此处，或在下方粘贴"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.pasteAria"
+msgstr "粘贴 CSV 行"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.defaultCurrency"
+msgstr "默认货币"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.newName"
+msgstr "组合名称"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.newNamePlaceholder"
+msgstr "我的组合"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.preview"
+msgstr "预览"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.parsing"
+msgstr "解析中…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.validCount"
+msgstr "{n} 行可导入"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.errorCount"
+msgstr "{n} 行将被跳过"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.columns"
+msgstr "列：{cols}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.status"
+msgstr "状态"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.rowOk"
+msgstr "正常"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.commit"
+msgstr "导入 {n} 行"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.importing"
+msgstr "导入中…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.confirm.delete"
+msgstr "删除"
+
+#. js-lingui-explicit-id
+msgid "portfolio.confirm.deleteLotTitle"
+msgstr "删除这笔买入？"
+
+#. js-lingui-explicit-id
+msgid "portfolio.confirm.deleteLotBody"
+msgstr "{date} 买入的 {units} × {ticker} 将从组合中移除，且无法撤销。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.confirm.deletePositionTitle"
+msgstr "移除 {ticker}？"
+
+#. js-lingui-explicit-id
+msgid "portfolio.confirm.deletePositionBody"
+msgstr "{ticker} 的全部 {n} 笔买入将从组合中移除，且无法撤销。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.confirm.deletePortfolioTitle"
+msgstr "删除“{name}”？"
+
+#. js-lingui-explicit-id
+msgid "portfolio.confirm.deletePortfolioBody"
+msgstr "该组合及其 {n} 笔买入将被删除。如需保留，请先导出 CSV。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.rename.title"
+msgstr "组合设置"
+
+#. js-lingui-explicit-id
+msgid "portfolio.rename.name"
+msgstr "名称"
+
+#. js-lingui-explicit-id
+msgid "portfolio.rename.baseCurrency"
+msgstr "基准货币"
+
+#. js-lingui-explicit-id
+msgid "portfolio.rename.baseCurrencyHint"
+msgstr "合计按此货币汇总。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.empty.title"
+msgstr "我的持仓"
+
+#. js-lingui-explicit-id
+msgid "portfolio.empty.body"
+msgstr "记录你真正持有的仓位：每笔买入包含日期、单位成本和数量。FinRobot 会按标的汇总、按实时价格估值，并把每个持仓链接到研究页。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.empty.namePlaceholder"
+msgstr "组合名称，如：核心"
+
+#. js-lingui-explicit-id
+msgid "portfolio.empty.nameAria"
+msgstr "组合名称"
+
+#. js-lingui-explicit-id
+msgid "portfolio.empty.create"
+msgstr "创建"
+
+#. js-lingui-explicit-id
+msgid "portfolio.empty.or"
+msgstr "或"
+
+#. js-lingui-explicit-id
+msgid "portfolio.empty.import"
+msgstr "导入 CSV"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.exported"
+msgstr "已导出组合"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.exportFailed"
+msgstr "导出失败"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.imported"
+msgstr "已导入 {n} 笔买入"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.importedSkipped"
+msgstr "{n} 行被跳过"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.lotAdded"
+msgstr "已添加 {ticker} 买入"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.research"
+msgstr "研究"
+
+#. js-lingui-explicit-id
+msgid "bell.aria"
+msgstr "通知"
+
+#. js-lingui-explicit-id
+msgid "bell.ariaUnread"
+msgstr "通知 — {n} 条未读"
+
+#. js-lingui-explicit-id
+msgid "bell.title"
+msgstr "通知"
+
+#. js-lingui-explicit-id
+msgid "bell.markAllRead"
+msgstr "全部标为已读"
+
+#. js-lingui-explicit-id
+msgid "bell.clearRead"
+msgstr "清除已读"
+
+#. js-lingui-explicit-id
+msgid "bell.empty"
+msgstr "暂无通知。你设置的提醒和持仓研究进展会显示在这里。"
+
+#. js-lingui-explicit-id
+msgid "bell.error"
+msgstr "无法加载通知。"
+
+#. js-lingui-explicit-id
+msgid "bell.openPortfolio"
+msgstr "打开持仓 →"
+
+#. js-lingui-explicit-id
+msgid "bell.kind.alert"
+msgstr "提醒"
+
+#. js-lingui-explicit-id
+msgid "bell.kind.research_completed"
+msgstr "研究"
+
+#. js-lingui-explicit-id
+msgid "bell.kind.research_failed"
+msgstr "研究失败"
+
+#. js-lingui-explicit-id
+msgid "bell.kind.verdict_changed"
+msgstr "结论变化"
+
+#. js-lingui-explicit-id
+msgid "bell.kind.target_hit"
+msgstr "到达目标价"
+
+#. js-lingui-explicit-id
+msgid "bell.kind.thesis_failed"
+msgstr "逻辑失效"
+
+#. js-lingui-explicit-id
+msgid "bell.kind.system"
+msgstr "系统"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.researchAll"
+msgstr "研究 {n} 个未覆盖持仓"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.researchAllBusy"
+msgstr "正在启动研究…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.run"
+msgstr "运行研究"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.runTitle"
+msgstr "对该持仓运行股票研究流程"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.rerunTitle"
+msgstr "重新运行研究"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.rerunFor"
+msgstr "重新研究 {ticker}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.unavailable"
+msgstr "请先在设置中配置 AI 模型"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.queued"
+msgstr "排队中"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.rateLimited"
+msgstr "已限流 · {time} 自动重试"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.running"
+msgstr "研究中…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.openReport"
+msgstr "打开最新研报"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.stale"
+msgstr "过期"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.hit"
+msgstr "已达目标"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.broken"
+msgstr "逻辑失效"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.failed"
+msgstr "运行失败"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.alerts"
+msgstr "提醒"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.alertsFor"
+msgstr "{ticker} 的提醒（{n} 条生效）"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.title"
+msgstr "提醒 · {ticker}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.lede"
+msgstr "规则会在后台每隔几分钟按实时价格检查一次（也可手动检查），触发后出现在通知铃铛中。一次性规则触发后自动停用；重复规则在条件解除后重新生效。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.livePrice"
+msgstr "现价 {price}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.noPrice"
+msgstr "暂无实时价格"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.none"
+msgstr "该持仓还没有提醒。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.enabledAria"
+msgstr "启用提醒"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.deleteAria"
+msgstr "删除提醒"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.repeat"
+msgstr "重复"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.fired"
+msgstr "已触发"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.lastTriggered"
+msgstr "{when}触发 · {n} 次"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.lastChecked"
+msgstr "{when}检查 · 最近值 {value}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.notChecked"
+msgstr "尚未检查"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind"
+msgstr "规则"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.thresholdPrice"
+msgstr "价格（{ccy}）"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.thresholdPct"
+msgstr "百分比"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.window"
+msgstr "均线"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.windowDays"
+msgstr "{n} 日"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.notePlaceholder"
+msgstr "如：减半仓、重新评估…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.repeatLabel"
+msgstr "重复（条件解除后重新生效）"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.add"
+msgstr "添加提醒"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.checkNow"
+msgstr "立即检查"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.checking"
+msgstr "检查中…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.checked"
+msgstr "已检查 {n} 条规则 · 触发 {fired} 条"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.close"
+msgstr "完成"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.err.threshold"
+msgstr "请输入数字"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.err.pricePositive"
+msgstr "价格必须大于 0"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.err.pctPositive"
+msgstr "百分比必须大于 0"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.err.pctNegative"
+msgstr "亏损阈值请用负数，如 -20"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.price_above"
+msgstr "价格高于"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.price_below"
+msgstr "价格低于"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.day_move_above"
+msgstr "单日波动超过"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.high_52w"
+msgstr "创 52 周新高"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.low_52w"
+msgstr "创 52 周新低"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.ma_cross_above"
+msgstr "上穿均线"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.ma_cross_below"
+msgstr "下穿均线"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.pnl_pct_above"
+msgstr "持仓盈利达到"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.pnl_pct_below"
+msgstr "持仓亏损达到"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.price_above"
+msgstr "价格高于 {value}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.price_below"
+msgstr "价格低于 {value}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.day_move_above"
+msgstr "单日波动达到 {value}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.high_52w"
+msgstr "创 52 周新高"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.low_52w"
+msgstr "创 52 周新低"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.ma_cross_above"
+msgstr "上穿 {window} 日均线"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.ma_cross_below"
+msgstr "下穿 {window} 日均线"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.pnl_pct_above"
+msgstr "持仓盈利达到 {value}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.pnl_pct_below"
+msgstr "持仓亏损达到 {value}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.price_above"
+msgstr "实时价格达到或高于该水平时触发。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.price_below"
+msgstr "实时价格达到或低于该水平时触发。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.day_move_above"
+msgstr "单个交易日涨跌幅（任一方向）达到该百分比时触发。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.high_52w"
+msgstr "价格突破此前 52 周最高价时触发。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.low_52w"
+msgstr "价格跌破此前 52 周最低价时触发。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.ma_cross_above"
+msgstr "在穿越发生时触发——需要先有一次低于均线的检查记录。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.ma_cross_below"
+msgstr "在穿越发生时触发——需要先有一次高于均线的检查记录。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.pnl_pct_above"
+msgstr "按本组合中该持仓的成本计算。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.pnl_pct_below"
+msgstr "按本组合中该持仓的成本计算。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.researchStarted"
+msgstr "已开始研究 {ticker}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.researchRateLimited"
+msgstr "{ticker} 的研究已排队——AI 模型限流，将于 {time} 自动重试"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.researchFailed"
+msgstr "无法启动 {ticker} 的研究"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.researchAll"
+msgstr "已对 {n} 个持仓启动研究"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.researchAllSkipped"
+msgstr "{n} 个已跳过（正在运行或无效）"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.researchAllFailed"
+msgstr "无法启动研究"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.alertAdded"
+msgstr "已为 {ticker} 添加提醒"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.label.holdings"
+msgstr "持有"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.label.pnl"
+msgstr "我的盈亏"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.label.today"
+msgstr "我的今日"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.units"
+msgstr "{n} 股"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.avg"
+msgstr "均价 {v}"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.closed"
+msgstr "已清仓"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.withheld"
+msgstr "未计算（货币不一致）"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.split"
+msgstr "浮盈 {unrl} · 已实现 {rlzd}"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.in"
+msgstr "所在组合：{names}"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.switchAria"
+msgstr "持仓标的显示内容"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.view.holdings"
+msgstr "持仓"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.view.pnl"
+msgstr "盈亏"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.view.today"
+msgstr "今日"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.view.off"
+msgstr "隐藏"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.realized"
+msgstr "已实现盈亏"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.totalPnl"
+msgstr "总盈亏"
+
+#. js-lingui-explicit-id
+msgid "portfolio.closed.title"
+msgstr "已清仓（{n}）"
+
+#. js-lingui-explicit-id
+msgid "portfolio.closed.realized"
+msgstr "已实现 {value}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.costMethod.fifo"
+msgstr "先进先出"
+
+#. js-lingui-explicit-id
+msgid "portfolio.costMethod.lifo"
+msgstr "后进先出"
+
+#. js-lingui-explicit-id
+msgid "portfolio.costMethod.average"
+msgstr "平均成本"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.side"
+msgstr "交易方向"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.side.buy"
+msgstr "买入"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.side.sell"
+msgstr "卖出"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.addSell"
+msgstr "记录卖出"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.heldHint"
+msgstr "持有 {n} 股"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.salePrice"
+msgstr "卖出单价"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.sellDate"
+msgstr "卖出日期"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.side"
+msgstr "方向"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.oversold"
+msgstr "超卖"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.oversoldTitle"
+msgstr "{n} 股卖出没有对应买入——请检查记录"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.realizedTag"
+msgstr "已实现"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.remaining"
+msgstr "剩余 {n}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.rename.costMethod"
+msgstr "成本计算方法"
+
+#. js-lingui-explicit-id
+msgid "portfolio.rename.costMethodHint"
+msgstr "卖出如何与买入匹配以计算已实现盈亏。"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.sell"
+msgstr "记录卖出"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.sellFor"
+msgstr "记录 {ticker} 卖出"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.sold"
+msgstr "已卖 {n}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.soldTitle"
+msgstr "累计卖出数量（已实现盈亏见对应列）"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.closedCount"
+msgstr "{n} 个已清仓"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.realized"
+msgstr "已实现盈亏"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.totalPnl"
+msgstr "总盈亏"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.sellAdded"
+msgstr "已记录 {ticker} 卖出"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.closedPosition"
+msgstr "已清仓 · 累计卖出 {units} 股"
+
+#. js-lingui-explicit-id
+msgid "settings.nav.privacy"
+msgstr "隐私与网络"
+
+#. js-lingui-explicit-id
+msgid "settings.section.privacy"
+msgstr "隐私与网络"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.intro"
+msgstr "FinRobot 所有对外发送的数据都在这里。研究在本地运行：数字在本机计算并保存在 ~/.finrobot。以下连接是唯一存在的连接。"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integrationsTitle"
+msgstr "你配置的连接"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integrationsDesc"
+msgstr "这些连接因你的设置而存在——AI 模型会收到你的对话和研究输入；数据源会收到你查询的代码。可在「AI 模型」和「数据源」中管理。"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integrationsNone"
+msgstr "尚未配置——仅免密钥的行情源处于启用状态。"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.llm"
+msgstr "AI 模型 — {model}：对话消息、研究流程输入、研究池快照，以及——仅当你在对话中问及时——你的持仓信息与已保存研报内容"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.provider.yfinance"
+msgstr "Yahoo Finance（免密钥，始终启用）：你研究、持有或设置提醒的代码——获取价格"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.provider.fmp"
+msgstr "Financial Modeling Prep（你的密钥）：你查询的代码——财务与报价"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.provider.finnhub"
+msgstr "Finnhub（你的密钥）：你查询的代码——报价与公司资料"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.provider.adanos"
+msgstr "Adanos（你的密钥）：你查询的代码——散户情绪"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.provider.alpha_vantage"
+msgstr "Alpha Vantage（你的密钥）：你查询的代码——新闻"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.provider.news_aggregator"
+msgstr "新闻聚合：你查询的代码"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.sec"
+msgstr "SEC EDGAR：你声明的身份（User-Agent）及所请求的文件"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.localNote"
+msgstr "你的持仓和研报仅保存在本机；原始的交易/提醒记录不会离开本机。只有当你在对话中询问持仓或研报相关问题时，AI 模型才会看到对应的持仓信息或研报内容——与它回答其他问题走的是同一条通道，并无另外的渠道。"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gatesTitle"
+msgstr "可选连接"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gatesDesc"
+msgstr "非集成类的对外请求。每个开关只移除对应请求，不改变其他任何行为。"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.contacts"
+msgstr "连接：{hosts}"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.desktopOnly"
+msgstr "（仅桌面应用）"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.footnote"
+msgstr "关闭后，启动预热与代码索引仍会在首次使用时加载——请求相同，只是更晚且仅在你操作时发生。更改立即生效；网页搜索开关会重建对话代理。"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.web_search_enabled.label"
+msgstr "对话中的网页搜索"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.web_search_enabled.desc"
+msgstr "允许 AI 助手在需要时运行 DuckDuckGo 搜索，查询词由模型根据对话生成。关闭：完全不向模型提供该工具。"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.auto_update_check.label"
+msgstr "自动检查更新"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.auto_update_check.desc"
+msgstr "启动后不久及每两小时向 GitHub Releases 轮询已签名的新版本。关闭：仅「更新」中的手动按钮会连接 GitHub。"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.decorative_remote_assets.label"
+msgstr "研究页 3D 场景"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.decorative_remote_assets.desc"
+msgstr "打开时下载装饰性机器人场景及其运行时，纯装饰。关闭：显示本地静态图形。"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.startup_warmups.label"
+msgstr "启动时预热"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.startup_warmups.desc"
+msgstr "启动时预取 SEC 代码索引和研究池报价，让首屏即时呈现。关闭：改为在首次搜索 / 首次打开时获取。"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.sec_holdings_auto_refresh.label"
+msgstr "自动刷新 13F 持仓"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.sec_holdings_auto_refresh.desc"
+msgstr "按计划从 SEC EDGAR 重新同步机构持仓（需要 SEC 身份）。关闭：在「数据源」中手动同步。"
+
+#. js-lingui-explicit-id
+msgid "refresh.title"
+msgstr "部分刷新——仅用所选数据源更新报告"
+
+#. js-lingui-explicit-id
+msgid "refresh.lede"
+msgstr "仅使用所选数据源更新{scope}中的现有报告。其余内容沿用上次运行结果——不会额外调用其他数据源。"
+
+#. js-lingui-explicit-id
+msgid "refresh.pick"
+msgstr "刷新所用数据源"
+
+#. js-lingui-explicit-id
+msgid "refresh.loading"
+msgstr "正在加载数据源…"
+
+#. js-lingui-explicit-id
+msgid "refresh.notConfigured"
+msgstr "未配置"
+
+#. js-lingui-explicit-id
+msgid "refresh.onlyMissing"
+msgstr "仅更新未使用这些数据源生成的报告"
+
+#. js-lingui-explicit-id
+msgid "refresh.previewCount"
+msgstr "将更新 {n} 份报告"
+
+#. js-lingui-explicit-id
+msgid "refresh.andMore"
+msgstr " … 另有 {n} 份"
+
+#. js-lingui-explicit-id
+msgid "refresh.liveOnly"
+msgstr "实时查询：仅 {sources}——其他数据源均使用缓存"
+
+#. js-lingui-explicit-id
+msgid "refresh.carryOver"
+msgstr "原样沿用：{steps}"
+
+#. js-lingui-explicit-id
+msgid "refresh.rerun"
+msgstr "用新数据重新运行：{steps}"
+
+#. js-lingui-explicit-id
+msgid "refresh.newVersion"
+msgstr "每份报告都会生成与当前版本关联的新版本——可在版本对比中查看差异"
+
+#. js-lingui-explicit-id
+msgid "refresh.skipped"
+msgstr "已跳过 {n} 份"
+
+#. js-lingui-explicit-id
+msgid "refresh.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
+msgid "refresh.start"
+msgstr "刷新 {n} 份报告"
+
+#. js-lingui-explicit-id
+msgid "refresh.starting"
+msgstr "正在启动…"
+
+#. js-lingui-explicit-id
+msgid "refresh.toast.started"
+msgstr "已开始部分刷新 {n} 份报告"
+
+#. js-lingui-explicit-id
+msgid "refresh.toast.skipped"
+msgstr "已跳过 {n} 份（已是最新、正在运行或无报告）"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.partialRefresh"
+msgstr "部分刷新…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.partialRefreshTitle"
+msgstr "仅用新启用的数据源更新这些持仓的报告"
+
+#. js-lingui-explicit-id
+msgid "portfolio.partialRefresh.scope"
+msgstr "“{name}”（{n} 个持仓）"
+
+#. js-lingui-explicit-id
+msgid "settings.dataSources.partialRefreshTitle"
+msgstr "更新现有报告"
+
+#. js-lingui-explicit-id
+msgid "settings.dataSources.partialRefreshHint"
+msgstr "启用了新数据源（如 FMP）？无需完整重跑即可把它的数据带入现有报告——只查询所选数据源。"
+
+#. js-lingui-explicit-id
+msgid "settings.dataSources.partialRefreshButton"
+msgstr "部分刷新…"
+
+#. js-lingui-explicit-id
+msgid "settings.dataSources.partialRefreshScope"
+msgstr "报告库"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.reused"
+msgstr "已沿用"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.reusedHint"
+msgstr "部分刷新：本节无新数据，原样沿用上一版本报告"

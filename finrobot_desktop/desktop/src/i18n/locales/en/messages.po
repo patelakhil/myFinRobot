@@ -1757,6 +1757,14 @@ msgid "workspace.pipeline.statusGenerating"
 msgstr "Generating {name}"
 
 #. js-lingui-explicit-id
+msgid "workspace.pipeline.statusQueued"
+msgstr "Queued: {name} starts when a running analysis finishes"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.statusRateLimited"
+msgstr "Queued: AI model rate-limited — {name} retries automatically at {time}"
+
+#. js-lingui-explicit-id
 msgid "workspace.pipeline.statusDone"
 msgstr "{name} · Done"
 
@@ -2853,6 +2861,14 @@ msgid "settings.test.result.http"
 msgstr "The provider returned an error"
 
 #. js-lingui-explicit-id
+msgid "settings.test.result.rate_limited"
+msgstr "Key is valid but the provider is rate-limiting it (429) — research runs will queue and retry automatically"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.timeout"
+msgstr "The provider did not answer in time — research runs will queue and retry automatically"
+
+#. js-lingui-explicit-id
 msgid "settings.test.result.unknown"
 msgstr "Connection test failed"
 
@@ -3171,3 +3187,1287 @@ msgstr "At a fixed {growth}% growth, ${target} falls outside the 1–{maxHorizon
 #. js-lingui-explicit-id
 msgid "valuation.implied.reason.gordonUndefined"
 msgstr "At a fixed {growth}% growth, terminal growth {tg}% is not below WACC {wacc}% — the Gordon model is undefined, so no horizon can be solved."
+
+#. js-lingui-explicit-id
+msgid "nav.portfolio"
+msgstr "Portfolio"
+
+#. js-lingui-explicit-id
+msgid "portfolio.loading"
+msgstr "Loading portfolio…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.footnote"
+msgstr "Cost basis and average cost are computed from your purchase lots (unit-weighted). Market value and P&L use the live price from the data layer and are only computed when the quote currency matches the lot’s cost currency. Day P&L is the position’s move over the latest session. Numbers are code-computed; click any market figure for its source."
+
+#. js-lingui-explicit-id
+msgid "portfolio.error.listFailed"
+msgstr "Couldn’t reach the portfolio service — it may still be starting."
+
+#. js-lingui-explicit-id
+msgid "portfolio.error.overviewFailed"
+msgstr "Couldn’t load this portfolio’s positions."
+
+#. js-lingui-explicit-id
+msgid "portfolio.error.marketFailed"
+msgstr "Live prices failed to refresh — showing last-known values."
+
+#. js-lingui-explicit-id
+msgid "portfolio.error.retry"
+msgstr "Retry"
+
+#. js-lingui-explicit-id
+msgid "portfolio.error.dismiss"
+msgstr "Dismiss"
+
+#. js-lingui-explicit-id
+msgid "portfolio.noLots.body"
+msgstr "This portfolio has no lots yet. Add a purchase by hand or import a CSV from your broker."
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.switch"
+msgstr "Switch portfolio"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.rename"
+msgstr "Rename"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.meta"
+msgstr "{lots} lots · {tickers} tickers · {ccy}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.import"
+msgstr "Import CSV"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.export"
+msgstr "Export CSV"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.addLot"
+msgstr "Add lot"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.deletePortfolio"
+msgstr "Delete this portfolio"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.deleteShort"
+msgstr "Delete"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.newPortfolio"
+msgstr "Create another portfolio"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.newShort"
+msgstr "New"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.newName"
+msgstr "Portfolio {n}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.refresh.label"
+msgstr "Refresh prices"
+
+#. js-lingui-explicit-id
+msgid "portfolio.refresh.refreshing"
+msgstr "Refreshing…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.refresh.upToDate"
+msgstr "Up to date · market closed"
+
+#. js-lingui-explicit-id
+msgid "portfolio.refresh.updated"
+msgstr "Updated"
+
+#. js-lingui-explicit-id
+msgid "portfolio.refresh.asOf"
+msgstr "Prices as of {age} · refresh"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.marketValue"
+msgstr "Market value"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.costBasis"
+msgstr "Cost basis"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.unrealized"
+msgstr "Unrealized P&L"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.dayPnl"
+msgstr "Day P&L"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.positions"
+msgstr "Positions"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.lots"
+msgstr "{n} lots"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.unpriced"
+msgstr "{n} position(s) without a live price are excluded from market value and P&L: {tickers}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.excluded"
+msgstr "{n} position(s) not in {ccy} are listed but kept out of the totals: {tickers}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.ticker"
+msgstr "Ticker"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.units"
+msgstr "Units"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.avgCost"
+msgstr "Avg cost"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.costBasis"
+msgstr "Cost basis"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.price"
+msgstr "Price"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.marketValue"
+msgstr "Market value"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.unrealized"
+msgstr "Unrealized P&L"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.dayPnl"
+msgstr "Day P&L"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.weight"
+msgstr "Weight"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.actions"
+msgstr ""
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.toggleLots"
+msgstr "Show the {n} lots of {ticker}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.openWorkspace"
+msgstr "Open {ticker} in Research"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.lotCount"
+msgstr "{n} lots"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.closed"
+msgstr "close {date}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.mismatch"
+msgstr "withheld"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.mismatchTitle"
+msgstr "Quoted in {quote} but cost booked in {cost} — P&L is not computed across currencies."
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.addLot"
+msgstr "Add a lot"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.addLotFor"
+msgstr "Add a lot of {ticker}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.removePosition"
+msgstr "Remove position"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.removePositionFor"
+msgstr "Remove every lot of {ticker}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.date"
+msgstr "Purchased"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.units"
+msgstr "Units"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.cost"
+msgstr "Cost / unit"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.total"
+msgstr "Total cost"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.pnl"
+msgstr "P&L"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.note"
+msgstr "Note"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.edit"
+msgstr "Edit"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.delete"
+msgstr "Delete"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.editAria"
+msgstr "Edit the {ticker} lot bought {date}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.deleteAria"
+msgstr "Delete the {ticker} lot bought {date}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.addTitle"
+msgstr "Add a purchase lot"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.editTitle"
+msgstr "Edit lot"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.ticker"
+msgstr "Ticker"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.date"
+msgstr "Purchase date"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.units"
+msgstr "Number of units"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.cost"
+msgstr "Cost per unit"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.currency"
+msgstr "Currency"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.note"
+msgstr "Note (optional)"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.notePlaceholder"
+msgstr "e.g. broker, strategy, fees included…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.add"
+msgstr "Add lot"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.saving"
+msgstr "Saving…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.tickerRequired"
+msgstr "Enter a ticker"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.tickerInvalid"
+msgstr "Use A–Z, 0–9, . or - (up to 12 chars), e.g. AAPL or BRK.B"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.unitsRequired"
+msgstr "Enter the number of units"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.unitsPositive"
+msgstr "Units must be greater than 0"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.costRequired"
+msgstr "Enter the cost per unit"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.costNegative"
+msgstr "Cost can’t be negative"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.dateRequired"
+msgstr "Pick the purchase date"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.dateFuture"
+msgstr "Purchase date can’t be in the future"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.err.currency"
+msgstr "Currency must be a 3-letter code (USD, EUR, HKD…)"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.title"
+msgstr "Import holdings from CSV"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.lede"
+msgstr "Pick a CSV from your broker or paste rows. Columns are matched by name (ticker/symbol, units/shares/qty, cost/price, date) — or positionally as ticker, units, cost per unit, purchase date. You can also paste a positions table copied from your broker's website; without a date column, holdings are dated today. Rows with problems are shown and skipped; the rest import."
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.chooseFile"
+msgstr "Choose file…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.dropHint"
+msgstr "or drop a .csv here, or paste below"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.pasteAria"
+msgstr "Paste CSV rows"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.defaultCurrency"
+msgstr "Default currency"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.newName"
+msgstr "Portfolio name"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.newNamePlaceholder"
+msgstr "My Portfolio"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.preview"
+msgstr "Preview"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.parsing"
+msgstr "Parsing…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.validCount"
+msgstr "{n} rows ready to import"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.errorCount"
+msgstr "{n} rows will be skipped"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.columns"
+msgstr "Columns: {cols}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.status"
+msgstr "Status"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.rowOk"
+msgstr "OK"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.commit"
+msgstr "Import {n} rows"
+
+#. js-lingui-explicit-id
+msgid "portfolio.import.importing"
+msgstr "Importing…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.confirm.delete"
+msgstr "Delete"
+
+#. js-lingui-explicit-id
+msgid "portfolio.confirm.deleteLotTitle"
+msgstr "Delete this lot?"
+
+#. js-lingui-explicit-id
+msgid "portfolio.confirm.deleteLotBody"
+msgstr "{units} × {ticker} bought {date} will be removed from the portfolio. This can’t be undone."
+
+#. js-lingui-explicit-id
+msgid "portfolio.confirm.deletePositionTitle"
+msgstr "Remove {ticker}?"
+
+#. js-lingui-explicit-id
+msgid "portfolio.confirm.deletePositionBody"
+msgstr "All {n} lots of {ticker} will be removed from the portfolio. This can’t be undone."
+
+#. js-lingui-explicit-id
+msgid "portfolio.confirm.deletePortfolioTitle"
+msgstr "Delete “{name}”?"
+
+#. js-lingui-explicit-id
+msgid "portfolio.confirm.deletePortfolioBody"
+msgstr "The portfolio and its {n} lots will be deleted. Export a CSV first if you want to keep a copy."
+
+#. js-lingui-explicit-id
+msgid "portfolio.rename.title"
+msgstr "Portfolio settings"
+
+#. js-lingui-explicit-id
+msgid "portfolio.rename.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+msgid "portfolio.rename.baseCurrency"
+msgstr "Base currency"
+
+#. js-lingui-explicit-id
+msgid "portfolio.rename.baseCurrencyHint"
+msgstr "Totals are summed in this currency."
+
+#. js-lingui-explicit-id
+msgid "portfolio.empty.title"
+msgstr "Your portfolio"
+
+#. js-lingui-explicit-id
+msgid "portfolio.empty.body"
+msgstr "Track what you actually own: each purchase as a lot with its date, cost per unit and number of units. FinRobot rolls lots up per ticker, marks them to the live price and links each holding into Research."
+
+#. js-lingui-explicit-id
+msgid "portfolio.empty.namePlaceholder"
+msgstr "Portfolio name, e.g. Core"
+
+#. js-lingui-explicit-id
+msgid "portfolio.empty.nameAria"
+msgstr "Portfolio name"
+
+#. js-lingui-explicit-id
+msgid "portfolio.empty.create"
+msgstr "Create"
+
+#. js-lingui-explicit-id
+msgid "portfolio.empty.or"
+msgstr "or"
+
+#. js-lingui-explicit-id
+msgid "portfolio.empty.import"
+msgstr "Import a CSV"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.exported"
+msgstr "Portfolio exported"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.exportFailed"
+msgstr "Export failed"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.imported"
+msgstr "Imported {n} lots"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.importedSkipped"
+msgstr "{n} rows were skipped"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.lotAdded"
+msgstr "Added {ticker} lot"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.research"
+msgstr "Research"
+
+#. js-lingui-explicit-id
+msgid "bell.aria"
+msgstr "Notifications"
+
+#. js-lingui-explicit-id
+msgid "bell.ariaUnread"
+msgstr "Notifications — {n} unread"
+
+#. js-lingui-explicit-id
+msgid "bell.title"
+msgstr "Notifications"
+
+#. js-lingui-explicit-id
+msgid "bell.markAllRead"
+msgstr "Mark all read"
+
+#. js-lingui-explicit-id
+msgid "bell.clearRead"
+msgstr "Clear read"
+
+#. js-lingui-explicit-id
+msgid "bell.empty"
+msgstr "Nothing yet. Alerts you set and research on your holdings will show up here."
+
+#. js-lingui-explicit-id
+msgid "bell.error"
+msgstr "Couldn’t load notifications."
+
+#. js-lingui-explicit-id
+msgid "bell.openPortfolio"
+msgstr "Open portfolio →"
+
+#. js-lingui-explicit-id
+msgid "bell.kind.alert"
+msgstr "Alert"
+
+#. js-lingui-explicit-id
+msgid "bell.kind.research_completed"
+msgstr "Research"
+
+#. js-lingui-explicit-id
+msgid "bell.kind.research_failed"
+msgstr "Research failed"
+
+#. js-lingui-explicit-id
+msgid "bell.kind.verdict_changed"
+msgstr "Verdict changed"
+
+#. js-lingui-explicit-id
+msgid "bell.kind.target_hit"
+msgstr "Target reached"
+
+#. js-lingui-explicit-id
+msgid "bell.kind.thesis_failed"
+msgstr "Thesis broken"
+
+#. js-lingui-explicit-id
+msgid "bell.kind.system"
+msgstr "System"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.researchAll"
+msgstr "Research {n} unresearched"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.researchAllBusy"
+msgstr "Starting research…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.run"
+msgstr "Run research"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.runTitle"
+msgstr "Run the equity research pipeline on this holding"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.rerunTitle"
+msgstr "Re-run research"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.rerunFor"
+msgstr "Re-run research for {ticker}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.unavailable"
+msgstr "Configure an AI model in Settings to run research"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.queued"
+msgstr "Queued"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.rateLimited"
+msgstr "Rate-limited · retrying at {time}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.running"
+msgstr "Researching…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.openReport"
+msgstr "Open the latest report"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.stale"
+msgstr "stale"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.hit"
+msgstr "target hit"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.broken"
+msgstr "thesis broken"
+
+#. js-lingui-explicit-id
+msgid "portfolio.research.failed"
+msgstr "run failed"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.alerts"
+msgstr "Alerts"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.alertsFor"
+msgstr "Alerts for {ticker} ({n} active)"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.title"
+msgstr "Alerts · {ticker}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.lede"
+msgstr "Rules are checked in the background every few minutes against the live price (and on demand). A trigger lands in the bell. One-shot rules disarm after firing; repeating rules re-arm once the condition clears."
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.livePrice"
+msgstr "Live {price}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.noPrice"
+msgstr "No live price yet"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.none"
+msgstr "No alerts on this holding yet."
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.enabledAria"
+msgstr "Alert enabled"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.deleteAria"
+msgstr "Delete alert"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.repeat"
+msgstr "repeats"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.fired"
+msgstr "fired"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.lastTriggered"
+msgstr "Triggered {when} · {n}×"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.lastChecked"
+msgstr "Checked {when} · last value {value}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.notChecked"
+msgstr "Not checked yet"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind"
+msgstr "Rule"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.thresholdPrice"
+msgstr "Price ({ccy})"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.thresholdPct"
+msgstr "Percent"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.window"
+msgstr "Moving average"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.windowDays"
+msgstr "{n}-day"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.notePlaceholder"
+msgstr "e.g. trim half, re-evaluate…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.repeatLabel"
+msgstr "Repeat (re-arm after it clears)"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.add"
+msgstr "Add alert"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.checkNow"
+msgstr "Check alerts now"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.checking"
+msgstr "Checking…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.checked"
+msgstr "Checked {n} rules · {fired} fired"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.close"
+msgstr "Done"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.err.threshold"
+msgstr "Enter a number"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.err.pricePositive"
+msgstr "Price must be greater than 0"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.err.pctPositive"
+msgstr "Percent must be greater than 0"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.err.pctNegative"
+msgstr "Use a negative percent for a loss limit, e.g. -20"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.price_above"
+msgstr "Price above"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.price_below"
+msgstr "Price below"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.day_move_above"
+msgstr "Daily move larger than"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.high_52w"
+msgstr "New 52-week high"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.low_52w"
+msgstr "New 52-week low"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.ma_cross_above"
+msgstr "Crosses above moving average"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.ma_cross_below"
+msgstr "Crosses below moving average"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.pnl_pct_above"
+msgstr "Position gain reaches"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.kind.pnl_pct_below"
+msgstr "Position loss reaches"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.price_above"
+msgstr "Price above {value}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.price_below"
+msgstr "Price below {value}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.day_move_above"
+msgstr "Daily move of {value} or more"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.high_52w"
+msgstr "New 52-week high"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.low_52w"
+msgstr "New 52-week low"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.ma_cross_above"
+msgstr "Crosses above the {window}-day moving average"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.ma_cross_below"
+msgstr "Crosses below the {window}-day moving average"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.pnl_pct_above"
+msgstr "Position up {value} or more"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.desc.pnl_pct_below"
+msgstr "Position down to {value} or worse"
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.price_above"
+msgstr "Fires when the live price is at or above this level."
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.price_below"
+msgstr "Fires when the live price is at or below this level."
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.day_move_above"
+msgstr "Fires on a session move (up or down) of at least this percent."
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.high_52w"
+msgstr "Fires when the price exceeds the prior 52-week high."
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.low_52w"
+msgstr "Fires when the price breaks below the prior 52-week low."
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.ma_cross_above"
+msgstr "Fires on the crossing itself — needs one prior check below the average."
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.ma_cross_below"
+msgstr "Fires on the crossing itself — needs one prior check above the average."
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.pnl_pct_above"
+msgstr "Based on this portfolio’s cost basis for the holding."
+
+#. js-lingui-explicit-id
+msgid "portfolio.alerts.hint.pnl_pct_below"
+msgstr "Based on this portfolio’s cost basis for the holding."
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.researchStarted"
+msgstr "Research started for {ticker}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.researchRateLimited"
+msgstr "Research for {ticker} queued — AI model rate-limited, retrying at {time}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.researchFailed"
+msgstr "Couldn’t start research for {ticker}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.researchAll"
+msgstr "Started research on {n} holdings"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.researchAllSkipped"
+msgstr "{n} skipped (already running or invalid)"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.researchAllFailed"
+msgstr "Couldn’t start research"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.alertAdded"
+msgstr "Alert added for {ticker}"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.label.holdings"
+msgstr "You hold"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.label.pnl"
+msgstr "Your P&L"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.label.today"
+msgstr "Your today"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.units"
+msgstr "{n} units"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.avg"
+msgstr "avg {v}"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.closed"
+msgstr "Closed position"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.withheld"
+msgstr "withheld (currency)"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.split"
+msgstr "unrl {unrl} · rlzd {rlzd}"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.in"
+msgstr "In: {names}"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.switchAria"
+msgstr "What to show for held names"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.view.holdings"
+msgstr "Holdings"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.view.pnl"
+msgstr "P&L"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.view.today"
+msgstr "Today"
+
+#. js-lingui-explicit-id
+msgid "coverage.holding.view.off"
+msgstr "Hide"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.realized"
+msgstr "Realized P&L"
+
+#. js-lingui-explicit-id
+msgid "portfolio.col.totalPnl"
+msgstr "Total P&L"
+
+#. js-lingui-explicit-id
+msgid "portfolio.closed.title"
+msgstr "Closed positions ({n})"
+
+#. js-lingui-explicit-id
+msgid "portfolio.closed.realized"
+msgstr "realized {value}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.costMethod.fifo"
+msgstr "FIFO"
+
+#. js-lingui-explicit-id
+msgid "portfolio.costMethod.lifo"
+msgstr "LIFO"
+
+#. js-lingui-explicit-id
+msgid "portfolio.costMethod.average"
+msgstr "Average cost"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.side"
+msgstr "Trade side"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.side.buy"
+msgstr "Buy"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.side.sell"
+msgstr "Sell"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.addSell"
+msgstr "Record sale"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.heldHint"
+msgstr "{n} units held"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.salePrice"
+msgstr "Sale price per unit"
+
+#. js-lingui-explicit-id
+msgid "portfolio.form.sellDate"
+msgstr "Sale date"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.side"
+msgstr "Side"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.oversold"
+msgstr "oversold"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.oversoldTitle"
+msgstr "{n} units sold with no matching buy — check the lots"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.realizedTag"
+msgstr "realized"
+
+#. js-lingui-explicit-id
+msgid "portfolio.lot.remaining"
+msgstr "{n} open"
+
+#. js-lingui-explicit-id
+msgid "portfolio.rename.costMethod"
+msgstr "Cost method"
+
+#. js-lingui-explicit-id
+msgid "portfolio.rename.costMethodHint"
+msgstr "How sells are matched to buys for realized P&L."
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.sell"
+msgstr "Record a sale"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.sellFor"
+msgstr "Record a sale of {ticker}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.sold"
+msgstr "sold {n}"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.soldTitle"
+msgstr "Units sold so far (realized P&L in its column)"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.closedCount"
+msgstr "{n} closed"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.realized"
+msgstr "Realized P&L"
+
+#. js-lingui-explicit-id
+msgid "portfolio.summary.totalPnl"
+msgstr "Total P&L"
+
+#. js-lingui-explicit-id
+msgid "portfolio.toast.sellAdded"
+msgstr "Recorded {ticker} sale"
+
+#. js-lingui-explicit-id
+msgid "portfolio.row.closedPosition"
+msgstr "Closed · {units} units sold"
+
+#. js-lingui-explicit-id
+msgid "settings.nav.privacy"
+msgstr "Privacy & network"
+
+#. js-lingui-explicit-id
+msgid "settings.section.privacy"
+msgstr "Privacy & network"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.intro"
+msgstr "Everything FinRobot sends off this machine, in one place. Research runs locally: numbers are computed here and stored in ~/.finrobot. The connections below are the only ones that exist."
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integrationsTitle"
+msgstr "Connections you configured"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integrationsDesc"
+msgstr "These receive data because you set them up — the AI model gets your chat and the research inputs; data providers get the tickers you look up. Manage them in AI Model and Data Sources."
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integrationsNone"
+msgstr "Nothing configured yet — only the keyless market-data provider is active."
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.llm"
+msgstr "AI model — {model}: chat messages, research pipeline inputs, the studied-tickers snapshot, and — only when you ask about them in chat — your portfolio holdings and saved-report content"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.provider.yfinance"
+msgstr "Yahoo Finance (keyless, always on): tickers you study, hold or set alerts on — for prices"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.provider.fmp"
+msgstr "Financial Modeling Prep (your key): tickers you look up — fundamentals and quotes"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.provider.finnhub"
+msgstr "Finnhub (your key): tickers you look up — quotes and profiles"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.provider.adanos"
+msgstr "Adanos (your key): tickers you look up — retail sentiment"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.provider.alpha_vantage"
+msgstr "Alpha Vantage (your key): tickers you look up — news"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.provider.news_aggregator"
+msgstr "News aggregator: tickers you look up"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.integration.sec"
+msgstr "SEC EDGAR: your declared identity (User-Agent) plus the filings you request"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.localNote"
+msgstr "Your portfolio and saved reports are stored only on this machine. Raw lot/alert records never leave it; the AI model only sees a holding (or a report's content) when YOU ask it a question about your portfolio or a report in chat — same channel as everything else it answers, nothing separate."
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gatesTitle"
+msgstr "Optional connections"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gatesDesc"
+msgstr "Contacts that are not integrations. Each switch removes the call and changes nothing else."
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.contacts"
+msgstr "Contacts: {hosts}"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.desktopOnly"
+msgstr "(desktop app only)"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.footnote"
+msgstr "Startup warm-ups and the symbol index still load on first use when off — the same requests, just later and only when you act. Changes apply immediately; the web-search switch rebuilds the chat agent."
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.web_search_enabled.label"
+msgstr "Web search in chat"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.web_search_enabled.desc"
+msgstr "Lets the AI assistant run a DuckDuckGo search when it decides it needs the web. The query is written by the model from your conversation. Off: the tool is not offered to the model at all."
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.auto_update_check.label"
+msgstr "Automatic update check"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.auto_update_check.desc"
+msgstr "Poll GitHub Releases for a newer signed build shortly after launch and every two hours. Off: only the manual button under Updates contacts GitHub."
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.decorative_remote_assets.label"
+msgstr "3D scene on the Research page"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.decorative_remote_assets.desc"
+msgstr "Downloads the decorative robot scene and its runtime on open. Purely cosmetic. Off: a static local graphic is shown instead."
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.startup_warmups.label"
+msgstr "Warm up at launch"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.startup_warmups.desc"
+msgstr "Pre-fetch the SEC symbol index and quotes for your studied tickers at boot so the first screen is instant. Off: fetched on first search / first desk open instead."
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.sec_holdings_auto_refresh.label"
+msgstr "Auto-refresh 13F holdings"
+
+#. js-lingui-explicit-id
+msgid "settings.privacy.gate.sec_holdings_auto_refresh.desc"
+msgstr "Re-sync institutional holdings from SEC EDGAR on a schedule (needs your SEC identity). Off: sync manually under Data Sources."
+
+#. js-lingui-explicit-id
+msgid "refresh.title"
+msgstr "Partial refresh — update reports with selected data sources"
+
+#. js-lingui-explicit-id
+msgid "refresh.lede"
+msgstr "Updates existing reports in {scope} using ONLY the data sources you pick. Everything else is reused from the last run — no extra calls to other sources."
+
+#. js-lingui-explicit-id
+msgid "refresh.pick"
+msgstr "Refresh with"
+
+#. js-lingui-explicit-id
+msgid "refresh.loading"
+msgstr "Loading data sources…"
+
+#. js-lingui-explicit-id
+msgid "refresh.notConfigured"
+msgstr "not configured"
+
+#. js-lingui-explicit-id
+msgid "refresh.onlyMissing"
+msgstr "Only reports generated without these sources"
+
+#. js-lingui-explicit-id
+msgid "refresh.previewCount"
+msgstr "{n} report(s) will be updated"
+
+#. js-lingui-explicit-id
+msgid "refresh.andMore"
+msgstr " … and {n} more"
+
+#. js-lingui-explicit-id
+msgid "refresh.liveOnly"
+msgstr "Queried live: {sources} only — all other sources are served from cache"
+
+#. js-lingui-explicit-id
+msgid "refresh.carryOver"
+msgstr "Carried over unchanged: {steps}"
+
+#. js-lingui-explicit-id
+msgid "refresh.rerun"
+msgstr "Re-run with the new data: {steps}"
+
+#. js-lingui-explicit-id
+msgid "refresh.newVersion"
+msgstr "Each report gets a new version linked to the current one — compare them in the version diff"
+
+#. js-lingui-explicit-id
+msgid "refresh.skipped"
+msgstr "{n} skipped"
+
+#. js-lingui-explicit-id
+msgid "refresh.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+msgid "refresh.start"
+msgstr "Refresh {n} report(s)"
+
+#. js-lingui-explicit-id
+msgid "refresh.starting"
+msgstr "Starting…"
+
+#. js-lingui-explicit-id
+msgid "refresh.toast.started"
+msgstr "Partial refresh started for {n} report(s)"
+
+#. js-lingui-explicit-id
+msgid "refresh.toast.skipped"
+msgstr "{n} skipped (already up to date, running, or no report)"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.partialRefresh"
+msgstr "Partial refresh…"
+
+#. js-lingui-explicit-id
+msgid "portfolio.header.partialRefreshTitle"
+msgstr "Update these holdings’ reports with newly enabled data sources only"
+
+#. js-lingui-explicit-id
+msgid "portfolio.partialRefresh.scope"
+msgstr "“{name}” ({n} holdings)"
+
+#. js-lingui-explicit-id
+msgid "settings.dataSources.partialRefreshTitle"
+msgstr "Update existing reports"
+
+#. js-lingui-explicit-id
+msgid "settings.dataSources.partialRefreshHint"
+msgstr "Enabled a new source (e.g. FMP)? Bring its data into existing reports without re-running them in full — only the selected source is queried."
+
+#. js-lingui-explicit-id
+msgid "settings.dataSources.partialRefreshButton"
+msgstr "Partial refresh…"
+
+#. js-lingui-explicit-id
+msgid "settings.dataSources.partialRefreshScope"
+msgstr "your report library"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.reused"
+msgstr "carried over"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.reusedHint"
+msgstr "Partial refresh: reused unchanged from the previous report version (no new data for this section)"

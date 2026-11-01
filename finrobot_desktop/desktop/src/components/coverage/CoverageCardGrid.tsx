@@ -8,13 +8,14 @@
 import { useI18n } from '../../i18n'
 import { CoverageCard } from './CoverageCard'
 import type { CoverageRow } from '../../api/coverage'
-import type { CoverageDensity } from '../../stores/coverageStore'
+import type { CoverageDensity, HoldingView } from '../../stores/coverageStore'
 
 interface Props {
   rows: CoverageRow[]
   density: CoverageDensity
   marketPending?: boolean
   onOpen: (ticker: string) => void
+  holdingView?: HoldingView
 }
 
 export function CoverageCardGrid({
@@ -22,6 +23,7 @@ export function CoverageCardGrid({
   density,
   marketPending = false,
   onOpen,
+  holdingView,
 }: Props): React.ReactElement {
   const { t } = useI18n()
   const compact = density === 'compact'
@@ -66,6 +68,7 @@ export function CoverageCardGrid({
       {rows.map((row) => (
         <CoverageCard
           key={row.ticker}
+          holdingView={holdingView}
           row={row}
           density={density}
           marketPending={marketPending}

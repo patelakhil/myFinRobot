@@ -357,3 +357,23 @@ export function formatRelativeTime(
   if (day < 30) return `${day}d ago`
   return formatDate(date, locale, 'short')
 }
+
+/**
+ * When a rate-limit-parked research run resumes, for "retrying at …" copy.
+ * Same calendar day as `now` → just the time ("09:00"); otherwise the full
+ * datetime so "tomorrow 09:00" can't be misread as "in a few minutes".
+ */
+export function formatRetryAt(
+  iso: string | null | undefined,
+  locale: Locale,
+  now: Date = new Date(),
+): string {
+  if (!iso) return '—'
+  const date = parseDateInput(iso)
+  if (Number.isNaN(date.getTime())) return '—'
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  return formatDate(date, locale, sameDay ? 'time' : 'datetime')
+}

@@ -82,6 +82,11 @@ RUNS_DB: Path = FINROBOT_HOME / "runs.db"
 # user's curated coverage is a first-class, backup-able research asset rather
 # than localStorage that evaporates (see CoverageDesk plan M5 / ADR-0012).
 COVERAGE_DB: Path = FINROBOT_HOME / "coverage.db"
+# Portfolio Desk: the user's actual holdings (portfolios + purchase lots —
+# ticker / units / cost per unit / purchase date). Own db slot like coverage.db
+# so holdings are a first-class, backup-able asset and never mixed into the
+# research-universe tables.
+PORTFOLIO_DB: Path = FINROBOT_HOME / "portfolio.db"
 SESSIONS_DIR: Path = FINROBOT_HOME / "sessions"
 SETTINGS_JSON: Path = FINROBOT_HOME / "settings.json"
 # 13F local holdings cache — reverse index built by

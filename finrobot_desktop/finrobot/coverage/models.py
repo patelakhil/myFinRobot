@@ -216,11 +216,48 @@ class CoverageRow(BaseModel):
     needs_refresh: list[NeedsRefreshReason] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
+    holding: CoverageHolding | None = None
+    """The user's position in this name across their portfolios, marked to the
+    row's live price — None when the ticker is not held. Lets the coverage card
+    show units / P&L / today's move for what the analyst actually owns."""
+
     # Per-cell provenance for the numeric columns above (price/mcap/EV-EBITDA/…).
     # Additive: the flat numbers stay the source of truth for sorting/signal/
     # compare; this rides alongside so the table can render each through
     # SourcedNumber without changing any existing consumer's contract.
     sources: CoverageRowSources = Field(default_factory=CoverageRowSources)
+
+
+class HoldingInput(BaseModel):
+    """The deterministic (lot-derived) side of a held position, summed across
+    every portfolio that holds the ticker. Produced by ``portfolio.service``,
+    consumed by ``coverage.service`` — a pure data hand-off so the coverage
+    layer never imports the portfolio package."""
+
+    units: float
+    cost_basis: float
+    cost_currency: str
+    realized_pnl: float
+    realized_cost: float
+    portfolios: list[str] = Field(default_factory=list)
+    """Names of the portfolios holding this ticker."""
+    mixed_currency: bool = False
+    """Positions in different cost currencies were summed — P&L is withheld."""
+
+
+class CoverageHolding(HoldingInput):
+    """:class:`HoldingInput` marked to the coverage row's live price."""
+
+    avg_cost_per_unit: float | None = None
+    market_value: float | None = None
+    unrealized_pnl: float | None = None
+    unrealized_pnl_pct: float | None = None
+    day_pnl: float | None = None
+    total_pnl: float | None = None
+    """realized + unrealized."""
+    total_pnl_pct: float | None = None
+    currency_mismatch: bool = False
+    """Quote currency ≠ cost currency — market value shown, P&L withheld."""
 
 
 class CoverageOverview(BaseModel):
@@ -246,3 +283,6 @@ class CoverageOverview(BaseModel):
     client shows "已是最新收盘" rather than implying it pulled live quotes. Always
     ``False`` on the instant cache-only paint and whenever any row was fetched
     (cold, live, or a newer session had settled)."""
+
+
+CoverageRow.model_rebuild()

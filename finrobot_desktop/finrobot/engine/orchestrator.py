@@ -8,8 +8,14 @@ from pydantic import ValidationError
 from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool
 
-from finrobot.artifact.models import ArtifactSummary
+from finrobot.artifact.models import Artifact, ArtifactSummary
 from finrobot.artifact.semantic_diff import DeltaItem, SemanticDelta, build_semantic_delta
+from finrobot.artifact.summary_extractor import (
+    extract_entry_price,
+    extract_llm_narrative,
+    extract_target_price,
+    extract_verdict,
+)
 from finrobot.config import FinRobotSettings
 from finrobot.coverage.prompt import format_coverage_for_tool
 from finrobot.coverage.service import build_overview
@@ -30,6 +36,8 @@ from finrobot.engine.pipelines.base import Pipeline
 from finrobot.engine.pipelines.registry import PipelineSpec, iter_pipeline_specs
 from finrobot.engine.skills.pipeline_methodology import render_pipeline_methodology
 from finrobot.engine.skills.registry import SkillRegistry
+from finrobot.portfolio.prompt import format_portfolio_for_tool
+from finrobot.portfolio.service import build_all_overviews
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +89,75 @@ def _format_reports_for_tool(ticker: str, summaries: list[ArtifactSummary]) -> s
             parts.append(f"entry {s.entry_price:,.2f}")
         lines.append(" | ".join(parts))
     lines.append("Reference an id to open it; say so to compare versions or re-run.")
+    return "\n".join(lines)
+
+
+_NARRATIVE_LABELS = {
+    "tagline": "Tagline",
+    "key_takeaways": "Key takeaways",
+    "company_overview": "Company overview",
+    "valuation_overview": "Valuation rationale",
+    "news_summary": "Recent news / market reaction",
+    "competitor_analysis": "Competitive landscape",
+    "recommendation": "Recommendation narrative",
+    "catalysts": "Catalysts",
+    "risks": "Risks",
+}
+
+
+def _format_report_for_tool(artifact: Artifact, sections: list[str] | None) -> str:
+    """Render one saved report's narrative + conclusion for grounded Q&A.
+
+    Every section is quoted verbatim from what the report actually wrote (the
+    LLM-authored ``thesis`` fields via ``extract_llm_narrative``) plus the
+    code-computed ``summary_text`` — this tool never re-derives or paraphrases
+    ahead of the caller; the chat agent narrates FROM this string.
+    """
+    header = [artifact.id, artifact.meta.created_at.date().isoformat(), artifact.type]
+    if artifact.ticker:
+        header.insert(1, artifact.ticker)
+    lines = [f"Report: {' | '.join(header)}"]
+
+    verdict = extract_verdict(artifact)
+    target = extract_target_price(artifact)
+    entry = extract_entry_price(artifact)
+    conclusion = []
+    if verdict:
+        conclusion.append(f"verdict {verdict}")
+    if target is not None:
+        conclusion.append(f"target {target:,.2f}")
+    if entry is not None:
+        conclusion.append(f"entry {entry:,.2f} (quote when the report ran)")
+    if conclusion:
+        lines.append(" · ".join(conclusion))
+
+    narrative = extract_llm_narrative(artifact)
+    wanted = [s.strip() for s in sections] if sections else list(narrative.keys())
+    rendered = False
+    for key in wanted:
+        value = narrative.get(key)
+        if not value:
+            continue
+        rendered = True
+        label = _NARRATIVE_LABELS.get(key, key.replace("_", " ").title())
+        body = (
+            "\n".join(f"- {item}" for item in value)
+            if isinstance(value, list)
+            else str(value).strip()
+        )
+        lines.append(f"\n## {label}\n{body[:1800]}")
+    if not rendered:
+        lines.append(
+            "\n(No written narrative on this artifact — it may be a standalone "
+            "model with no thesis, or the requested section is empty.)"
+        )
+
+    if artifact.outputs.summary_text:
+        lines.append(
+            f"\n## Computed figures (code-calculated)\n{artifact.outputs.summary_text.strip()}"
+        )
+
+    lines.append("\nQuote this content; do not add conclusions beyond what's written here.")
     return "\n".join(lines)
 
 
@@ -212,11 +289,17 @@ def create_lead_agent(
     # tool and mis-fired query_financial_data(ticker="AI"). Swap to
     # tavily_search_tool(api_key=…) for cleaner finance-grade results when a key
     # is configured — same registration, better backend.
+    #
+    # Privacy gate: a search sends a model-written query (derived from the
+    # user's chat) to a third party the user never configured, so it is opt-out
+    # via settings.web_search_enabled (Settings → Privacy & network). Off → the
+    # tool is simply not registered; the model can't call what it can't see.
+    tools = [duckduckgo_search_tool(max_results=8)] if settings.web_search_enabled else []
     agent: Agent[FinRobotDeps, str] = Agent(
         settings.create_model(),
         deps_type=FinRobotDeps,
         instructions=instructions,
-        tools=[duckduckgo_search_tool(max_results=8)],
+        tools=tools,
     )
 
     if sub_agents is None:
@@ -336,6 +419,203 @@ def create_lead_agent(
         return format_coverage_for_tool(overview)
 
     @agent.tool
+    async def query_portfolio_holdings(ctx: RunContext[FinRobotDeps], refresh: bool = False) -> str:
+        """List the user's ACTUAL holdings (all portfolios) with live P&L.
+
+        Distinct from the watchlist: the watchlist is what the user is
+        STUDYING, this is what they OWN — units, cost, market value, realized +
+        unrealized P&L. Most portfolio questions are already answerable from
+        the "User's portfolio" block in your system context — it is injected
+        EVERY turn the user has holdings. Call this tool only when you need
+        something NOT in that block (e.g. a position past the row cap), or the
+        user explicitly wants a fresh live re-price.
+
+        refresh=False (default): instant, reads the local price cache — cheap,
+        may repeat numbers already in your context.
+        refresh=True: triggers a live provider fetch for every held ticker —
+        SLOW; use ONLY when the user explicitly wants real-time P&L.
+
+        Caliber: this P&L is against the user's OWN cost basis — never conflate
+        it with a report's entry-based upside or the watchlist's live-price
+        upside (see "upside caliber" in your instructions).
+        """
+        store = ctx.deps.portfolio_store
+        if store is None:
+            return (
+                "Portfolio holdings aren't available in this session (no "
+                "Portfolio Desk is wired up). Ask the user for a ticker and use "
+                "query_financial_data instead."
+            )
+        overviews = await build_all_overviews(
+            store,
+            data_layer=ctx.deps.data_layer,
+            artifact_store=ctx.deps.artifact_store,
+            cache_only=not refresh,
+        )
+        return format_portfolio_for_tool(overviews)
+
+    @agent.tool
+    async def list_data_integrations(ctx: RunContext[FinRobotDeps]) -> str:
+        """Which data integrations (FMP, Finnhub, SEC EDGAR, Adanos, Alpha
+        Vantage, Yahoo Finance) are configured right now, and what data each
+        one serves. Call it when the user asks what sources are set up, or
+        before a partial refresh when you are unsure an integration is enabled.
+        """
+        from finrobot.engine.pipelines.refresh_service import describe_integrations
+
+        rows = describe_integrations(ctx.deps.settings, ctx.deps.data_layer)
+        lines = []
+        for row in rows:
+            state = "configured" if row["configured"] else "not configured"
+            if row["configured"] and not row["live"]:
+                state += " (engine still warming up)"
+            lines.append(
+                f"- {row['label']} [{row['id']}]: {state}; serves {', '.join(row['data_types'])}"
+            )
+        return "Data integrations:\n" + "\n".join(lines)
+
+    @agent.tool
+    async def partial_refresh_reports(
+        ctx: RunContext[FinRobotDeps],
+        integrations: list[str],
+        tickers: list[str] | None = None,
+        only_missing: bool = True,
+        dry_run: bool = False,
+    ) -> str:
+        """Update EXISTING research reports with newly enabled data integrations
+        ONLY — a "partial refresh". Use this whenever the user says they just
+        added / enabled / configured a data source key (FMP, Finnhub, SEC EDGAR,
+        Adanos, Alpha Vantage) and wants their reports refreshed, updated or
+        re-run with it. Do NOT answer such a request with a portfolio overview,
+        and do NOT run `run_equity_research` per ticker — a full re-run
+        re-queries every source and, inside the cache window, does not even
+        pick the new integration up.
+
+        What it does: for each existing report (newest version per ticker), it
+        starts ONE background partial run that queries only the named
+        integrations live, serves every other source from cache, carries
+        unaffected sections over unchanged, re-runs the narrative, and saves a
+        NEW report version linked to the old one. Runs are queued through the
+        normal run machinery (rate-limit parking, concurrency cap) and show
+        live progress in the Portfolio / run panels — this tool returns as soon
+        as they are queued; it does not wait for them.
+
+        integrations: names as the user said them ("FMP", "finnhub", "SEC",
+        "alpha vantage", "yahoo") — aliases are resolved.
+        tickers: restrict to these symbols; omit for every report in the library
+        (the user's portfolio holdings if they said "my portfolio").
+        only_missing: skip reports already generated with those integrations
+        (default True — set False to force-refresh everything).
+        dry_run: preview only — list what WOULD be refreshed, start nothing.
+        """
+        from finrobot.engine.pipelines.refresh_service import (
+            RefreshError,
+            collect_candidates,
+            spawn_refresh_runs,
+            step_plans,
+            validate_integrations,
+        )
+
+        try:
+            ids = validate_integrations(integrations, ctx.deps.settings)
+        except RefreshError as exc:
+            return f"Cannot start a partial refresh: {exc}"
+        store = ctx.deps.artifact_store
+        if store is None:
+            return "No report library is available in this session, so there is nothing to refresh."
+        clean_tickers: list[str] | None = None
+        if tickers:
+            clean_tickers = []
+            bad: list[str] = []
+            for raw in tickers:
+                try:
+                    clean_tickers.append(validate_ticker(raw))
+                except ValueError:
+                    bad.append(str(raw))
+            if bad:
+                return f"Invalid ticker symbol(s): {', '.join(bad)} — please correct them."
+        try:
+            candidates, skipped = await collect_candidates(
+                artifact_store=store,
+                run_store=ctx.deps.run_store,
+                integrations=ids,
+                tickers=clean_tickers,
+                types=["equity_research"],
+                only_missing=only_missing,
+                limit=100,
+            )
+        except RefreshError as exc:
+            return f"Cannot start a partial refresh: {exc}"
+
+        label = ", ".join(ids)
+        plan = step_plans(ids, ["equity_research"], ctx.deps.data_layer, None).get(
+            "equity_research", {"rerun": [], "carry_over": []}
+        )
+        header = [
+            f"Partial refresh with {label}: only these integrations are queried live; every "
+            "other source is served from cache."
+        ]
+        if plan["carry_over"]:
+            header.append(f"Carried over unchanged: {', '.join(plan['carry_over'])}.")
+        header.append(f"Re-run with the new data: {', '.join(plan['rerun'])}.")
+
+        def _skips() -> str:
+            if not skipped:
+                return ""
+            rows = "; ".join(f"{s['ticker']} ({s['reason']})" for s in skipped[:20])
+            more = f" … +{len(skipped) - 20}" if len(skipped) > 20 else ""
+            return f"\nSkipped {len(skipped)}: {rows}{more}"
+
+        if not candidates:
+            return (
+                "\n".join(header)
+                + "\nNothing to refresh — no existing report needs these integrations."
+                + _skips()
+            )
+        if dry_run:
+            names = ", ".join(c.ticker for c in candidates)
+            return (
+                "\n".join(header)
+                + f"\nDRY RUN — {len(candidates)} report(s) would be refreshed: {names}."
+                + _skips()
+                + "\nSay the word and I'll start them."
+            )
+        spawner = ctx.deps.run_spawner
+        if spawner is None:
+            return (
+                "\n".join(header)
+                + f"\n{len(candidates)} report(s) qualify, but background runs aren't available "
+                "in this session — use Portfolio → “Partial refresh…” or Settings → Data "
+                "Sources → “Update existing reports” in the app."
+            )
+        outcome = await spawn_refresh_runs(
+            candidates,
+            integrations=ids,
+            spawner=spawner,
+            language=ctx.deps.request_locale,
+            skipped=skipped,
+        )
+        skipped = outcome.skipped
+        started = [r for r in outcome.runs]
+        parked = [r for r in started if r.get("queued_reason")]
+        lines = header + [
+            f"Started {len(started)} partial refresh run(s): "
+            + ", ".join(f"{r['ticker']} (run {r['run_id']})" for r in started[:25])
+            + (f" … +{len(started) - 25}" if len(started) > 25 else "")
+        ]
+        if parked:
+            lines.append(
+                f"{len(parked)} of them are queued because the AI provider is rate-limited; "
+                f"they resume automatically (first at {parked[0].get('retry_at')})."
+            )
+        lines.append(
+            "Each run writes a new report version linked to the current one — compare them "
+            "in the version diff once they finish. Progress shows in the Portfolio and run "
+            "panels; I don't wait for them here."
+        )
+        return "\n".join(lines) + _skips()
+
+    @agent.tool
     async def find_reports(ctx: RunContext[FinRobotDeps], ticker: str, limit: int = 5) -> str:
         """Locate the user's previously-run reports for a ticker (newest first).
 
@@ -360,6 +640,34 @@ def create_lead_agent(
         if not summaries:
             return f"No saved reports for {norm} yet — run an analysis to create one."
         return _format_reports_for_tool(norm, summaries)
+
+    @agent.tool
+    async def read_report(
+        ctx: RunContext[FinRobotDeps], artifact_id: str, sections: list[str] | None = None
+    ) -> str:
+        """Read a previously generated report's WRITTEN content, grounded.
+
+        Returns the report's narrative (thesis / key takeaways / valuation
+        rationale / catalysts / risks / competitive view) plus its verdict,
+        target, entry price and the code-computed summary — the same content
+        shown in the report UI. Use this when the user asks what a SAVED report
+        SAYS, CONCLUDES, or ASSUMED ("what does my AAPL report say about
+        risks", "why did it say BUY", "what WACC did it use") — never guess
+        report content from memory. You need the artifact id; call
+        find_reports first if you don't have one. This only reads; it never
+        creates or modifies a report.
+
+        sections: optional subset of narrative section names (e.g. ["risks",
+        "catalysts"]) to return just those when the user asks about one topic
+        — omit to get the whole narrative.
+        """
+        store = ctx.deps.artifact_store
+        if store is None:
+            return "Report history isn't available in this session (no artifact store)."
+        artifact = await store.get(artifact_id)
+        if artifact is None:
+            return f"Report not found: {artifact_id}. Use find_reports to list valid ids."
+        return _format_report_for_tool(artifact, sections)
 
     @agent.tool
     async def diff_reports(ctx: RunContext[FinRobotDeps], a_id: str, b_id: str) -> str:

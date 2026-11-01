@@ -288,7 +288,7 @@ async def test_get_settings_exposes_provider_registry(tmp_path: Path) -> None:
     assert resp.status_code == 200, resp.text
     body = resp.json()
     providers = {p["id"]: p for p in body["providers"]}
-    assert set(providers) == {"anthropic", "openai"}
+    assert set(providers) == {"anthropic", "openai", "openrouter"}
     assert providers["openai"]["is_builtin"] is True
     # openai is the active model and its key is injected → key_set True.
     assert providers["openai"]["key_set"] is True
@@ -530,12 +530,14 @@ async def test_put_lowercases_custom_provider_id_before_persisting(
 async def test_put_normalizes_model_name_provider_prefix_with_custom_provider(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
-    """A single PUT that adds ``OpenRouter`` and selects ``OpenRouter:model``
+    """A single PUT that adds ``MoonshotAI`` and selects ``MoonshotAI:model``
     must persist a coherent lower-case provider id everywhere.
 
-    Regression: custom_providers[].id was normalized to ``openrouter`` while
-    model_name stayed ``OpenRouter:...``, leaving the saved config unable to
-    find its own provider.
+    Regression: custom_providers[].id was normalized to lower-case while
+    model_name stayed mixed-case, leaving the saved config unable to find its
+    own provider. (Originally used "OpenRouter" as the example id — now a
+    BUILT-IN provider, so a custom provider by that name is correctly
+    rejected as shadowing it; see test_custom_provider_cannot_shadow_a_builtin.)
     """
     secret_store = AsyncMock()
     secret_store.has = AsyncMock(return_value=False)
@@ -551,11 +553,11 @@ async def test_put_normalizes_model_name_provider_prefix_with_custom_provider(
 
     custom = [
         {
-            "id": "OpenRouter",
-            "label": "OpenRouter",
+            "id": "MoonshotAI",
+            "label": "MoonshotAI",
             "kind": "openai-compatible",
-            "base_url": "https://openrouter.ai/api/v1",
-            "models": ["openai/gpt-4o-mini"],
+            "base_url": "https://api.moonshot.cn/v1",
+            "models": ["moonshot-v1-8k"],
         }
     ]
     async with _client(app) as c:
@@ -563,20 +565,46 @@ async def test_put_normalizes_model_name_provider_prefix_with_custom_provider(
             "/api/settings",
             json={
                 "custom_providers": custom,
-                "model_name": "OpenRouter:openai/gpt-4o-mini",
-                "provider_keys": {"OpenRouter": "sk-test"},
+                "model_name": "MoonshotAI:moonshot-v1-8k",
+                "provider_keys": {"MoonshotAI": "sk-test"},
             },
         )
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["model_name"] == "openrouter:openai/gpt-4o-mini"
-    assert body["custom_providers"][0]["id"] == "openrouter"
+    assert body["model_name"] == "moonshotai:moonshot-v1-8k"
+    assert body["custom_providers"][0]["id"] == "moonshotai"
     assert body["model_configured"] is True
     assert body["startup_error"] is None
-    secret_store.set.assert_awaited_with("provider_key:openrouter", "sk-test")
+    secret_store.set.assert_awaited_with("provider_key:moonshotai", "sk-test")
     content = json.loads((tmp_path / "settings.json").read_text())
-    assert content["model_name"] == "openrouter:openai/gpt-4o-mini"
+    assert content["model_name"] == "moonshotai:moonshot-v1-8k"
+
+
+@pytest.mark.asyncio
+async def test_custom_provider_cannot_shadow_a_builtin(tmp_path: Path, monkeypatch: Any) -> None:
+    """A custom provider id that collides with a built-in (e.g. the new
+    OpenRouter) is rejected — silently shadowing it would leave the user's
+    custom entry unreachable (provider_by_id resolves the built-in first)."""
+    app = _make_app(tmp_path)
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
+
+    async with _client(app) as c:
+        resp = await c.put(
+            "/api/settings",
+            json={
+                "custom_providers": [
+                    {
+                        "id": "openrouter",
+                        "label": "My own OpenRouter",
+                        "kind": "openai-compatible",
+                        "base_url": "https://openrouter.ai/api/v1",
+                    }
+                ]
+            },
+        )
+    assert resp.status_code == 400
+    assert "built-in" in resp.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -800,6 +828,79 @@ async def test_put_persists_sec_holdings_auto_refresh(tmp_path: Path, monkeypatc
     assert resp.status_code == 200, resp.text
     content = json.loads((tmp_path / "settings.json").read_text())
     assert content["sec_holdings_auto_refresh"] is False
+
+
+PRIVACY_GATES = (
+    "web_search_enabled",
+    "auto_update_check",
+    "decorative_remote_assets",
+    "startup_warmups",
+)
+
+
+@pytest.mark.asyncio
+async def test_privacy_gates_default_on_and_round_trip(tmp_path: Path, monkeypatch: Any) -> None:
+    """Settings → Privacy & network: each non-integration outbound contact has
+    an opt-out that defaults ON (existing behaviour), is echoed by GET, and is
+    persisted to settings.json only once the user changes it."""
+    app = _make_app(tmp_path)
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
+
+    async with _client(app) as c:
+        body = (await c.get("/api/settings")).json()
+        assert all(body[k] is True for k in PRIVACY_GATES)
+        # Untouched → not written (stays at the built-in default).
+        assert not (tmp_path / "settings.json").exists() or not any(
+            k in json.loads((tmp_path / "settings.json").read_text()) for k in PRIVACY_GATES
+        )
+
+        resp = await c.put(
+            "/api/settings", json={"web_search_enabled": False, "startup_warmups": False}
+        )
+        assert resp.status_code == 200, resp.text
+
+    # (The echo is built from the runtime settings, which the mocked
+    # _replace_runtime_settings above doesn't swap — assert on persistence.)
+    content = json.loads((tmp_path / "settings.json").read_text())
+    assert content["web_search_enabled"] is False
+    assert content["startup_warmups"] is False
+    assert "auto_update_check" not in content
+
+    # The persisted value survives a boot-time load into FinRobotSettings.
+    raw = load_non_secret_settings(tmp_path / "settings.json")
+    settings = get_settings(model_name="openai:gpt-4o", **raw)
+    assert settings.web_search_enabled is False and settings.startup_warmups is False
+    assert settings.decorative_remote_assets is True
+
+
+def test_lead_agent_web_search_tool_follows_the_gate(monkeypatch: Any) -> None:
+    """With web_search_enabled off, the DuckDuckGo tool is not registered on the
+    lead agent at all — the model cannot call what it cannot see."""
+    from finrobot.engine import orchestrator
+
+    captured: list[dict[str, Any]] = []
+
+    class _FakeAgent:
+        def __init__(self, *a: Any, **kw: Any) -> None:
+            captured.append(kw)
+
+        def tool(self, fn: Any = None, **_: Any) -> Any:  # decorator no-op
+            return fn if fn is not None else (lambda f: f)
+
+    monkeypatch.setattr(orchestrator, "Agent", _FakeAgent)
+    monkeypatch.setattr(orchestrator, "duckduckgo_search_tool", lambda **kw: ("ddg", kw))
+
+    class _AnyAgents(dict):  # the factory indexes sub-agents by role name
+        def __missing__(self, key: str) -> Any:
+            return MagicMock(name=key)
+
+    for enabled in (True, False):
+        captured.clear()
+        settings = get_settings(model_name="openai:gpt-4o", web_search_enabled=enabled)
+        monkeypatch.setattr(type(settings), "create_model", lambda self, *a, **k: object())
+        orchestrator.create_lead_agent(settings, sub_agents=_AnyAgents())
+        tools = captured[0]["tools"]
+        assert (len(tools) == 1 and tools[0][0] == "ddg") if enabled else tools == []
 
 
 # ---------------------------------------------------------------------------

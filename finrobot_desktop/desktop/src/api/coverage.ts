@@ -119,7 +119,29 @@ export interface CoverageRow {
   market_stale: boolean
   needs_refresh: NeedsRefreshReason[]
   warnings: string[]
+  holding: CoverageHolding | null
   sources: CoverageRowSources
+}
+
+// The user's position in this name across their portfolios, marked to the
+// row's live price (mirrors CoverageHolding in finrobot/coverage/models.py).
+// null when the ticker is not held.
+export interface CoverageHolding {
+  units: number
+  cost_basis: number
+  cost_currency: string
+  realized_pnl: number
+  realized_cost: number
+  portfolios: string[]
+  mixed_currency: boolean
+  avg_cost_per_unit: number | null
+  market_value: number | null
+  unrealized_pnl: number | null
+  unrealized_pnl_pct: number | null
+  day_pnl: number | null
+  total_pnl: number | null
+  total_pnl_pct: number | null
+  currency_mismatch: boolean
 }
 
 export interface CoverageOverview {

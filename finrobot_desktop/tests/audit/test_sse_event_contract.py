@@ -29,6 +29,7 @@ FRONTEND_SRC = REPO_ROOT / "desktop" / "src" / "stores" / "runStreamStore.ts"
 # code paths AND this test to update in lockstep — that's the point.
 _REQUIRED_EVENTS = (
     "run.started",
+    "run.queued",
     "step.started",
     "step.completed",
     "step.retry",

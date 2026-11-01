@@ -11,7 +11,7 @@ from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
-from finrobot.artifact.models import ArtifactSummary
+from finrobot.artifact.models import Artifact, ArtifactSummary
 from finrobot.artifact.semantic_diff import (
     Attribution,
     AttributionItem,
@@ -104,7 +104,9 @@ class TestCreateLeadAgent:
         tool_names = set(agent._function_toolset.tools.keys())
         assert "query_financial_data" in tool_names
         assert "query_coverage_universe" in tool_names
+        assert "query_portfolio_holdings" in tool_names
         assert "find_reports" in tool_names
+        assert "read_report" in tool_names
         assert "activate_skill" in tool_names
         assert "run_equity_research" in tool_names
         assert "run_comps_analysis" in tool_names
@@ -529,6 +531,200 @@ class _RagDataLayer:
 
 def _ask_filings_fn(agent):  # noqa: ANN001
     return agent._function_toolset.tools["ask_filings"].function
+
+
+def _artifact(
+    *,
+    artifact_id: str = "art_2026-06-09_AAPL_equity_research_abc",
+    ticker: str | None = "AAPL",
+    thesis: dict | None = None,
+    summary_text: str = "Code-computed: target $240, WACC 8.2%.",
+) -> Artifact:
+    from finrobot.artifact.models import (
+        ArtifactAssumptions,
+        ArtifactComputeVersion,
+        ArtifactInputs,
+        ArtifactMeta,
+        ArtifactOutputs,
+    )
+
+    return Artifact(
+        id=artifact_id,
+        ticker=ticker,
+        cross_tickers=[],
+        type="equity_research",
+        inputs=ArtifactInputs(
+            data_source="yfinance",
+            data_fetched_at=datetime(2026, 6, 9, tzinfo=timezone.utc),
+            raw_data={},
+        ),
+        assumptions=ArtifactAssumptions(parameters={}),
+        compute_version=ArtifactComputeVersion(version="0.1.0", formula_id="x"),
+        outputs=ArtifactOutputs(
+            structured={"thesis": thesis} if thesis is not None else {},
+            summary_text=summary_text,
+        ),
+        meta=ArtifactMeta(
+            created_at=datetime(2026, 6, 9, tzinfo=timezone.utc), source="pipeline:equity_research"
+        ),
+    )
+
+
+class FakeArtifactStoreWithGet(FakeArtifactStore):
+    def __init__(
+        self, summaries: list[ArtifactSummary], artifacts: dict[str, Artifact] | None = None
+    ) -> None:
+        super().__init__(summaries)
+        self._artifacts = artifacts or {}
+
+    async def get(self, artifact_id: str) -> Artifact | None:
+        return self._artifacts.get(artifact_id)
+
+
+def _read_report_fn(agent):  # noqa: ANN001
+    return agent._function_toolset.tools["read_report"].function
+
+
+class TestReadReport:
+    async def test_registered_as_tool(self):
+        agent = _agent()
+        assert "read_report" in agent._function_toolset.tools
+
+    async def test_no_store_returns_friendly_message_not_raise(self):
+        agent = _agent()
+        fn = _read_report_fn(agent)
+        out = await fn(_run_context(_deps()), "art_1")
+        assert isinstance(out, str)
+        assert "available" in out.lower()
+
+    async def test_missing_artifact_returns_message_not_raise(self):
+        agent = _agent()
+        fn = _read_report_fn(agent)
+        store = FakeArtifactStoreWithGet([])
+        out = await fn(_run_context(_deps_with_store(store)), "art_ghost")
+        assert "not found" in out.lower()
+        assert "find_reports" in out
+
+    async def test_renders_full_narrative_verdict_and_computed_summary(self):
+        agent = _agent()
+        fn = _read_report_fn(agent)
+        artifact = _artifact(
+            thesis={
+                "recommendation": "BUY",
+                "key_takeaways": ["Margins expanding", "Services growth accelerating"],
+                "risks": ["China demand", "FX headwind"],
+                "tagline": "Strong quarter, raise target.",
+            }
+        )
+        store = FakeArtifactStoreWithGet([], {artifact.id: artifact})
+        out = await fn(_run_context(_deps_with_store(store)), artifact.id)
+        assert artifact.id in out and "AAPL" in out
+        assert "verdict BUY" in out
+        assert "## Key takeaways" in out and "- Margins expanding" in out
+        assert "## Risks" in out and "- China demand" in out
+        assert "## Tagline" in out and "Strong quarter" in out
+        assert "## Computed figures" in out and "WACC 8.2%" in out
+        assert "do not add conclusions beyond what's written here" in out
+
+    async def test_sections_filter_narrows_output(self):
+        agent = _agent()
+        fn = _read_report_fn(agent)
+        artifact = _artifact(thesis={"recommendation": "BUY", "risks": ["China demand"]})
+        store = FakeArtifactStoreWithGet([], {artifact.id: artifact})
+        out = await fn(_run_context(_deps_with_store(store)), artifact.id, sections=["risks"])
+        assert "## Risks" in out
+        assert "Recommendation narrative" not in out
+
+    async def test_no_thesis_says_so_but_still_has_computed_summary(self):
+        agent = _agent()
+        fn = _read_report_fn(agent)
+        artifact = _artifact(artifact_id="art_dcf_1", thesis=None, summary_text="DCF: $185/share")
+        store = FakeArtifactStoreWithGet([], {artifact.id: artifact})
+        out = await fn(_run_context(_deps_with_store(store)), artifact.id)
+        assert "No written narrative" in out
+        assert "## Computed figures" in out and "185/share" in out
+
+
+class _FakePortfolioSummary:
+    def __init__(self, id_: str, lot_count: int) -> None:
+        self.id = id_
+        self.lot_count = lot_count
+
+
+class FakePortfolioStore:
+    """Enough of PortfolioStore's surface for build_all_overviews."""
+
+    def __init__(self, details: dict) -> None:
+        self._details = details
+
+    async def list_portfolios(self):
+        return [_FakePortfolioSummary(pid, len(d.lots)) for pid, d in self._details.items()]
+
+    async def get_portfolio(self, portfolio_id: str):
+        return self._details.get(portfolio_id)
+
+
+def _query_portfolio_holdings_fn(agent):  # noqa: ANN001
+    return agent._function_toolset.tools["query_portfolio_holdings"].function
+
+
+def _deps_with_portfolio(store) -> FinRobotDeps:  # noqa: ANN001
+    return FinRobotDeps(data_layer=FakeDataLayer(), settings=_settings(), portfolio_store=store)
+
+
+class TestQueryPortfolioHoldings:
+    async def test_registered_as_tool(self):
+        agent = _agent()
+        assert "query_portfolio_holdings" in agent._function_toolset.tools
+
+    async def test_no_store_returns_friendly_message_not_raise(self):
+        agent = _agent()
+        fn = _query_portfolio_holdings_fn(agent)
+        out = await fn(_run_context(_deps()), False)
+        assert isinstance(out, str)
+        assert "available" in out.lower()
+
+    async def test_no_holdings_says_so(self):
+        agent = _agent()
+        fn = _query_portfolio_holdings_fn(agent)
+        store = FakePortfolioStore({})
+        out = await fn(_run_context(_deps_with_portfolio(store)), False)
+        assert "No portfolio holdings yet" in out
+
+    async def test_lists_holdings_from_the_store(self):
+        from finrobot.portfolio.models import PortfolioDetail
+
+        agent = _agent()
+        fn = _query_portfolio_holdings_fn(agent)
+        detail = PortfolioDetail(
+            id="pf_1",
+            name="Core",
+            description=None,
+            base_currency="USD",
+            cost_method="fifo",
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            lots=[
+                {
+                    "id": "lot_1",
+                    "ticker": "AAPL",
+                    "side": "buy",
+                    "units": 10,
+                    "cost_per_unit": 150,
+                    "purchase_date": "2024-01-01",
+                    "currency": "USD",
+                    "created_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+                    "updated_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+                }
+            ],
+        )
+        store = FakePortfolioStore({"pf_1": detail})
+        out = await fn(_run_context(_deps_with_portfolio(store)), False)
+        assert "AAPL" in out
+        assert "10 units @ avg 150.00 USD" in out
+        # FakeDataLayer has no read_canonical_cached → cache_only reads degrade,
+        # never raise; the tool result still names the holding.
+        assert "Portfolio holdings (Core)" in out
 
 
 class TestAskFilings:

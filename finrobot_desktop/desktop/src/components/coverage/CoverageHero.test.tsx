@@ -10,6 +10,11 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 // SplineHero injects a remote <script> + WebGL viewer — stub it in jsdom.
 vi.mock('../SplineHero', () => ({ SplineHero: () => <div data-testid="spline-stub" /> }))
+// The hero reads the privacy gate for the Spline scene via TanStack Query; stub
+// it so this test needs no QueryClientProvider.
+vi.mock('../../hooks/usePrivacySettings', () => ({
+  usePrivacySettings: () => ({ loaded: true, settings: null, isOn: () => true }),
+}))
 
 // The debounced search hook is unit-tested separately (useTickerSearch.test.ts);
 // stub it here so the dropdown is driven deterministically, no network/timers.

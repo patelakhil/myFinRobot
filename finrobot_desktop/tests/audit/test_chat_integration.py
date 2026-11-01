@@ -354,3 +354,136 @@ def test_build_runtime_instructions_locale_only() -> None:
     out = _build_runtime_instructions("en", None)
     assert out is not None
     assert "English" in out
+
+
+def test_build_runtime_instructions_includes_portfolio_block() -> None:
+    """The portfolio snapshot rides alongside the watchlist coverage_block —
+    distinct, additive, and absent is still a no-op (back-compat)."""
+    from finrobot.server import _build_runtime_instructions
+
+    assert _build_runtime_instructions(None, None, portfolio_block=None) is None
+
+    out = _build_runtime_instructions(
+        None, None, coverage_block="WATCHLIST TEXT", portfolio_block="PORTFOLIO TEXT"
+    )
+    assert out is not None
+    assert "WATCHLIST TEXT" in out and "PORTFOLIO TEXT" in out
+    # Portfolio block rides after the watchlist block, same order args are passed.
+    assert out.index("WATCHLIST TEXT") < out.index("PORTFOLIO TEXT")
+
+    only_portfolio = _build_runtime_instructions("en", None, portfolio_block="PORTFOLIO TEXT")
+    assert only_portfolio is not None
+    assert "PORTFOLIO TEXT" in only_portfolio
+
+
+class _FakePortfolioStore:
+    """Enough of PortfolioStore's surface for _build_portfolio_snapshot_block."""
+
+    def __init__(self, summaries: list, details: dict | None = None, *, raise_on_list=None):
+        self._summaries = summaries
+        self._details = details or {}
+        self._raise_on_list = raise_on_list
+
+    async def list_portfolios(self):
+        if self._raise_on_list is not None:
+            raise self._raise_on_list
+        return self._summaries
+
+    async def get_portfolio(self, portfolio_id: str):
+        return self._details.get(portfolio_id)
+
+
+class _FakeDataLayerForSnapshot:
+    async def read_canonical_cached(self, data_type, ticker, **_):
+        return None  # cold cache — snapshot degrades to "not priced yet", never raises
+
+    async def fetch_canonical(self, data_type, ticker, **_):  # pragma: no cover - not used
+        raise AssertionError("cache_only snapshot must never fetch")
+
+
+def _fake_request(portfolio_store, deps):
+    class _State:
+        pass
+
+    class _App:
+        state = _State()
+
+    class _Request:
+        app = _App()
+
+    _Request.app.state.portfolio_store = portfolio_store
+    _Request.app.state.deps = deps
+    return _Request()
+
+
+async def test_build_portfolio_snapshot_block_degrades_gracefully() -> None:
+    """No store / no deps / no portfolios / a store fault all yield None — the
+    chat turn must never break because the portfolio snapshot couldn't build."""
+    from types import SimpleNamespace
+
+    from finrobot.config import get_settings
+    from finrobot.server import _build_portfolio_snapshot_block
+
+    deps = SimpleNamespace(
+        data_layer=_FakeDataLayerForSnapshot(),
+        artifact_store=None,
+        settings=get_settings(model_name="test"),
+    )
+
+    assert await _build_portfolio_snapshot_block(_fake_request(None, deps)) is None
+    assert (
+        await _build_portfolio_snapshot_block(_fake_request(_FakePortfolioStore([]), None)) is None
+    )
+    assert (
+        await _build_portfolio_snapshot_block(_fake_request(_FakePortfolioStore([]), deps)) is None
+    )
+
+    broken = _FakePortfolioStore([], raise_on_list=RuntimeError("db is locked"))
+    assert await _build_portfolio_snapshot_block(_fake_request(broken, deps)) is None
+
+
+async def test_build_portfolio_snapshot_block_renders_holdings() -> None:
+    from types import SimpleNamespace
+
+    from finrobot.config import get_settings
+    from finrobot.portfolio.models import PortfolioDetail, PortfolioSummary
+    from finrobot.server import _build_portfolio_snapshot_block
+
+    deps = SimpleNamespace(
+        data_layer=_FakeDataLayerForSnapshot(),
+        artifact_store=None,
+        settings=get_settings(model_name="test"),
+    )
+    summary = PortfolioSummary(
+        id="pf_1",
+        name="Core",
+        description=None,
+        base_currency="USD",
+        cost_method="fifo",
+        created_at="2026-01-01T00:00:00+00:00",
+        updated_at="2026-01-01T00:00:00+00:00",
+        lot_count=1,
+        ticker_count=1,
+    )
+    detail = PortfolioDetail(
+        **summary.model_dump(exclude={"lot_count", "ticker_count"}),
+        lots=[
+            {
+                "id": "lot_1",
+                "ticker": "AAPL",
+                "side": "buy",
+                "units": 10,
+                "cost_per_unit": 150,
+                "purchase_date": "2024-01-01",
+                "currency": "USD",
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "updated_at": "2026-01-01T00:00:00+00:00",
+            }
+        ],
+    )
+    store = _FakePortfolioStore([summary], {"pf_1": detail})
+    out = await _build_portfolio_snapshot_block(_fake_request(store, deps))
+    assert out is not None
+    assert "User's portfolio (Core)" in out
+    assert "- AAPL: 10 units @ avg 150.00 USD" in out
+    assert "not priced yet" in out  # cold cache, degraded — never fabricated
