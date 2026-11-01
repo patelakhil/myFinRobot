@@ -441,10 +441,10 @@ def parse_csv(
     # unlabelled column): take the first unmapped column whose every cell is an
     # upper-case ticker.
     if start and "ticker" not in col:
-        idx = _infer_ticker_column(all_rows[start:], used=set(col.values()))
-        if idx is not None:
-            col["ticker"] = idx
-            detected["ticker"] = first[idx] or f"column {idx + 1}"
+        ticker_idx = _infer_ticker_column(all_rows[start:], used=set(col.values()))
+        if ticker_idx is not None:
+            col["ticker"] = ticker_idx
+            detected["ticker"] = first[ticker_idx] or f"column {ticker_idx + 1}"
 
     # A positions snapshot has everything but the date: take today's.
     snapshot = (
