@@ -63,10 +63,13 @@ jobs:
       matrix:
         # Lower bound: @lingui/cli imports fs.globSync, added in Node 22, so
         # `lingui compile` — the prelude to test, build and dev — cannot even
-        # parse on Node 20. Upper bound: Node 26 defines globalThis.localStorage
-        # itself, which shadows the one jsdom installs and leaves zustand's
-        # persist middleware writing to undefined (66 test failures).
-        node-version: ['22', '24']
+        # parse on Node 20 (vitest 5 additionally needs >= 22.12). Node 26 is
+        # covered since vitest 5 (which no longer lets Node's own lazy
+        # globalThis.localStorage shadow the jsdom one) and tailwindcss 4.3 /
+        # playwright 1.64 (module.registerHooks instead of the deprecated
+        # module.register, DEP0205). Keep this matrix in sync with the
+        # `engines` field in desktop/package.json.
+        node-version: ['22', '24', '26']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

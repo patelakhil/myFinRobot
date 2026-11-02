@@ -181,8 +181,7 @@ export function ValuationBody({
         // Per-share → quote currency.
         value: formatCurrency(implied, quoteCurrency, locale, 2),
         tone: (thesis?.price_target && implied >= thesis.price_target ? 'up' : undefined) as
-          | 'up'
-          | undefined,
+          'up' | undefined,
       } as Cell),
     // Reverse-DCF reality check: the growth the CURRENT market price implies.
     // 'Unreachable' (down/red tone) is the option-value signal; otherwise show

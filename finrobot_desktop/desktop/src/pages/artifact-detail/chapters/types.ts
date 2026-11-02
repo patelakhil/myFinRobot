@@ -445,10 +445,7 @@ export interface ScheduleThirteenAlertShape {
 }
 
 export type OwnershipDegradedReason =
-  | 'identity_missing'
-  | 'no_recent_filings'
-  | 'fetch_error'
-  | 'parse_failed'
+  'identity_missing' | 'no_recent_filings' | 'fetch_error' | 'parse_failed'
 
 export interface OwnershipGovernanceShape {
   insider_transactions?: InsiderTransactionShape[]

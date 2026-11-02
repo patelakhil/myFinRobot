@@ -12,7 +12,7 @@ This is V2 in the [FinRobot version lineage](../README.md), and it is the genera
 - **6 audit operators** check the narrative back against the numbers and flag drift before a report ships.
 - **A typed pipeline runtime** with per-step validators and retry, rather than an open-ended agent conversation.
 - **7 data providers behind failover**, with response validation that rejects malformed payloads before they reach the compute layer.
-- **237 test files**, property-based tests, and CI across Python 3.11/3.12 and Node 22/24.
+- **237 test files**, property-based tests, and CI across Python 3.11/3.12 and Node 22/24/26.
 
 The other two generations serve different purposes: [`finrobot_equity/`](../finrobot_equity/) (V1) is a self-hosted web app for browser-based report generation, and [`finrobot_autogen/`](../finrobot_autogen/) (V0) is the educational AutoGen library behind the whitepaper.
 
@@ -220,7 +220,7 @@ Four notebooks in `tutorials/` cover the same ground interactively: equity resea
 
 The same backend and the same UI can run as a local web service, with no `.dmg` and no Rust toolchain — useful on Intel Macs, Linux, and Windows, where there is no desktop build.
 
-**Prerequisites:** [`uv`](https://docs.astral.sh/uv/) and Node 20+. Python 3.11+.
+**Prerequisites:** [`uv`](https://docs.astral.sh/uv/) and Node 22.12+ (22, 24 or 26 LTS lines). Python 3.11+.
 
 ```bash
 cd finrobot_desktop
@@ -258,7 +258,7 @@ Two things to know before you run it:
 
 ## Build from source
 
-Prerequisites: [`uv`](https://docs.astral.sh/uv/), Node 20+, a Rust toolchain, and the Tauri CLI (`cargo install tauri-cli` → `cargo tauri`). Python 3.11+.
+Prerequisites: [`uv`](https://docs.astral.sh/uv/), Node 22.12+, a Rust toolchain, and the Tauri CLI (`cargo install tauri-cli` → `cargo tauri`). Python 3.11+.
 
 ```bash
 uv sync --extra package            # backend deps + pyinstaller (for the sidecar)
@@ -306,7 +306,7 @@ finrobot_desktop/
 └── scripts/               # maintenance and build tooling
 ```
 
-CI (`.github/workflows/desktop-ci.yml`) runs the backend on Python 3.11 / 3.12 and the frontend on Node 22 / 24.
+CI (`.github/workflows/desktop-ci.yml`) runs the backend on Python 3.11 / 3.12 and the frontend on Node 22 / 24 / 26.
 
 For deeper reference: `finrobot/engine/instructions.md` describes the engine's contracts, `finrobot/engine/agents/instructions/*.md` holds each agent's brief, and `finrobot/sdk.py` is the programmatic entry point.
 

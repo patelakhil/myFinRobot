@@ -288,7 +288,7 @@ FinRobot/
 ├── Dockerfile .dockerignore     # V1 container build — must stay at the repo
 │                                # root, since the image imports the app as
 │                                # finrobot_equity.web_app.main
-├── .github/workflows/           # desktop CI (backend 3.11/3.12, frontend Node 22/24)
+├── .github/workflows/           # desktop CI (backend 3.11/3.12, frontend Node 22/24/26)
 ├── setup.py                     # packages V0 (as `finrobot`) + V1 for PyPI
 ├── LICENSE NOTICE TRADEMARK_POLICY.md
 └── README.md

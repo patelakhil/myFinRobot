@@ -1611,12 +1611,7 @@ export interface components {
        * @enum {string}
        */
       category:
-        | 'product_launch'
-        | 'earnings'
-        | 'regulatory'
-        | 'acquisition'
-        | 'management'
-        | 'market'
+        'product_launch' | 'earnings' | 'regulatory' | 'acquisition' | 'management' | 'market'
       /** Headline */
       headline: string
       /**
@@ -1805,8 +1800,7 @@ export interface components {
       price_as_of?: string | null
       /** Session State */
       session_state?:
-        | ('live' | 'pre_market' | 'post_market' | 'closed' | 'halted' | 'unknown')
-        | null
+        ('live' | 'pre_market' | 'post_market' | 'closed' | 'halted' | 'unknown') | null
       /** Market Cap */
       market_cap?: number | null
       /** Revenue Ttm */
@@ -3450,8 +3444,7 @@ export interface components {
        * @description How consistently the platforms agree with each other (direction is in bullish_pct/bearish_pct, not here): 'aligned' (spread ≤10pp) / 'partial_divergence' (≤20pp) / 'split' (>20pp) / 'single_source' (only one platform has a view, nothing to cross-check) / 'no_data'.
        */
       source_alignment?:
-        | ('aligned' | 'partial_divergence' | 'split' | 'single_source' | 'no_data')
-        | null
+        ('aligned' | 'partial_divergence' | 'split' | 'single_source' | 'no_data') | null
       /** Sources */
       sources?: components['schemas']['SentimentSource'][]
       /** Warnings */
@@ -3767,14 +3760,7 @@ export interface components {
        * @enum {string}
        */
       method:
-        | 'dcf'
-        | 'comps_pe'
-        | 'comps_pb'
-        | 'lbo'
-        | 'ddm'
-        | 'residual_income'
-        | 'ev_ebitda'
-        | 'p_fcf'
+        'dcf' | 'comps_pe' | 'comps_pb' | 'lbo' | 'ddm' | 'residual_income' | 'ev_ebitda' | 'p_fcf'
       /**
        * Method Type
        * @enum {string}
