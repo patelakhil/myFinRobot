@@ -23,10 +23,19 @@ jobs:
         python-version: ["3.11", "3.12"]
 
     steps:
-      - uses: actions/checkout@v4
+      # Action majors track the runner's Node runtime, not our code: GitHub now
+      # executes JavaScript actions on Node 24, and the v4/v5 bundles carried an
+      # old node-fetch@2 -> whatwg-url@5 -> tr46@0.0.3 chain that does
+      # require("punycode"), which Node >= 21 reports as
+      # "[DEP0040] DeprecationWarning: The `punycode` module is deprecated" in
+      # the checkout/setup step logs. The v5/v6 releases were rebuilt for the
+      # Node 24 runtime with refreshed dependencies. finrobot's own Node tree
+      # was audited separately (uri-js's unused ESM build is the only
+      # punycode reference) and never emits it.
+      - uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -71,8 +80,9 @@ jobs:
         # `engines` field in desktop/package.json.
         node-version: ['22', '24', '26']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # See the backend job for why these track the v5 action generation.
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
