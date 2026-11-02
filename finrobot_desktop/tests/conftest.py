@@ -12,6 +12,18 @@ from unittest.mock import AsyncMock
 import aiosqlite
 import pytest
 
+# Imported here, during conftest loading, on purpose. pydantic_ai pulls in
+# fastmcp, whose __init__ runs `warnings.simplefilter("default",
+# DeprecationWarning)` — a blanket filter PREPENDED to the process-wide list.
+# If that first happens while test modules are being collected, it lands in
+# front of the `filterwarnings` entries from pyproject.toml and silently
+# overrides them (the scoped edgartools ignore stopped working that way).
+# pytest wraps conftest loading in its own `warnings.catch_warnings()` and
+# re-applies the configured filters for every later collect/test phase, so
+# paying the import here means fastmcp's tweak is discarded with that context
+# and the project's pytest configuration stays authoritative.
+import pydantic_ai  # noqa: F401
+
 from finrobot.engine.data.cache import DataCache
 
 

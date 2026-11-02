@@ -1,3 +1,4 @@
+import warnings
 from pathlib import Path
 
 import pytest
@@ -331,6 +332,12 @@ class TestValidateRuntimeConfig:
         fmp_warnings = [w for w in caught if "FMP" in str(w.message)]
         assert len(fmp_warnings) == 1
         assert "yfinance" in str(fmp_warnings[0].message)
+
+    def test_present_fmp_api_key_does_not_warn(self):
+        s = get_settings(model_name="test", fmp_api_key="fmp-test-key")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # any warning here fails the test
+            s.validate_runtime_config()
 
 
 class TestEmptyModelOnboarding:

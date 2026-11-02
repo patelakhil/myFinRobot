@@ -397,12 +397,20 @@ class TestDcfCommand:
 
 
 class TestBuildDeps:
+    # _build_deps takes no settings overrides, so these run without an FMP key
+    # (config is app-stored only — there is nothing in the environment to pick
+    # up). That is a supported configuration: the CLI must still build its
+    # deps AND surface the yfinance-fallback notice, so assert both rather
+    # than letting the warning leak into the suite's warnings summary.
+    _FMP_FALLBACK = "FMP API key not set — falling back to yfinance"
+
     def test_build_deps_returns_deps_with_settings(self):
         from finrobot.cli import _build_deps
 
         # Use the "test" provider — config is app-stored only, so the default
         # (deepseek) provider would fail-fast on a missing key here.
-        deps = _build_deps(model="test")
+        with pytest.warns(UserWarning, match=self._FMP_FALLBACK):
+            deps = _build_deps(model="test")
         assert hasattr(deps, "settings")
         assert hasattr(deps, "data_layer")
         assert hasattr(deps, "skill_runtime")
@@ -410,7 +418,8 @@ class TestBuildDeps:
     def test_build_runtime_returns_agent_and_deps(self):
         from finrobot.cli import _build_runtime
 
-        agent, deps = _build_runtime(model="test")
+        with pytest.warns(UserWarning, match=self._FMP_FALLBACK):
+            agent, deps = _build_runtime(model="test")
         assert agent is not None
         assert hasattr(deps, "settings")
 

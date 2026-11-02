@@ -69,6 +69,17 @@ asyncio_mode = "auto"
 # real yfinance/SEC/LLM calls). Run them explicitly with `-m integration`
 # (or override: `pytest -m "integration or not integration"`).
 addopts = "-m 'not integration'"
+filterwarnings = [
+    # edgartools 5.31 deprecates its edgar.files.* HTML modules (removed in
+    # edgartools 6.0) but still imports them from its OWN package internals
+    # (edgar/_markdown.py, edgar/files/markdown.py, edgar/_filings.py), so the
+    # warnings fire on `import edgar` regardless of what we call. finrobot only
+    # uses Company / get_filings / set_identity and never touches edgar.files.*.
+    # The trailing module field scopes this to warnings attributed to the edgar
+    # package itself — a finrobot call into the deprecated API would still show.
+    # Revisit when bumping edgartools (clean on import from 5.62).
+    'ignore:edgar\.files\..* is deprecated:DeprecationWarning:edgar',
+]
 markers = [
     "integration: tests that call real external APIs (yfinance, LLM)",
     "slow: tests that take > 10 seconds",
