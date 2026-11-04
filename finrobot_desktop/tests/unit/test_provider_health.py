@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from finrobot.engine.data import interface
 from finrobot.engine.data.interface import ProviderError, RateLimitedProviderError
 from finrobot.engine.data.provider_health import ProviderHealth, is_rate_limit_error
 
-UTC = timezone.utc
 T0 = datetime(2026, 5, 30, 12, 0, 0, tzinfo=UTC)
 
 

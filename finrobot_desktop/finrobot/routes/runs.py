@@ -8,7 +8,7 @@ import sqlite3
 import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
@@ -19,7 +19,6 @@ from starlette.responses import StreamingResponse
 
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.ticker import validate_ticker
-from finrobot.llm_probe import LlmProbeGate
 
 # registry is import-cheap by design (lazy per-pipeline factory via importlib —
 # see its module docstring), so this does NOT pull the pydantic_ai stack onto the
@@ -38,6 +37,7 @@ from finrobot.events import (
     StepRetry,
     StepStarted,
 )
+from finrobot.llm_probe import LlmProbeGate
 from finrobot.obs import bind_run
 from finrobot.rate_limit_hint import format_cooldown
 from finrobot.run_store import TERMINAL_RUN_STATUSES, RunRecord, RunStore
@@ -120,7 +120,7 @@ class RateLimitDeferral:
 
     @property
     def retry_at(self) -> datetime:
-        return datetime.now(timezone.utc) + timedelta(seconds=self.retry_after_s)
+        return datetime.now(UTC) + timedelta(seconds=self.retry_after_s)
 
     @property
     def retry_at_iso(self) -> str:
@@ -139,7 +139,7 @@ class RateLimitDeferral:
         )
 
     @classmethod
-    def from_retry_at(cls, retry_at_iso: str, detail: str = "") -> "RateLimitDeferral":
+    def from_retry_at(cls, retry_at_iso: str, detail: str = "") -> RateLimitDeferral:
         """Rebuild a deferral from a persisted ``retry_at`` (startup restore).
         A stale instant (already past) becomes a zero wait → immediate re-probe."""
         try:
@@ -147,8 +147,8 @@ class RateLimitDeferral:
         except ValueError:
             return cls(retry_after_s=0.0, detail=detail)
         if retry_at.tzinfo is None:
-            retry_at = retry_at.replace(tzinfo=timezone.utc)
-        remaining = (retry_at - datetime.now(timezone.utc)).total_seconds()
+            retry_at = retry_at.replace(tzinfo=UTC)
+        remaining = (retry_at - datetime.now(UTC)).total_seconds()
         return cls(retry_after_s=max(0.0, remaining), detail=detail)
 
 
@@ -245,7 +245,7 @@ class CreateRunRequest(BaseModel):
     engine/pipelines/refresh.py."""
 
     @classmethod
-    def model_validate_strict(cls, data: Any) -> "CreateRunRequest":
+    def model_validate_strict(cls, data: Any) -> CreateRunRequest:
         # Pydantic would happily accept ticker="" — reject early so the
         # frontend (or curl users) get a clean 422 instead of a stack trace
         # buried inside the pipeline orchestrator.
@@ -973,6 +973,7 @@ async def _run_pipeline_impl(
     # the sidecar cold-start import path (tests/unit/test_cold_import.py).
     from pydantic_ai import UnexpectedModelBehavior
     from pydantic_ai.exceptions import AgentRunError
+
     from finrobot.engine.pipelines.step import PipelineStepError
 
     started = time.monotonic()
@@ -1234,45 +1235,55 @@ async def _execute_pipeline_run(
     artifact_type: str | None = None
     if artifact_id:
         artifact_type = await _resolve_artifact_type(request, artifact_id)
-        await store.add_artifact(
-            run_id,
-            artifact_type=artifact_type or "artifact",
-            format="json",
-            file_path=f"/api/artifacts/{artifact_id}",
-        )
-        await _append(
-            store,
-            ArtifactReady(
-                event="artifact.ready",
-                run_id=run_id,
-                artifact_type=artifact_type or "artifact",
-                format="json",
-                artifact_id=artifact_id,
-            ),
-        )
+    # Finalisation is ONE transaction on the shared user database: the
+    # artifact link, the artifact.ready event, the run.completed event and the
+    # status flip land together or not at all. Before the stores shared a
+    # database these were three commits across two files, and a crash between
+    # them left a completed artifact with no run pointing at it (or a run that
+    # claimed completion before its artifact link existed).
     # finish_run appends run.completed BEFORE flipping the status (BUG-034,
     # now mechanical in RunStore): any reader that sees a terminal status is
     # guaranteed the terminal event already exists in run_events.
-    await store.finish_run(
-        run_id,
-        RunCompleted(
-            event="run.completed",
-            run_id=run_id,
-            ticker=record.ticker,
+    async with store.database.transaction():
+        if artifact_id:
+            await store.add_artifact(
+                run_id,
+                artifact_type=artifact_type or "artifact",
+                format="json",
+                file_path=f"/api/artifacts/{artifact_id}",
+            )
+            await _append(
+                store,
+                ArtifactReady(
+                    event="artifact.ready",
+                    run_id=run_id,
+                    artifact_type=artifact_type or "artifact",
+                    format="json",
+                    artifact_id=artifact_id,
+                ),
+            )
+        await store.finish_run(
+            run_id,
+            RunCompleted(
+                event="run.completed",
+                run_id=run_id,
+                ticker=record.ticker,
+                duration_s=duration_s,
+                # Point result_url at the artifact when there is one so a plain
+                # consumer of the completion event can fetch the exact product;
+                # fall back to the run url when no artifact was persisted.
+                result_url=(
+                    f"/api/artifacts/{artifact_id}" if artifact_id else f"/api/runs/{run_id}"
+                ),
+                artifact_id=artifact_id,
+                artifact_type=artifact_type,
+            ),
+            status="completed",
+            completed_at=_iso_now(),
             duration_s=duration_s,
-            # Point result_url at the artifact when there is one so a plain
-            # consumer of the completion event can fetch the exact product;
-            # fall back to the run url when no artifact was persisted.
-            result_url=(f"/api/artifacts/{artifact_id}" if artifact_id else f"/api/runs/{run_id}"),
-            artifact_id=artifact_id,
-            artifact_type=artifact_type,
-        ),
-        status="completed",
-        completed_at=_iso_now(),
-        duration_s=duration_s,
-        result_text=result.format_summary(),
-        result_json=result_json,
-    )
+            result_text=result.format_summary(),
+            result_json=result_json,
+        )
     if artifact_id:
         # A new artifact just landed in the store. Drop the dashboard's
         # 60s TTL caches so the landing hit-rate + recent-research strip
@@ -1396,4 +1407,4 @@ def _result_to_json(result: PipelineResult) -> dict[str, Any]:
 
 
 def _iso_now() -> str:
-    return datetime.now(tz=timezone.utc).isoformat()
+    return datetime.now(tz=UTC).isoformat()

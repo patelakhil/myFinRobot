@@ -30,7 +30,8 @@ Usage::
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Self
 
 from finrobot.config import get_settings
 from finrobot.engine.data.ticker import validate_ticker
@@ -75,11 +76,14 @@ class FinRobot:
     # Context manager                                                    #
     # ------------------------------------------------------------------ #
 
-    async def __aenter__(self) -> "FinRobot":
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(
-        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         await self.close()
 
@@ -94,8 +98,8 @@ class FinRobot:
 
         from pathlib import Path
 
-        from finrobot.engine.data.factory import build_data_layer
         from finrobot.engine.agents.factory import create_sub_agents
+        from finrobot.engine.data.factory import build_data_layer
         from finrobot.engine.skills.registry import SkillRegistry
 
         skills_path = Path(self._settings.skills_dir)
@@ -122,7 +126,7 @@ class FinRobot:
         return self._sub_agents
 
     async def _run_pipeline(
-        self, key: str, ticker: str, progress: "ProgressCallback | None"
+        self, key: str, ticker: str, progress: ProgressCallback | None
     ) -> PipelineResult:
         """Build the pipeline registered under ``key`` and execute it.
 
@@ -177,7 +181,7 @@ class FinRobot:
             self._loop = asyncio.new_event_loop()
         return self._loop.run_until_complete(coro_fn())
 
-    def research(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
+    def research(self, ticker: str, progress: ProgressCallback | None = None) -> PipelineResult:
         """Run equity research pipeline. Blocking.
 
         Use :meth:`aresearch` in async contexts (Jupyter, FastAPI, etc.).
@@ -185,23 +189,23 @@ class FinRobot:
         result: PipelineResult = self._run_sync(lambda: self.aresearch(ticker, progress=progress))
         return result
 
-    def dcf(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
+    def dcf(self, ticker: str, progress: ProgressCallback | None = None) -> PipelineResult:
         result: PipelineResult = self._run_sync(lambda: self.adcf(ticker, progress=progress))
         return result
 
-    def comps(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
+    def comps(self, ticker: str, progress: ProgressCallback | None = None) -> PipelineResult:
         result: PipelineResult = self._run_sync(lambda: self.acomps(ticker, progress=progress))
         return result
 
-    def lbo(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
+    def lbo(self, ticker: str, progress: ProgressCallback | None = None) -> PipelineResult:
         result: PipelineResult = self._run_sync(lambda: self.albo(ticker, progress=progress))
         return result
 
-    def earnings(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
+    def earnings(self, ticker: str, progress: ProgressCallback | None = None) -> PipelineResult:
         result: PipelineResult = self._run_sync(lambda: self.aearnings(ticker, progress=progress))
         return result
 
-    def ic_memo(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
+    def ic_memo(self, ticker: str, progress: ProgressCallback | None = None) -> PipelineResult:
         result: PipelineResult = self._run_sync(lambda: self.aic_memo(ticker, progress=progress))
         return result
 
@@ -218,7 +222,7 @@ class FinRobot:
         result: str = self._run_sync(lambda: self.aask(ticker, question))
         return result
 
-    def backtest(self, config: "BacktestConfig") -> "BacktestResult":
+    def backtest(self, config: BacktestConfig) -> BacktestResult:
         """Run a backtest. Blocking.
 
         Requires ``pip install 'finrobot[backtest]'``.
@@ -232,7 +236,7 @@ class FinRobot:
         start_date: str,
         end_date: str,
         initial_cash: float = 100_000.0,
-    ) -> "BacktestResult":
+    ) -> BacktestResult:
         """LLM-guided strategy selection with iterative tuning. Blocking.
 
         The LLM picks an initial strategy/params, runs the backtest, reviews
@@ -248,28 +252,26 @@ class FinRobot:
     # ------------------------------------------------------------------ #
 
     async def aresearch(
-        self, ticker: str, progress: "ProgressCallback | None" = None
+        self, ticker: str, progress: ProgressCallback | None = None
     ) -> PipelineResult:
         return await self._run_pipeline("research", ticker, progress)
 
-    async def adcf(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
+    async def adcf(self, ticker: str, progress: ProgressCallback | None = None) -> PipelineResult:
         return await self._run_pipeline("dcf", ticker, progress)
 
-    async def acomps(
-        self, ticker: str, progress: "ProgressCallback | None" = None
-    ) -> PipelineResult:
+    async def acomps(self, ticker: str, progress: ProgressCallback | None = None) -> PipelineResult:
         return await self._run_pipeline("comps", ticker, progress)
 
-    async def albo(self, ticker: str, progress: "ProgressCallback | None" = None) -> PipelineResult:
+    async def albo(self, ticker: str, progress: ProgressCallback | None = None) -> PipelineResult:
         return await self._run_pipeline("lbo", ticker, progress)
 
     async def aearnings(
-        self, ticker: str, progress: "ProgressCallback | None" = None
+        self, ticker: str, progress: ProgressCallback | None = None
     ) -> PipelineResult:
         return await self._run_pipeline("earnings", ticker, progress)
 
     async def aic_memo(
-        self, ticker: str, progress: "ProgressCallback | None" = None
+        self, ticker: str, progress: ProgressCallback | None = None
     ) -> PipelineResult:
         return await self._run_pipeline("ic-memo", ticker, progress)
 
@@ -297,7 +299,7 @@ class FinRobot:
         deps = self._ensure_deps()
         return await run_qa(deps.data_layer, deps.settings, ticker, question)
 
-    async def abacktest(self, config: "BacktestConfig") -> "BacktestResult":
+    async def abacktest(self, config: BacktestConfig) -> BacktestResult:
         """Run a backtest. Async.
 
         Requires ``pip install 'finrobot[backtest]'``.
@@ -313,7 +315,7 @@ class FinRobot:
         start_date: str,
         end_date: str,
         initial_cash: float = 100_000.0,
-    ) -> "BacktestResult":
+    ) -> BacktestResult:
         """LLM-guided strategy selection with iterative tuning. Async.
 
         Requires ``pip install 'finrobot[backtest]'``.

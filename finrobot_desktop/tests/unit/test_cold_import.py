@@ -42,6 +42,7 @@ def test_importing_server_does_not_load_heavy_stack() -> None:
     )
     result = subprocess.run(
         [sys.executable, "-c", probe],
+        check=False,  # the assertion below reports the exit code with context
         capture_output=True,
         text=True,
         timeout=180,

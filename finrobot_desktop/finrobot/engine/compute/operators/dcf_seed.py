@@ -25,7 +25,6 @@ import statistics
 from typing import Final
 
 from finrobot.engine.compute.operators.wacc import adjust_beta_blume
-from finrobot.engine.primitives.industry import commodity_cyclical_basis, is_bank
 from finrobot.engine.data.industry_defaults import (
     IndustryDefault,
     get_industry_default,
@@ -35,6 +34,7 @@ from finrobot.engine.models.financial import (
     FinancialData,
     HistoricalMetrics,
 )
+from finrobot.engine.primitives.industry import commodity_cyclical_basis, is_bank
 
 # Defaults sourced from public macro data — refreshed at each Damodaran update.
 # These are the *only* hardcoded constants in the seed pipeline and they apply

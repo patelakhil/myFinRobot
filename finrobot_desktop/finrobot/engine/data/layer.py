@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal, overload
 
 from pydantic import ValidationError
@@ -14,7 +14,6 @@ from finrobot.engine.data.interface import (
     RateLimitedProviderError,
     is_rate_limit_error,
 )
-from finrobot.engine.data.provider_health import ProviderHealth, ProviderState
 from finrobot.engine.data.normalize import (
     NormalizedFinancials,
     NormalizedForwardEstimates,
@@ -24,9 +23,6 @@ from finrobot.engine.data.normalize import (
     normalize_forward_estimates,
     normalize_price,
 )
-from finrobot.engine.data.scope import current_scope, scope_token
-from finrobot.engine.data.types import DataType
-from finrobot.engine.data.normalize.currency import normalize_canonical_financials_currency
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_FX_NORMALIZED,
     DEGRADED_FX_UNAVAILABLE,
@@ -35,6 +31,10 @@ from finrobot.engine.data.normalize.contracts import (
     degraded_price_divergence,
     degraded_provider_divergence,
 )
+from finrobot.engine.data.normalize.currency import normalize_canonical_financials_currency
+from finrobot.engine.data.provider_health import ProviderHealth, ProviderState
+from finrobot.engine.data.scope import current_scope, scope_token
+from finrobot.engine.data.types import DataType
 from finrobot.engine.data.validator import (
     cross_validate,
     cross_validate_price,
@@ -159,7 +159,7 @@ class DataLayer:
     def _scope_cache_note(data_type: DataType, ticker: str, cached_at: datetime) -> str:
         scope = current_scope()
         label = (scope.label if scope is not None else "") or "scoped run"
-        age_hours = (datetime.now(tz=timezone.utc) - cached_at).total_seconds() / 3600
+        age_hours = (datetime.now(tz=UTC) - cached_at).total_seconds() / 3600
         # Neutral English + the "cache" token: flows into the report's data
         # notes exactly like the stale-cache warnings (see fetch()).
         return (
@@ -459,7 +459,7 @@ class DataLayer:
             )
         if cached is not None:
             stale = cached.data
-            age_hours = (datetime.now(tz=timezone.utc) - cached.cached_at).total_seconds() / 3600
+            age_hours = (datetime.now(tz=UTC) - cached.cached_at).total_seconds() / 3600
             # Provider/data layer emits neutral English (BUG-046): this string
             # flows verbatim into format_summary's "Data Source Notes" and the
             # report Disclaimer, so a hardcoded Chinese string would leak into an
@@ -491,7 +491,7 @@ class DataLayer:
             provider="none",
             ticker=ticker,
             data_type=data_type,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             warnings=[msg],
         )
 
@@ -1280,9 +1280,7 @@ class DataLayer:
             )
             prior_history = prior_data.get("price_history") or []
             if not fresh_history and prior_history and cached is not None:
-                age_hours = (
-                    datetime.now(tz=timezone.utc) - cached.cached_at
-                ).total_seconds() / 3600
+                age_hours = (datetime.now(tz=UTC) - cached.cached_at).total_seconds() / 3600
                 graft_warning = (
                     f"'{chosen_provider}' served a live quote without price history; "
                     f"chart/52w range use cached history from {age_hours:.0f}h ago "
@@ -1319,7 +1317,7 @@ class DataLayer:
             # base.py's disclaimer filter matches) AND set from_stale_cache so the
             # canonical关卡 refuses to reset the freshness clock.
             stale = cached.data
-            age_hours = (datetime.now(tz=timezone.utc) - cached.cached_at).total_seconds() / 3600
+            age_hours = (datetime.now(tz=UTC) - cached.cached_at).total_seconds() / 3600
             stale_warning = (
                 f"All data sources failed; showing cached price from {age_hours:.0f}h ago "
                 f"({ticker} / PRICE). Retry later for fresh data."

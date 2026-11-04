@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -54,7 +54,7 @@ class _FakeDataLayer:
             provider="fake",
             ticker=ticker,
             data_type=DataType.QUOTE,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
 
@@ -183,7 +183,7 @@ async def test_cold_fan_out_is_concurrent() -> None:
                 provider="fake",
                 ticker=ticker,
                 data_type=DataType.QUOTE,
-                timestamp=datetime.now(tz=timezone.utc),
+                timestamp=datetime.now(tz=UTC),
             )
 
     out = await quote_batch.fetch_quotes_batch_cached(["A", "B", "C", "D"], _BarrierLayer())

@@ -1,6 +1,8 @@
+import itertools
 from enum import StrEnum
 from typing import Any
 
+from finrobot.engine.compute.operators.wacc import calculate_wacc
 from finrobot.engine.models.financial import (
     DCFInputs,
     DCFResult,
@@ -8,7 +10,6 @@ from finrobot.engine.models.financial import (
     MarketImpliedNature,
 )
 from finrobot.engine.models.valuation_thresholds import MIN_GORDON_SPREAD
-from finrobot.engine.compute.operators.wacc import calculate_wacc
 
 
 class ReverseSolveReason(StrEnum):
@@ -860,7 +861,7 @@ def solve_for_implied_horizon(
 
     # Linear-interpolate the fractional horizon between the two bracketing years.
     implied = float(prices[-1][0])
-    for (h0, p0), (h1, p1) in zip(prices, prices[1:]):
+    for (h0, p0), (h1, p1) in itertools.pairwise(prices):
         if p0 <= target_price <= p1:
             implied = h0 + (target_price - p0) / (p1 - p0) * (h1 - h0) if p1 != p0 else float(h0)
             break

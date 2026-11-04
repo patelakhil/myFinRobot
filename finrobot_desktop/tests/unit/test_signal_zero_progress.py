@@ -10,11 +10,10 @@ guard must match (strict ``> 0``) — a hit requires actual movement toward targ
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.engine.compute.operators.signal import compute_signal
 
-UTC = timezone.utc
 ENTRY = datetime(2026, 1, 1, tzinfo=UTC)
 
 

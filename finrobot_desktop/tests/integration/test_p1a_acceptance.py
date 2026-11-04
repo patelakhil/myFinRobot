@@ -1,5 +1,6 @@
-import pytest
 from pathlib import Path
+
+import pytest
 
 from finrobot.config import get_settings
 from finrobot.engine.skills.registry import SkillRegistry
@@ -18,7 +19,7 @@ class TestP1aAcceptance:
     def test_skill_list_by_domain(self):
         """P1a acceptance: skills are organized by domain."""
         registry = SkillRegistry(SKILLS_DIR)
-        domains = set(s.domain for s in registry.list_all())
+        domains = {s.domain for s in registry.list_all()}
         assert len(domains) >= 3, f"Expected at least 3 domains, got {domains}"
 
     def test_skill_search_comps(self):
@@ -59,10 +60,10 @@ class TestP1aAcceptance:
         appear without skill injection.
         """
         from finrobot.engine.agents.factory import create_sub_agents
-        from finrobot.engine.deps import FinRobotDeps
-        from finrobot.engine.data.layer import DataLayer
         from finrobot.engine.data.cache import DataCache
+        from finrobot.engine.data.layer import DataLayer
         from finrobot.engine.data.providers.yfinance_provider import YFinanceProvider
+        from finrobot.engine.deps import FinRobotDeps
         from finrobot.engine.pipelines.equity_research import create_equity_research_pipeline
 
         settings = get_settings()

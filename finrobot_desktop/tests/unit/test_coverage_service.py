@@ -7,7 +7,7 @@ real; the artifact store and data layer are stubbed at their method surface.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -25,14 +25,13 @@ from finrobot.coverage.service import (
     ensure_studied_membership,
     ensure_system_group,
 )
-from finrobot.engine.data.normalize.contracts import DEGRADED_CLOSE_ONLY, DEGRADED_TTM_LAG
 from finrobot.coverage.sqlite_store import CoverageStore
 from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.normalize.contracts import DEGRADED_CLOSE_ONLY, DEGRADED_TTM_LAG
 from finrobot.engine.data.normalize.financials import normalize_financials
 from finrobot.engine.data.normalize.price import normalize_price
 from finrobot.engine.data.types import DataType
 
-UTC = timezone.utc
 ENTRY = datetime(2026, 4, 1, tzinfo=UTC)
 NOW = ENTRY + timedelta(days=30)
 
@@ -68,19 +67,19 @@ def _summary(
 
 
 def _fin(ticker: str = "AAPL", **overrides):
-    data = dict(
-        revenue=100e9,
-        ebitda=35e9,
-        net_income=20e9,
-        gross_margin=0.47,
-        operating_margin=0.28,
-        pe_ratio=28.5,
-        market_cap=3e12,
-        shares_outstanding=15e9,
-        current_price=200.0,
-        total_debt=50e9,
-        total_cash=20e9,
-    )
+    data = {
+        "revenue": 100e9,
+        "ebitda": 35e9,
+        "net_income": 20e9,
+        "gross_margin": 0.47,
+        "operating_margin": 0.28,
+        "pe_ratio": 28.5,
+        "market_cap": 3e12,
+        "shares_outstanding": 15e9,
+        "current_price": 200.0,
+        "total_debt": 50e9,
+        "total_cash": 20e9,
+    }
     data.update(overrides)
     return normalize_financials(
         DataResult(
@@ -123,7 +122,7 @@ class _StubArtifactStore:
 
     async def list_by_ticker(
         self, ticker=None, type=None, include_archived=False, limit=100
-    ) -> list[ArtifactSummary]:  # noqa: A002
+    ) -> list[ArtifactSummary]:
         if ticker is None:
             flat = [s for lst in self._by_ticker.values() for s in lst]
         else:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from finrobot.artifact.models import (
     Artifact,
@@ -22,7 +22,6 @@ from finrobot.artifact.summary_extractor import (
     extract_verdict,
 )
 
-UTC = timezone.utc
 CREATED = datetime(2026, 5, 1, tzinfo=UTC)
 
 

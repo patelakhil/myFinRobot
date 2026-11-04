@@ -14,7 +14,7 @@ PRICE) exactly like the /financials route before computing the multiple.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -27,23 +27,23 @@ from finrobot.routes.valuation import _current_ev_ebitda_override
 
 def _make_fin():
     raw = DataResult(
-        data=dict(
-            revenue=100e9,
-            ebitda=35e9,
-            net_income=20e9,
-            gross_margin=0.47,
-            operating_margin=0.28,
-            pe_ratio=28.5,
-            market_cap=3e12,
-            shares_outstanding=15e9,
-            current_price=200.0,
-            total_debt=50e9,
-            total_cash=20e9,
-        ),
+        data={
+            "revenue": 100e9,
+            "ebitda": 35e9,
+            "net_income": 20e9,
+            "gross_margin": 0.47,
+            "operating_margin": 0.28,
+            "pe_ratio": 28.5,
+            "market_cap": 3e12,
+            "shares_outstanding": 15e9,
+            "current_price": 200.0,
+            "total_debt": 50e9,
+            "total_cash": 20e9,
+        },
         provider="yfinance",
         ticker="AAPL",
         data_type="financials",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     return normalize_financials(raw)
 
@@ -57,7 +57,7 @@ def _make_price():
         provider="yfinance",
         ticker="AAPL",
         data_type="price",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     return normalize_price(raw)
 

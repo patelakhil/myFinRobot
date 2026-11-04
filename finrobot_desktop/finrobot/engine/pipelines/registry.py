@@ -23,9 +23,10 @@ server → web → tasks → server cycle returns.
 from __future__ import annotations
 
 import importlib
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass(frozen=True)

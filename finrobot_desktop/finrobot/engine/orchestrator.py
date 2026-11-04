@@ -228,11 +228,15 @@ def _format_monte_carlo_for_tool(
     lines = [
         f"Monte Carlo DCF for {ticker} ({result.n_valid:,} valid of {n_total:,} simulations):",
         "Implied fair value per share:",
-        f"  P5 {_money(p.get('5'))} · P25 {_money(p.get('25'))} · "
-        f"Median {_money(p.get('50'))} · P75 {_money(p.get('75'))} · P95 {_money(p.get('95'))}",
+        (
+            f"  P5 {_money(p.get('5'))} · P25 {_money(p.get('25'))} · "
+            f"Median {_money(p.get('50'))} · P75 {_money(p.get('75'))} · P95 {_money(p.get('95'))}"
+        ),
         f"  Mean {_money(result.mean)} · Std {_money(result.std)}",
-        f"Current price {_money(current_price)} sits at the {pct:.0f}th percentile "
-        "of the simulated distribution.",
+        (
+            f"Current price {_money(current_price)} sits at the {pct:.0f}th percentile "
+            "of the simulated distribution."
+        ),
     ]
     # State the read factually; the band above is the evidence, this is the one-liner.
     if pct <= 25:
@@ -552,8 +556,10 @@ def create_lead_agent(
             "equity_research", {"rerun": [], "carry_over": []}
         )
         header = [
-            f"Partial refresh with {label}: only these integrations are queried live; every "
-            "other source is served from cache."
+            (
+                f"Partial refresh with {label}: only these integrations are queried live; every "
+                "other source is served from cache."
+            )
         ]
         if plan["carry_over"]:
             header.append(f"Carried over unchanged: {', '.join(plan['carry_over'])}.")

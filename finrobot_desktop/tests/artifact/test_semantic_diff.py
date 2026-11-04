@@ -9,8 +9,8 @@ the expected numbers come from the same deterministic compute the report uses.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any
+from datetime import UTC, datetime, timedelta
+from typing import Any, ClassVar
 
 from finrobot.artifact.models import (
     Artifact,
@@ -23,8 +23,6 @@ from finrobot.artifact.models import (
 from finrobot.artifact.semantic_diff import build_semantic_delta
 from finrobot.engine.compute.operators.dcf import calculate_dcf
 from finrobot.engine.models.financial import DCFInputs
-
-UTC = timezone.utc
 
 
 def _inputs(
@@ -184,7 +182,7 @@ class TestMarketImpliedGrowth:
       • unreachable: growth_unreachable=True, ceiling $301.96 at 50% (6cd0ef)
     """
 
-    _REACHABLE_A = {
+    _REACHABLE_A: ClassVar[set[str]] = {
         "horizon_years": 10,
         "implied_growth": 0.44998,
         "implied_wacc": None,
@@ -192,7 +190,7 @@ class TestMarketImpliedGrowth:
         "growth_ceiling": None,
         "ceiling_price": None,
     }
-    _REACHABLE_B = {
+    _REACHABLE_B: ClassVar[set[str]] = {
         "horizon_years": 10,
         "implied_growth": 0.44016,
         "implied_wacc": None,
@@ -200,7 +198,7 @@ class TestMarketImpliedGrowth:
         "growth_ceiling": None,
         "ceiling_price": None,
     }
-    _UNREACHABLE = {
+    _UNREACHABLE: ClassVar[set[str]] = {
         "horizon_years": 10,
         "implied_growth": None,
         "implied_wacc": None,

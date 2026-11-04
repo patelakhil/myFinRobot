@@ -6,7 +6,7 @@ DataLayer.fetch_canonical(PRICE), never yfinance directly.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -14,7 +14,6 @@ from finrobot.engine.compute.coordinators.market import get_technicals, technica
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.normalize.contracts import NormalizedPrice, PriceBar, Provenance
 
-UTC = timezone.utc
 NOW = datetime(2026, 5, 30, tzinfo=UTC)
 
 

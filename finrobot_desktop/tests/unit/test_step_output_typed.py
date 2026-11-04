@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+
 from finrobot.engine.models.financial import StepOutput
 
 
@@ -23,7 +24,7 @@ def test_step_output_accepts_base_model():
 
 
 def test_step_output_structured_not_any():
-    from typing import get_type_hints, Any
+    from typing import Any, get_type_hints
 
     hints = get_type_hints(StepOutput)
     # Should not be bare Any

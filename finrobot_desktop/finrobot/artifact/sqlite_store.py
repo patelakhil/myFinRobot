@@ -1,8 +1,9 @@
 """SQLite-backed ArtifactStore.
 
 Replaces the legacy filesystem layout (one JSON file per artifact, one
-index.json per ticker dir) with a single SQLite db at
-``~/.finrobot/artifacts.db``. Same async surface so consumers can swap
+index.json per ticker dir) with one SQLite table, ``artifacts``, in the
+consolidated user database (``~/.finrobot/finrobot.db``, shared with runs /
+coverage / portfolio — see :mod:`finrobot.storage.user_db`). Same async surface so consumers can swap
 without code changes.
 
 Schema (single table ``artifacts``):
@@ -32,17 +33,15 @@ eliminates the N+1 read pattern that dominated landing cold-start.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import aiosqlite
 
 from finrobot.artifact.models import Artifact, ArtifactSummary, ArtifactType
-from finrobot.engine.compute.operators.signal import Signal  # noqa: F401 — used in ArtifactSummary
 from finrobot.artifact.summary_extractor import (
     extract_entry_price,
     extract_fairly_valued,
@@ -53,7 +52,13 @@ from finrobot.artifact.summary_extractor import (
     extract_target_price,
     extract_verdict,
 )
-from finrobot import paths as _paths
+from finrobot.engine.compute.operators.signal import Signal  # noqa: F401 — used in ArtifactSummary
+from finrobot.storage.sqlite import (
+    Migration,
+    SqliteDatabase,
+    add_missing_columns,
+    table_exists,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,8 +115,10 @@ _SUMMARY_COLUMNS = (
 # rebuild_summaries() over every already-stored row — otherwise old rows keep
 # the value the previous extractor produced forever, since the columns are only
 # written at save() time and are read as source-of-truth (BUG-065). The applied
-# version is persisted in the artifacts.db header via PRAGMA user_version, so
-# the backfill runs exactly once per bump, not on every boot.
+# version is persisted in the database's ``schema_meta`` table (key
+# ``summary_projection_version``), so the backfill runs exactly once per bump,
+# not on every boot. (It lived in ``PRAGMA user_version`` before the schema
+# runner claimed that pragma; the baseline migration carries the old value over.)
 # v2 — 2026-06-10: primary_provider column added (门四溯源半); bump so legacy
 # rows get the provider backfilled from their payload's inputs.data_source.
 # v3 — 2026-06-14: REVIEW→graded-call redesign (commits ③④). The verdict no
@@ -131,10 +138,36 @@ _SUMMARY_COLUMNS = (
 # rule / blank scaffolding and previews the first prose line; bump so existing
 # rows re-project a clean headline instead of the leaked markdown facade.
 SUMMARY_PROJECTION_VERSION = 5
+_PROJECTION_META_KEY = "summary_projection_version"
+
+
+async def _baseline(conn: aiosqlite.Connection) -> None:
+    """v1: the ``artifacts`` table + mirror-column catch-ups + indexes.
+
+    Idempotent against a pre-versioning ``artifacts.db``. Such a file used
+    ``PRAGMA user_version`` for the summary-projection counter; read it before
+    the runner overwrites the pragma with the schema version and park it in
+    ``schema_meta`` so an upgrading install doesn't re-project every row.
+    """
+    legacy_file = await table_exists(conn, "artifacts")
+    legacy_projection = 0
+    if legacy_file:
+        async with conn.execute("PRAGMA user_version") as cur:
+            row = await cur.fetchone()
+        legacy_projection = int(row[0]) if row else 0
+    await conn.execute(_CREATE_TABLE)
+    await add_missing_columns(conn, "artifacts", _MIGRATED_COLUMNS)
+    for stmt in _CREATE_INDEXES:
+        await conn.execute(stmt)
+    if legacy_projection and await SqliteDatabase.get_meta(conn, _PROJECTION_META_KEY) is None:
+        await SqliteDatabase.set_meta(conn, _PROJECTION_META_KEY, str(legacy_projection))
+
+
+MIGRATIONS: tuple[Migration, ...] = (Migration(1, "artifacts: baseline", _baseline),)
 
 
 def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 def _parse_dt(value: str | None) -> datetime | None:
@@ -142,7 +175,7 @@ def _parse_dt(value: str | None) -> datetime | None:
         return None
     dt = datetime.fromisoformat(value)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -310,49 +343,37 @@ class SqliteArtifactStore:
         db_path: SQLite file path. Defaults to ``finrobot.paths.ARTIFACTS_DB``.
     """
 
-    def __init__(self, db_path: str | Path | None = None) -> None:
-        if db_path is None:
-            _paths.ensure_home()
-            db_path = _paths.ARTIFACTS_DB
-        self._db_path = str(db_path)
-        self._conn: aiosqlite.Connection | None = None
-        self._conn_lock = asyncio.Lock()
+    def __init__(
+        self,
+        db_path: str | Path | None = None,
+        *,
+        database: SqliteDatabase | None = None,
+    ) -> None:
+        if database is not None:
+            self._db = database
+            self._owns_db = False
+        elif db_path is not None:
+            self._db = SqliteDatabase(db_path, migrations=MIGRATIONS)
+            self._owns_db = True
+        else:
+            from finrobot.storage.user_db import user_database
+
+            self._db = user_database()
+            self._owns_db = True
+        self._db_path = str(self._db.path)
+
+    @property
+    def database(self) -> SqliteDatabase:
+        return self._db
 
     async def _conn_ready(self) -> aiosqlite.Connection:
-        if self._conn is not None:
-            return self._conn
-        async with self._conn_lock:
-            if self._conn is None:
-                Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
-                conn = await aiosqlite.connect(self._db_path)
-                try:
-                    await _paths.configure_connection(conn)
-                    await conn.execute(_CREATE_TABLE)
-                    # CREATE TABLE IF NOT EXISTS never adds columns to an
-                    # existing db — ALTER the post-ship columns in so upgrading
-                    # installs keep their store (values backfilled by the
-                    # SUMMARY_PROJECTION_VERSION rebuild at startup).
-                    async with conn.execute("PRAGMA table_info(artifacts)") as cur:
-                        existing_cols = {row[1] for row in await cur.fetchall()}
-                    for col_name, col_type in _MIGRATED_COLUMNS:
-                        if col_name not in existing_cols:
-                            await conn.execute(
-                                f"ALTER TABLE artifacts ADD COLUMN {col_name} {col_type}"
-                            )
-                    for stmt in _CREATE_INDEXES:
-                        await conn.execute(stmt)
-                    await conn.commit()
-                except BaseException:
-                    await conn.close()
-                    raise
-                self._conn = conn
-        return self._conn
+        return await self._db.connection()
 
     async def save(self, artifact: Artifact) -> str:
-        conn = await self._conn_ready()
         row = _artifact_to_row(artifact)
-        await conn.execute(
-            """
+        async with self._db.transaction() as conn:
+            await conn.execute(
+                """
             INSERT INTO artifacts (
                 id, ticker, cross_tickers, type, verdict, created_at,
                 last_viewed_at, archived, entry_price, target_price,
@@ -377,9 +398,8 @@ class SqliteArtifactStore:
                 fairly_valued = excluded.fairly_valued,
                 payload = excluded.payload
             """,
-            row,
-        )
-        await conn.commit()
+                row,
+            )
         return artifact.id
 
     async def get(self, artifact_id: str) -> Artifact | None:
@@ -404,8 +424,8 @@ class SqliteArtifactStore:
                 "Unreadable artifact payload for %s (schema drift / corruption) — archiving",
                 artifact_id,
             )
-            await conn.execute("UPDATE artifacts SET archived = 1 WHERE id = ?", (artifact_id,))
-            await conn.commit()
+            async with self._db.transaction() as tx:
+                await tx.execute("UPDATE artifacts SET archived = 1 WHERE id = ?", (artifact_id,))
             return None
         # The archived/last_viewed_at COLUMNS are authoritative — they are the
         # mutable lifecycle fields list_by_ticker/count read and that
@@ -431,15 +451,14 @@ class SqliteArtifactStore:
             return await cur.fetchone() is not None
 
     async def delete(self, artifact_id: str) -> bool:
-        conn = await self._conn_ready()
-        cur = await conn.execute("DELETE FROM artifacts WHERE id = ?", (artifact_id,))
-        await conn.commit()
-        return cur.rowcount > 0
+        async with self._db.transaction() as conn:
+            cur = await conn.execute("DELETE FROM artifacts WHERE id = ?", (artifact_id,))
+            return cur.rowcount > 0
 
     async def list_by_ticker(
         self,
         ticker: str | None = None,
-        type: ArtifactType | None = None,  # noqa: A002
+        type: ArtifactType | None = None,
         include_archived: bool = False,
         limit: int = 100,
         tickers: set[str] | None = None,
@@ -544,7 +563,7 @@ class SqliteArtifactStore:
     async def list_versions(
         self,
         ticker: str,
-        type: ArtifactType,  # noqa: A002
+        type: ArtifactType,
     ) -> list[ArtifactSummary]:
         return await self.list_by_ticker(
             ticker=ticker, type=type, include_archived=True, limit=1000
@@ -561,17 +580,16 @@ class SqliteArtifactStore:
         validates (which is exactly when the lifecycle columns still matter).
         Missing ids are a no-op (rowcount 0), matching the old behaviour.
         """
-        conn = await self._conn_ready()
-        await conn.execute(
-            "UPDATE artifacts SET last_viewed_at = ?, archived = 0 WHERE id = ?",
-            (_now().isoformat(), artifact_id),
-        )
-        await conn.commit()
+        async with self._db.transaction() as conn:
+            await conn.execute(
+                "UPDATE artifacts SET last_viewed_at = ?, archived = 0 WHERE id = ?",
+                (_now().isoformat(), artifact_id),
+            )
 
     async def rebuild_summaries_if_outdated(self, version: int = SUMMARY_PROJECTION_VERSION) -> int:
         """Backfill the mirror columns once per projection-version bump.
 
-        The applied version lives in the db header (``PRAGMA user_version``).
+        The applied version lives in ``schema_meta`` (``summary_projection_version``).
         When the code's ``SUMMARY_PROJECTION_VERSION`` is ahead of it (a fresh
         bump after an extractor change, or a legacy db at version 0), this runs
         the full :meth:`rebuild_summaries` re-projection and then records the
@@ -580,16 +598,12 @@ class SqliteArtifactStore:
         startup (BUG-065).
         """
         conn = await self._conn_ready()
-        async with conn.execute("PRAGMA user_version") as cur:
-            row = await cur.fetchone()
-        applied = int(row[0]) if row else 0
+        applied = int(await SqliteDatabase.get_meta(conn, _PROJECTION_META_KEY) or 0)
         if applied >= version:
             return 0
         updated = await self.rebuild_summaries()
-        # PRAGMA user_version doesn't accept a bound parameter; the value is a
-        # validated int constant so interpolation is safe.
-        await conn.execute(f"PRAGMA user_version = {int(version)}")
-        await conn.commit()
+        async with self._db.transaction() as tx:
+            await SqliteDatabase.set_meta(tx, _PROJECTION_META_KEY, str(int(version)))
         logger.info(
             "Mirror-column projection upgraded %d → %d (%d rows re-projected)",
             applied,
@@ -625,10 +639,23 @@ class SqliteArtifactStore:
         """
         conn = await self._conn_ready()
         async with conn.execute("SELECT id, payload FROM artifacts") as cur:
-            rows = await cur.fetchall()
+            rows = list(await cur.fetchall())
 
         updated = 0
-        pending = 0
+        for start in range(0, len(rows), batch_size):
+            # One transaction per batch so a large store never holds the write
+            # lock for the whole pass.
+            async with self._db.transaction() as tx:
+                updated += await self._reproject_rows(tx, rows[start : start + batch_size])
+        if updated:
+            logger.info(
+                "rebuild_summaries: re-projected mirror columns for %d artifact(s)", updated
+            )
+        return updated
+
+    @staticmethod
+    async def _reproject_rows(conn: aiosqlite.Connection, rows: list[Any]) -> int:
+        updated = 0
         for artifact_id, payload in rows:
             try:
                 artifact = Artifact.model_validate_json(payload)
@@ -668,16 +695,6 @@ class SqliteArtifactStore:
                 ),
             )
             updated += 1
-            pending += 1
-            if pending >= batch_size:
-                await conn.commit()
-                pending = 0
-        if pending:
-            await conn.commit()
-        if updated:
-            logger.info(
-                "rebuild_summaries: re-projected mirror columns for %d artifact(s)", updated
-            )
         return updated
 
     async def archive_stale(self, hours: int = 24) -> int:
@@ -698,18 +715,17 @@ class SqliteArtifactStore:
         """
         if hours < 0:
             raise ValueError(f"hours must be >= 0, got {hours}")
-        conn = await self._conn_ready()
         cutoff_iso = (_now() - timedelta(hours=hours)).isoformat()
-        cur = await conn.execute(
-            "UPDATE artifacts SET archived = 1 "
-            "WHERE archived = 0 "
-            "AND COALESCE(last_viewed_at, created_at) <= ?",
-            (cutoff_iso,),
-        )
-        await conn.commit()
-        return cur.rowcount
+        async with self._db.transaction() as conn:
+            cur = await conn.execute(
+                "UPDATE artifacts SET archived = 1 "
+                "WHERE archived = 0 "
+                "AND COALESCE(last_viewed_at, created_at) <= ?",
+                (cutoff_iso,),
+            )
+            return cur.rowcount
 
     async def close(self) -> None:
-        if self._conn is not None:
-            await self._conn.close()
-            self._conn = None
+        """Close only when this store owns its database (see RunStore.close)."""
+        if self._owns_db:
+            await self._db.close()

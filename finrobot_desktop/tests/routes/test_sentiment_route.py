@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi import FastAPI
@@ -14,7 +14,6 @@ from finrobot.engine.data.provider_health import ProviderState
 from finrobot.engine.data.types import DataType
 from finrobot.routes.sentiment import router
 
-UTC = timezone.utc
 NOW = datetime(2026, 5, 21, tzinfo=UTC)
 
 
@@ -385,10 +384,12 @@ async def test_sentiment_stale_fallback_no_usable_signal_degrades_to_soft_state(
             "All data sources failed; showing cached data from 229h ago (AAPL / sentiment).",
             # Exact poisoned-cache shape httpx produces: URL tail + a continuation
             # line. Both must be scrubbed before reaching the contract.
-            "Reddit: Adanos rate limited (HTTP 429) for Reddit: Client error '429 Too Many "
-            "Requests' for url 'https://api.adanos.org/reddit/stocks/v1/compare?tickers=AAPL'"
-            "\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/"
-            "Status/429",
+            (
+                "Reddit: Adanos rate limited (HTTP 429) for Reddit: Client error '429 Too Many "
+                "Requests' for url 'https://api.adanos.org/reddit/stocks/v1/compare?tickers=AAPL'"
+                "\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/"
+                "Status/429"
+            ),
         ],
         from_stale_cache=True,
     )

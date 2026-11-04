@@ -1,31 +1,31 @@
 import pytest
 from pydantic import ValidationError
 
-from finrobot.engine.models.financial import DCFInputs, DCFResult
 from finrobot.engine.compute.operators.dcf import calculate_dcf, calculate_sensitivity
+from finrobot.engine.models.financial import DCFInputs, DCFResult
 
 
 def _make_inputs(**overrides):
     # da_pct_revenue defaults to 0.0 so existing hand-calc tests (designed
     # before D&A was required) still hit the same FCF arithmetic: when D&A=0,
     # the standard formula collapses to EBITDA(1-T) - CapEx - ΔNWC.
-    defaults = dict(
-        revenue_base=100_000_000_000,
-        revenue_growth_rates=[0.05] * 5,
-        ebitda_margin=0.35,
-        capex_pct_revenue=0.05,
-        nwc_pct_revenue=0.02,
-        da_pct_revenue=0.0,
-        tax_rate=0.21,
-        risk_free_rate=0.04,
-        beta=1.2,
-        equity_risk_premium=0.05,
-        cost_of_debt=0.04,
-        debt_ratio=0.1,
-        terminal_growth_rate=0.025,
-        shares_outstanding=1_000_000_000,
-        net_debt=10_000_000_000,
-    )
+    defaults = {
+        "revenue_base": 100_000_000_000,
+        "revenue_growth_rates": [0.05] * 5,
+        "ebitda_margin": 0.35,
+        "capex_pct_revenue": 0.05,
+        "nwc_pct_revenue": 0.02,
+        "da_pct_revenue": 0.0,
+        "tax_rate": 0.21,
+        "risk_free_rate": 0.04,
+        "beta": 1.2,
+        "equity_risk_premium": 0.05,
+        "cost_of_debt": 0.04,
+        "debt_ratio": 0.1,
+        "terminal_growth_rate": 0.025,
+        "shares_outstanding": 1_000_000_000,
+        "net_debt": 10_000_000_000,
+    }
     defaults.update(overrides)
     return DCFInputs(**defaults)
 
@@ -448,17 +448,17 @@ class TestTerminalNwc:
         it and published a fair value 1.57x the market price for a cash
         burner; the growth-scaled steady-state subsidy (−1.8%) no longer
         covers the gap, so the Gordon perpetuity honestly refuses."""
-        rivn_ratios = dict(
-            revenue_base=100_000_000_000,
-            revenue_growth_rates=[0.0],
-            ebitda_margin=0.166,
-            da_pct_revenue=0.207,
-            capex_pct_revenue=0.231,
-            nwc_pct_revenue=-0.10,
-            tax_rate=0.20,
-            terminal_growth_rate=0.03,
-            net_debt=0,
-        )
+        rivn_ratios = {
+            "revenue_base": 100_000_000_000,
+            "revenue_growth_rates": [0.0],
+            "ebitda_margin": 0.166,
+            "da_pct_revenue": 0.207,
+            "capex_pct_revenue": 0.231,
+            "nwc_pct_revenue": -0.10,
+            "tax_rate": 0.20,
+            "terminal_growth_rate": 0.03,
+            "net_debt": 0,
+        }
         # Legacy fallback (None → −10% forever): the subsidy alone keeps the
         # terminal FCF positive and a price prints.
         legacy = calculate_dcf(_make_inputs(**rivn_ratios), wacc_override=0.10)

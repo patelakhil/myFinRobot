@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from finrobot.engine.compute.operators.audit import audit_artifact, audit_company
 from finrobot.engine.models.financial import (
@@ -25,7 +25,7 @@ def _fd(
 ) -> FinancialData:
     fd = FinancialData(
         ticker="X",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(revenue=100e9, net_income=net_income),
         market=MarketData(
             market_cap=500e9,

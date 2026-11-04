@@ -48,7 +48,7 @@ def _latest_concept_value(facts: Any, concepts: tuple[str, ...]) -> tuple[float 
     for concept in concepts:
         try:
             fact = facts.get_fact(f"us-gaap:{concept}")
-        except Exception:
+        except Exception:  # noqa: BLE001 — edgartools raises assorted types for absent concepts
             fact = None
         if fact is None:
             continue

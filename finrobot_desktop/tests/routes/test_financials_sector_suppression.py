@@ -11,7 +11,7 @@ becomes a pure backstop. (2026-06-26)
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -24,26 +24,26 @@ from finrobot.engine.data.normalize.price import normalize_price
 def _extracted(industry: str, sector: str = "Financial Services"):
     fin = normalize_financials(
         DataResult(
-            data=dict(
-                revenue=100e9,
-                ebitda=80e9,
-                net_income=50e9,
-                gross_margin=0.6,
-                operating_margin=0.4,
-                pe_ratio=15.0,
-                market_cap=8e11,
-                shares_outstanding=2.5e9,
-                current_price=320.0,
-                total_debt=1e12,
-                total_cash=1.5e12,
-                book_value_per_share=128.0,
-                industry=industry,
-                sector=sector,
-            ),
+            data={
+                "revenue": 100e9,
+                "ebitda": 80e9,
+                "net_income": 50e9,
+                "gross_margin": 0.6,
+                "operating_margin": 0.4,
+                "pe_ratio": 15.0,
+                "market_cap": 8e11,
+                "shares_outstanding": 2.5e9,
+                "current_price": 320.0,
+                "total_debt": 1e12,
+                "total_cash": 1.5e12,
+                "book_value_per_share": 128.0,
+                "industry": industry,
+                "sector": sector,
+            },
             provider="yfinance",
             ticker="T",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
     )
     price = normalize_price(
@@ -55,7 +55,7 @@ def _extracted(industry: str, sector: str = "Financial Services"):
             provider="yfinance",
             ticker="T",
             data_type="price",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
     )
     return extract_financial_data(fin, price)

@@ -30,13 +30,13 @@ from finrobot.engine.models.financial import (
     LBOResult,
     StepOutput,
 )
+from finrobot.engine.pipelines._helpers import execute_financial_data_step
 from finrobot.engine.pipelines.base import (
     Pipeline,
     PipelineStep,
     StructuredValidator,
     TextValidator,
 )
-from finrobot.engine.pipelines._helpers import execute_financial_data_step
 from finrobot.engine.pipelines.validators import (
     validate_financial_data,
     validate_has_fields,
@@ -49,9 +49,9 @@ logger = logging.getLogger(__name__)
 
 
 async def _execute_lbo_params(
-    agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
+    agent: Agent[Any, Any],
     deps: FinRobotDeps,
-    prompt: str,  # noqa: ARG001 — kept for executor signature; unused
+    prompt: str,
     structured_context: dict[str, object],
     ticker: str,
     **_kwargs: object,

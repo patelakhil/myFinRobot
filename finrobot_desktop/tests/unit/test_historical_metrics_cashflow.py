@@ -13,7 +13,7 @@ What these tests verify beyond "code runs":
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -22,7 +22,6 @@ from finrobot.engine.compute.coordinators.historical_extractor import fetch_hist
 from finrobot.engine.data.interface import DataResult, ProviderError
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import HistoricalMetrics
-
 
 # ---------------------------------------------------------------------------
 # Part 1: HistoricalMetrics model — cash flow fields
@@ -144,7 +143,7 @@ def _dr(data: dict[str, Any]) -> DataResult:
         provider="test",
         ticker="AAPL",
         data_type=DataType.FINANCIALS,
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         warnings=[],
     )
 

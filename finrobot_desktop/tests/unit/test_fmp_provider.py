@@ -205,13 +205,15 @@ class TestFMPPriceRange:
 
     @pytest.mark.asyncio
     async def test_price_range_empty_raises(self, provider):
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(return_value=_mock_response([])),
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(return_value=_mock_response([])),
+            ),
+            pytest.raises(ProviderError, match="no bars"),
         ):
-            with pytest.raises(ProviderError, match="no bars"):
-                await provider.fetch("AAPL", "price_range", start="1990-01-01", end="1990-01-02")
+            await provider.fetch("AAPL", "price_range", start="1990-01-01", end="1990-01-02")
 
     @pytest.mark.asyncio
     async def test_price_range_rejects_non_daily_interval(self, provider):
@@ -342,16 +344,20 @@ class TestFMPFetch:
         cached for the 24h FINANCIALS TTL (same invariant as _fetch_price's
         empty-quote raise)."""
         responses = [_mock_response([])]  # quarterly income comes first
-        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
-            with pytest.raises(ProviderError, match="no rows"):
-                await provider.fetch("AAPL", "financials")
+        with (
+            patch.object(provider, "_get", AsyncMock(side_effect=responses)),
+            pytest.raises(ProviderError, match="no rows"),
+        ):
+            await provider.fetch("AAPL", "financials")
 
     @pytest.mark.asyncio
     async def test_empty_annual_income_raises_for_historical_path(self, provider):
         responses = [_mock_response([])]  # annual income comes first for years>1
-        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
-            with pytest.raises(ProviderError, match="no rows"):
-                await provider.fetch("AAPL", "financials", years=5)
+        with (
+            patch.object(provider, "_get", AsyncMock(side_effect=responses)),
+            pytest.raises(ProviderError, match="no rows"),
+        ):
+            await provider.fetch("AAPL", "financials", years=5)
 
     @pytest.mark.asyncio
     async def test_financials_dict_error_body_raises_provider_error(self, provider):
@@ -359,9 +365,11 @@ class TestFMPFetch:
         stale serve), not a KeyError escaping outside _wrap_errors as an
         opaque 500."""
         body = {"Error Message": "Limit Reach . Please upgrade your plan."}
-        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response(body))):
-            with pytest.raises(ProviderError, match="non-array"):
-                await provider.fetch("AAPL", "financials")
+        with (
+            patch.object(provider, "_get", AsyncMock(return_value=_mock_response(body))),
+            pytest.raises(ProviderError, match="non-array"),
+        ):
+            await provider.fetch("AAPL", "financials")
 
     @pytest.mark.asyncio
     async def test_shares_float_failure_warning_never_leaks_api_key(self, provider):
@@ -654,27 +662,31 @@ class TestFMPFetch:
 
     @pytest.mark.asyncio
     async def test_api_error_raises_provider_error(self, provider):
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(
-                side_effect=httpx.HTTPStatusError(
-                    "403", request=MagicMock(), response=MagicMock(status_code=403)
-                )
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(
+                    side_effect=httpx.HTTPStatusError(
+                        "403", request=MagicMock(), response=MagicMock(status_code=403)
+                    )
+                ),
             ),
+            pytest.raises(ProviderError),
         ):
-            with pytest.raises(ProviderError):
-                await provider.fetch("AAPL", "financials")
+            await provider.fetch("AAPL", "financials")
 
     @pytest.mark.asyncio
     async def test_timeout_raises_provider_error(self, provider):
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(side_effect=httpx.TimeoutException("timeout")),
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(side_effect=httpx.TimeoutException("timeout")),
+            ),
+            pytest.raises(ProviderError, match="timeout"),
         ):
-            with pytest.raises(ProviderError, match="timeout"):
-                await provider.fetch("AAPL", "financials")
+            await provider.fetch("AAPL", "financials")
 
     @pytest.mark.asyncio
     async def test_http_error_message_does_not_leak_api_key(self, provider):
@@ -686,17 +698,19 @@ class TestFMPFetch:
             "?apikey=LIVEKEY_SHOULD_NOT_LEAK",
         )
         response = httpx.Response(403, request=request)
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(
-                side_effect=httpx.HTTPStatusError(
-                    f"403 for url {request.url}", request=request, response=response
-                )
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(
+                    side_effect=httpx.HTTPStatusError(
+                        f"403 for url {request.url}", request=request, response=response
+                    )
+                ),
             ),
+            pytest.raises(ProviderError) as exc_info,
         ):
-            with pytest.raises(ProviderError) as exc_info:
-                await provider.fetch("AAPL", "financials")
+            await provider.fetch("AAPL", "financials")
 
         msg = str(exc_info.value)
         assert "LIVEKEY_SHOULD_NOT_LEAK" not in msg
@@ -711,17 +725,19 @@ class TestFMPFetch:
         happens to contain "429" (substring matching is fallback only)."""
         request = httpx.Request("GET", "https://financialmodelingprep.com/stable/quote")
         response = httpx.Response(429, request=request)
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(
-                side_effect=httpx.HTTPStatusError(
-                    "429 Too Many Requests", request=request, response=response
-                )
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(
+                    side_effect=httpx.HTTPStatusError(
+                        "429 Too Many Requests", request=request, response=response
+                    )
+                ),
             ),
+            pytest.raises(RateLimitedProviderError) as exc_info,
         ):
-            with pytest.raises(RateLimitedProviderError) as exc_info:
-                await provider.fetch("AAPL", "financials")
+            await provider.fetch("AAPL", "financials")
         assert is_rate_limit_error(exc_info.value)
 
     @pytest.mark.asyncio
@@ -731,17 +747,19 @@ class TestFMPFetch:
         forever waiting for a cooldown that can't fix a plan gap."""
         request = httpx.Request("GET", "https://financialmodelingprep.com/stable/quote")
         response = httpx.Response(403, request=request)
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(
-                side_effect=httpx.HTTPStatusError(
-                    "403 Forbidden", request=request, response=response
-                )
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(
+                    side_effect=httpx.HTTPStatusError(
+                        "403 Forbidden", request=request, response=response
+                    )
+                ),
             ),
+            pytest.raises(ProviderError) as exc_info,
         ):
-            with pytest.raises(ProviderError) as exc_info:
-                await provider.fetch("AAPL", "financials")
+            await provider.fetch("AAPL", "financials")
         assert not isinstance(exc_info.value, RateLimitedProviderError)
         assert not is_rate_limit_error(exc_info.value)
 
@@ -1066,7 +1084,7 @@ class TestFMPQuote:
         currency (stable /quote dropped the currency field), so the mock must
         answer both endpoints."""
 
-        async def _get(path, params=None):  # noqa: ANN001
+        async def _get(path, params=None):
             if path == "/profile":
                 return _mock_response(profile_rows)
             return _mock_response(quote_rows)
@@ -1103,7 +1121,7 @@ class TestFMPQuote:
         /profile (keeps the dashboard QUOTE fan-out cheap)."""
         calls: list[str] = []
 
-        async def _get(path, params=None):  # noqa: ANN001
+        async def _get(path, params=None):
             calls.append(path)
             if path == "/profile":
                 return _mock_response([{"symbol": "AAPL", "currency": "USD"}])
@@ -1120,7 +1138,7 @@ class TestFMPQuote:
         """If /profile fails, quote_currency is None (consumer abstains, never
         assumes USD) — and the quote price still flows."""
 
-        async def _get(path, params=None):  # noqa: ANN001
+        async def _get(path, params=None):
             if path == "/profile":
                 raise ProviderError("profile down")
             return _mock_response([{"symbol": "AAPL", "price": 187.5}])
@@ -1141,7 +1159,7 @@ class TestFMPQuote:
         )
         response = httpx.Response(429, request=request)
 
-        async def _get(path, params=None):  # noqa: ANN001
+        async def _get(path, params=None):
             if path == "/profile":
                 raise httpx.HTTPStatusError(
                     "429 for url with apikey=LIVEKEY_SHOULD_NOT_LEAK",
@@ -1156,9 +1174,11 @@ class TestFMPQuote:
 
     @pytest.mark.asyncio
     async def test_quote_empty_response_raises(self, provider):
-        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response([]))):
-            with pytest.raises(ProviderError):
-                await provider.fetch("AAPL", "quote")
+        with (
+            patch.object(provider, "_get", AsyncMock(return_value=_mock_response([]))),
+            pytest.raises(ProviderError),
+        ):
+            await provider.fetch("AAPL", "quote")
 
 
 class TestFMPProviderInterface:
@@ -1215,18 +1235,22 @@ class TestFMPNews:
         that would stop the provider chain before the news_aggregator
         (yfinance headlines + Alpha Vantage) ever gets a shot, and downstream
         can't distinguish it from 'genuinely no news'."""
-        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response([]))):
-            with pytest.raises(ProviderError, match="no rows"):
-                await provider.fetch("AAPL", "news")
+        with (
+            patch.object(provider, "_get", AsyncMock(return_value=_mock_response([]))),
+            pytest.raises(ProviderError, match="no rows"),
+        ):
+            await provider.fetch("AAPL", "news")
 
     @pytest.mark.asyncio
     async def test_news_dict_error_body_raises_provider_error(self, provider):
         """FMP signals some errors as HTTP 200 + dict body; that must surface
         as ProviderError (provider fallback), not an escaped AttributeError."""
         body = {"Error Message": "Limit Reach . Please upgrade your plan."}
-        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response(body))):
-            with pytest.raises(ProviderError, match="non-array"):
-                await provider.fetch("AAPL", "news")
+        with (
+            patch.object(provider, "_get", AsyncMock(return_value=_mock_response(body))),
+            pytest.raises(ProviderError, match="non-array"),
+        ):
+            await provider.fetch("AAPL", "news")
 
 
 def _fmp_earnings_response(ticker="AAPL"):
@@ -1721,7 +1745,7 @@ class TestFMPPrice:
 
     @staticmethod
     def _price_get(quote_rows, history_rows, profile_rows=None):
-        async def _get(path, params=None):  # noqa: ANN001
+        async def _get(path, params=None):
             if path == "/profile":
                 return _mock_response(
                     profile_rows
@@ -1810,13 +1834,15 @@ class TestFMPPrice:
 
     @pytest.mark.asyncio
     async def test_fetch_price_empty_quote_raises(self, provider):
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(side_effect=[_mock_response([]), _mock_response([])]),
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(side_effect=[_mock_response([]), _mock_response([])]),
+            ),
+            pytest.raises(ProviderError, match="no data"),
         ):
-            with pytest.raises(ProviderError, match="no data"):
-                await provider.fetch("DELISTED", "price")
+            await provider.fetch("DELISTED", "price")
 
     @pytest.mark.asyncio
     async def test_fetch_price_missing_price_field_raises(self, provider):
@@ -1824,9 +1850,11 @@ class TestFMPPrice:
             _mock_response([{"symbol": "BAD", "exchange": "NASDAQ"}]),  # no price
             _mock_response([]),
         ]
-        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
-            with pytest.raises(ProviderError, match="no price field"):
-                await provider.fetch("BAD", "price")
+        with (
+            patch.object(provider, "_get", AsyncMock(side_effect=responses)),
+            pytest.raises(ProviderError, match="no price field"),
+        ):
+            await provider.fetch("BAD", "price")
 
     @pytest.mark.asyncio
     async def test_fetch_price_handles_empty_history(self, provider):
@@ -2006,43 +2034,51 @@ class TestFMPNetworkErrors:
 
     @pytest.mark.asyncio
     async def test_connect_error_raises_provider_error(self, provider):
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(side_effect=httpx.ConnectError("connection refused")),
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(side_effect=httpx.ConnectError("connection refused")),
+            ),
+            pytest.raises(ProviderError, match="network error"),
         ):
-            with pytest.raises(ProviderError, match="network error"):
-                await provider.fetch("AAPL", "financials")
+            await provider.fetch("AAPL", "financials")
 
     @pytest.mark.asyncio
     async def test_remote_protocol_error_raises_provider_error(self, provider):
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(side_effect=httpx.RemoteProtocolError("unexpected EOF")),
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(side_effect=httpx.RemoteProtocolError("unexpected EOF")),
+            ),
+            pytest.raises(ProviderError, match="network error"),
         ):
-            with pytest.raises(ProviderError, match="network error"):
-                await provider.fetch("AAPL", "financials")
+            await provider.fetch("AAPL", "financials")
 
     @pytest.mark.asyncio
     async def test_read_error_raises_provider_error(self, provider):
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(side_effect=httpx.ReadError("read failed")),
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(side_effect=httpx.ReadError("read failed")),
+            ),
+            pytest.raises(ProviderError, match="network error"),
         ):
-            with pytest.raises(ProviderError, match="network error"):
-                await provider.fetch("AAPL", "news")
+            await provider.fetch("AAPL", "news")
 
     @pytest.mark.asyncio
     async def test_write_error_raises_provider_error(self, provider):
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(side_effect=httpx.WriteError("write failed")),
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(side_effect=httpx.WriteError("write failed")),
+            ),
+            pytest.raises(ProviderError, match="network error"),
         ):
-            with pytest.raises(ProviderError, match="network error"):
-                await provider.fetch("AAPL", "earnings")
+            await provider.fetch("AAPL", "earnings")
 
 
 class TestFMPRateLimiter:
@@ -2060,6 +2096,7 @@ class TestFMPRateLimiter:
         """Second call within MIN_INTERVAL must trigger asyncio.sleep."""
         import asyncio
         import time
+
         from finrobot.engine.data.providers.fmp_provider import _MIN_INTERVAL
 
         sleep_durations: list[float] = []

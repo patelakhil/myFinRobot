@@ -1,6 +1,6 @@
 """Tests for the lead_agent orchestrator (P1b: sub-agents + comps/dcf tools)."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -54,7 +54,7 @@ class FakeDataLayer:
             provider="fake",
             ticker=ticker,
             data_type=data_type,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def fetch_canonical(self, data_type, ticker: str, **kwargs) -> FakeCanonical:
@@ -374,7 +374,7 @@ class TestPipelineToolLocale:
         def __init__(self) -> None:
             self.seen_lang: str | None = "UNSET"
 
-        async def execute(self, deps, ticker, lang=None, **kwargs):  # noqa: ANN001
+        async def execute(self, deps, ticker, lang=None, **kwargs):
             self.seen_lang = lang
             return TestPipelineToolLocale._FakeResult()
 
@@ -413,10 +413,10 @@ class FakeArtifactStore:
     async def list_by_ticker(
         self,
         ticker: str | None = None,
-        type=None,  # noqa: A002, ANN001
+        type=None,
         include_archived: bool = False,
         limit: int = 100,
-        tickers=None,  # noqa: ANN001
+        tickers=None,
     ) -> list[ArtifactSummary]:
         rows = [s for s in self._summaries if ticker is None or s.ticker == ticker]
         return rows[:limit]
@@ -435,13 +435,13 @@ def _report_summary(
         ticker=ticker,
         cross_tickers=[],
         type="equity_research",
-        created_at=datetime(2026, 6, 9, 2, 9, 18, tzinfo=timezone.utc),
+        created_at=datetime(2026, 6, 9, 2, 9, 18, tzinfo=UTC),
         headline="x",
         source="pipeline:equity_research",
         archived=False,
         entry_price=entry,
         target_price=target,
-        target_date=datetime(2027, 6, 9, tzinfo=timezone.utc),
+        target_date=datetime(2027, 6, 9, tzinfo=UTC),
         signal=None,
         verdict=verdict,
     )
@@ -451,7 +451,7 @@ def _find_reports_fn(agent):
     return agent._function_toolset.tools["find_reports"].function
 
 
-def _deps_with_store(store) -> FinRobotDeps:  # noqa: ANN001
+def _deps_with_store(store) -> FinRobotDeps:
     return FinRobotDeps(data_layer=FakeDataLayer(), settings=_settings(), artifact_store=store)
 
 
@@ -515,7 +515,7 @@ class _RagDataLayer:
     def __init__(self, *, rag_chunks: list[dict] | None = None) -> None:
         self._rag_chunks = rag_chunks
 
-    async def fetch(self, data_type, ticker, **kwargs) -> DataResult:  # noqa: ANN001
+    async def fetch(self, data_type, ticker, **kwargs) -> DataResult:
         data: dict = {}
         if self._rag_chunks is not None:
             data["rag_chunks"] = self._rag_chunks
@@ -525,11 +525,11 @@ class _RagDataLayer:
             provider="sec_edgar",
             ticker=ticker,
             data_type=str(data_type),
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
 
-def _ask_filings_fn(agent):  # noqa: ANN001
+def _ask_filings_fn(agent):
     return agent._function_toolset.tools["ask_filings"].function
 
 
@@ -555,7 +555,7 @@ def _artifact(
         type="equity_research",
         inputs=ArtifactInputs(
             data_source="yfinance",
-            data_fetched_at=datetime(2026, 6, 9, tzinfo=timezone.utc),
+            data_fetched_at=datetime(2026, 6, 9, tzinfo=UTC),
             raw_data={},
         ),
         assumptions=ArtifactAssumptions(parameters={}),
@@ -565,7 +565,7 @@ def _artifact(
             summary_text=summary_text,
         ),
         meta=ArtifactMeta(
-            created_at=datetime(2026, 6, 9, tzinfo=timezone.utc), source="pipeline:equity_research"
+            created_at=datetime(2026, 6, 9, tzinfo=UTC), source="pipeline:equity_research"
         ),
     )
 
@@ -581,7 +581,7 @@ class FakeArtifactStoreWithGet(FakeArtifactStore):
         return self._artifacts.get(artifact_id)
 
 
-def _read_report_fn(agent):  # noqa: ANN001
+def _read_report_fn(agent):
     return agent._function_toolset.tools["read_report"].function
 
 
@@ -664,11 +664,11 @@ class FakePortfolioStore:
         return self._details.get(portfolio_id)
 
 
-def _query_portfolio_holdings_fn(agent):  # noqa: ANN001
+def _query_portfolio_holdings_fn(agent):
     return agent._function_toolset.tools["query_portfolio_holdings"].function
 
 
-def _deps_with_portfolio(store) -> FinRobotDeps:  # noqa: ANN001
+def _deps_with_portfolio(store) -> FinRobotDeps:
     return FinRobotDeps(data_layer=FakeDataLayer(), settings=_settings(), portfolio_store=store)
 
 
@@ -702,8 +702,8 @@ class TestQueryPortfolioHoldings:
             description=None,
             base_currency="USD",
             cost_method="fifo",
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
-            updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
+            updated_at=datetime(2026, 1, 1, tzinfo=UTC),
             lots=[
                 {
                     "id": "lot_1",
@@ -713,8 +713,8 @@ class TestQueryPortfolioHoldings:
                     "cost_per_unit": 150,
                     "purchase_date": "2024-01-01",
                     "currency": "USD",
-                    "created_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
-                    "updated_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+                    "created_at": datetime(2026, 1, 1, tzinfo=UTC),
+                    "updated_at": datetime(2026, 1, 1, tzinfo=UTC),
                 }
             ],
         )
@@ -800,11 +800,11 @@ class _ArtifactGetStore:
     def __init__(self, artifacts: dict[str, object]) -> None:
         self._artifacts = artifacts
 
-    async def get(self, artifact_id: str):  # noqa: ANN201
+    async def get(self, artifact_id: str):
         return self._artifacts.get(artifact_id)
 
 
-def _diff_reports_fn(agent):  # noqa: ANN001
+def _diff_reports_fn(agent):
     return agent._function_toolset.tools["diff_reports"].function
 
 
@@ -977,7 +977,7 @@ class _PriceOnlyFinancials:
     market = _Market()
 
 
-def _run_monte_carlo_fn(agent):  # noqa: ANN001
+def _run_monte_carlo_fn(agent):
     return agent._function_toolset.tools["run_monte_carlo"].function
 
 
@@ -994,7 +994,7 @@ class TestRunMonteCarlo:
         assert "Invalid ticker" in out
 
     async def test_runs_real_simulation_and_formats(self, monkeypatch):
-        async def _fake_seed(data_layer, ticker, *, fmp_api_key=None):  # noqa: ANN001
+        async def _fake_seed(data_layer, ticker, *, fmp_api_key=None):
             return _PriceOnlyFinancials(), _mc_inputs()
 
         monkeypatch.setattr("finrobot.engine.orchestrator.seed_dcf_inputs_for_ticker", _fake_seed)
@@ -1009,7 +1009,7 @@ class TestRunMonteCarlo:
         assert "$160.00" in out  # current price echoed
 
     async def test_seed_failure_returns_string_not_raise(self, monkeypatch):
-        async def _boom(data_layer, ticker, *, fmp_api_key=None):  # noqa: ANN001
+        async def _boom(data_layer, ticker, *, fmp_api_key=None):
             raise ValueError("no financials available for ZZZZ")
 
         monkeypatch.setattr("finrobot.engine.orchestrator.seed_dcf_inputs_for_ticker", _boom)
@@ -1034,10 +1034,10 @@ class TestRunMonteCarlo:
 class _StubBacktestAdapter:
     """Stands in for BackTraderAdapter: returns a fixed BacktestResult."""
 
-    def __init__(self, data_layer) -> None:  # noqa: ANN001
+    def __init__(self, data_layer) -> None:
         pass
 
-    async def run(self, config) -> BacktestResult:  # noqa: ANN001
+    async def run(self, config) -> BacktestResult:
         return BacktestResult(
             initial_value=100_000.0,
             final_value=128_500.0,
@@ -1052,7 +1052,7 @@ class _StubBacktestAdapter:
         )
 
 
-def _run_backtest_fn(agent):  # noqa: ANN001
+def _run_backtest_fn(agent):
     return agent._function_toolset.tools["run_backtest"].function
 
 
@@ -1090,10 +1090,10 @@ class TestRunBacktest:
 
     async def test_run_failure_returns_string_not_raise(self, monkeypatch):
         class _BoomAdapter:
-            def __init__(self, data_layer) -> None:  # noqa: ANN001
+            def __init__(self, data_layer) -> None:
                 pass
 
-            async def run(self, config):  # noqa: ANN001, ANN201
+            async def run(self, config):
                 raise ValueError("No price data for ZZZZ in the requested window")
 
         monkeypatch.setattr("finrobot.engine.orchestrator.BackTraderAdapter", _BoomAdapter)
@@ -1124,7 +1124,7 @@ class TestWebSearch:
 
     async def test_returns_results_from_ddg(self, monkeypatch):
         class _FakeDDGS:
-            def text(self, query, max_results=None):  # noqa: ANN001, ARG002
+            def text(self, query, max_results=None):
                 return [
                     {
                         "title": "AI News | Reuters",

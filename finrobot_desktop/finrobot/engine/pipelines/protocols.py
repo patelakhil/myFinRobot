@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Protocol
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from finrobot.artifact.models import Artifact
@@ -63,12 +64,12 @@ class StepExecutor(Protocol):
     async def __call__(
         self,
         agent: Agent,
-        deps: "FinRobotDeps",
+        deps: FinRobotDeps,
         prompt: str,
         structured_context: dict[str, object],
         ticker: str,
         **kwargs: object,
-    ) -> "StepOutput | str": ...
+    ) -> StepOutput | str: ...
 
 
 class StepValidator(Protocol):
@@ -83,7 +84,7 @@ class DefaultAgentExecutor:
     async def __call__(
         self,
         agent: Agent,
-        deps: "FinRobotDeps",
+        deps: FinRobotDeps,
         prompt: str,
         structured_context: dict[str, object],
         ticker: str,
@@ -137,7 +138,7 @@ class ArtifactBuilder(Protocol):
 
     def __call__(
         self,
-        result: "PipelineResult",
+        result: PipelineResult,
         ticker: str,
-        deps: "FinRobotDeps",
-    ) -> "Artifact": ...
+        deps: FinRobotDeps,
+    ) -> Artifact: ...

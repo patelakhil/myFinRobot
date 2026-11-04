@@ -6,7 +6,7 @@ narrative steps, while a warning in outputs.warnings + a structured
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from finrobot.artifact.builders import build_equity_research_artifact
@@ -18,8 +18,6 @@ from finrobot.engine.models.financial import (
     ValuationMetrics,
 )
 from finrobot.engine.pipelines.base import PipelineResult
-
-UTC = timezone.utc
 
 
 def _financial_data() -> FinancialData:

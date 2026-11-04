@@ -8,7 +8,7 @@ that keep signal.py free of LLM / upper-layer dependencies.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -20,7 +20,6 @@ from finrobot.engine.compute.operators.signal import (
     compute_signal,
 )
 
-UTC = timezone.utc
 ENTRY = datetime(2026, 1, 1, tzinfo=UTC)
 
 

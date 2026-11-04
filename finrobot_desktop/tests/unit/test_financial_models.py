@@ -1,22 +1,24 @@
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, timezone
 from pydantic import ValidationError
+
 from finrobot.engine.models.financial import (
     BalanceSheet,
-    FinancialData,
-    IncomeStatement,
-    MarketData,
-    ValuationMetrics,
+    CatalystEvent,
     CompanyFinancials,
-    PeerComps,
-    PeerSelection,
     DCFInputs,
     DCFResult,
-    ThesisResult,
-    StepOutput,
+    FinancialData,
     HistoricalMetrics,
-    CatalystEvent,
+    IncomeStatement,
+    MarketData,
+    PeerComps,
+    PeerSelection,
+    StepOutput,
+    ThesisResult,
     ValuationMethod,
+    ValuationMetrics,
     ValuationSynthesis,
 )
 
@@ -28,33 +30,33 @@ def _base_financial_data(**overrides):
     the correct sub-model kwargs.
     """
     # Flat defaults
-    flat = dict(
-        ticker="AAPL",
-        timestamp=datetime.now(tz=timezone.utc),
-        revenue=100e9,
-        ebitda=35e9,
-        net_income=20e9,
-        gross_margin=0.47,
-        operating_margin=0.28,
-        market_cap=3e12,
-        shares_outstanding=15e9,
-        current_price=200.0,
-        total_debt=0,
-        total_cash=0,
-        depreciation_amortization=None,
-        rd_expense=None,
-        sga_expense=None,
-        interest_expense=None,
-        enterprise_value=None,
-        ev_ebitda=None,
-        ev_revenue=None,
-    )
+    flat = {
+        "ticker": "AAPL",
+        "timestamp": datetime.now(tz=UTC),
+        "revenue": 100e9,
+        "ebitda": 35e9,
+        "net_income": 20e9,
+        "gross_margin": 0.47,
+        "operating_margin": 0.28,
+        "market_cap": 3e12,
+        "shares_outstanding": 15e9,
+        "current_price": 200.0,
+        "total_debt": 0,
+        "total_cash": 0,
+        "depreciation_amortization": None,
+        "rd_expense": None,
+        "sga_expense": None,
+        "interest_expense": None,
+        "enterprise_value": None,
+        "ev_ebitda": None,
+        "ev_revenue": None,
+    }
     flat.update(overrides)
 
-    return dict(
-        ticker=flat["ticker"],
-        timestamp=flat["timestamp"],
-        income=IncomeStatement(
+    return {
+        "ticker": flat["ticker"],
+        "timestamp": flat["timestamp"],
+        "income": IncomeStatement(
             revenue=flat["revenue"],
             ebitda=flat["ebitda"],
             net_income=flat["net_income"],
@@ -65,21 +67,21 @@ def _base_financial_data(**overrides):
             sga_expense=flat["sga_expense"],
             interest_expense=flat["interest_expense"],
         ),
-        balance=BalanceSheet(
+        "balance": BalanceSheet(
             total_debt=flat["total_debt"],
             total_cash=flat["total_cash"],
         ),
-        market=MarketData(
+        "market": MarketData(
             market_cap=flat["market_cap"],
             shares_outstanding=flat["shares_outstanding"],
             current_price=flat["current_price"],
         ),
-        valuation=ValuationMetrics(
+        "valuation": ValuationMetrics(
             enterprise_value=flat["enterprise_value"],
             ev_ebitda=flat["ev_ebitda"],
             ev_revenue=flat["ev_revenue"],
         ),
-    )
+    }
 
 
 def test_financial_data_valid():
@@ -444,7 +446,7 @@ def test_financial_data_da_fields_default_none():
     """New D&A fields are Optional and default to None."""
     fd = FinancialData(
         ticker="AAPL",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=100e9,
             ebitda=35e9,
@@ -467,7 +469,7 @@ def test_financial_data_da_fields_default_none():
 def test_financial_data_da_fields_set():
     fd = FinancialData(
         ticker="AAPL",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=100e9,
             ebitda=35e9,

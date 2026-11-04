@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 
 import httpx
@@ -112,7 +113,7 @@ def _yf_spot(ticker: str) -> float | None:
         value = float(price)
     except (TypeError, ValueError):
         return None
-    if value <= 0 or value != value:  # NaN guard
+    if value <= 0 or math.isnan(value):
         return None
     return value
 
@@ -136,7 +137,7 @@ async def _fmp_quote_price(client: httpx.AsyncClient, pair: str, api_key: str) -
         value = float(price)
     except (TypeError, ValueError):
         return None
-    if value <= 0 or value != value:  # NaN guard
+    if value <= 0 or math.isnan(value):
         return None
     return value
 

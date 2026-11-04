@@ -2,11 +2,10 @@
 """P1.5 acceptance gate — verifies code does real deterministic computation.
 No LLM involved. Same inputs always produce same outputs."""
 
-from finrobot.engine.models.financial import DCFInputs
 from finrobot.engine.compute.operators.dcf import calculate_dcf
-from finrobot.engine.compute.operators.wacc import calculate_wacc
 from finrobot.engine.compute.operators.multiples import calculate_ev, calculate_multiples
-from finrobot.engine.models.financial import CompanyFinancials
+from finrobot.engine.compute.operators.wacc import calculate_wacc
+from finrobot.engine.models.financial import CompanyFinancials, DCFInputs
 
 
 class TestDeterminism:
@@ -64,8 +63,8 @@ class TestDeterminism:
         assert r2.wacc == 0.12
 
     def test_wacc_deterministic(self):
-        coe1, wacc1 = calculate_wacc(0.04, 1.2, 0.05, 0.04, 0.21, 0.3)
-        coe2, wacc2 = calculate_wacc(0.04, 1.2, 0.05, 0.04, 0.21, 0.3)
+        _coe1, wacc1 = calculate_wacc(0.04, 1.2, 0.05, 0.04, 0.21, 0.3)
+        _coe2, wacc2 = calculate_wacc(0.04, 1.2, 0.05, 0.04, 0.21, 0.3)
         assert wacc1 == wacc2
 
     def test_ev_deterministic(self):

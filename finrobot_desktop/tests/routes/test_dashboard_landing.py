@@ -9,7 +9,7 @@ dir so we exercise the actual summary indexing path.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -28,13 +28,12 @@ from finrobot.artifact.models import (
 from finrobot.artifact.store import ArtifactStore
 from finrobot.engine.data.interface import DataResult, ProviderError
 from finrobot.engine.data.types import DataType
-from finrobot.routes.dashboard import router as dashboard_router
 
 # Clear module-level caches between tests; otherwise the first run's 60s
 # TTL bleeds into subsequent runs and they see stale data.
 from finrobot.routes import dashboard as dashboard_mod
+from finrobot.routes.dashboard import router as dashboard_router
 
-UTC = timezone.utc
 NOW = datetime(2026, 5, 22, 12, 0, 0, tzinfo=UTC)
 
 # Per-test quote prices the fake DataLayer serves; set via _set_quotes, cleared

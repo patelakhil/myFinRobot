@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -6,13 +6,13 @@ from finrobot.engine.data.interface import DataProvider, DataResult, ProviderErr
 
 
 def make_result(**kwargs) -> DataResult:
-    defaults = dict(
-        data={"revenue": 1_000_000},
-        provider="test",
-        ticker="AAPL",
-        data_type="financials",
-        timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
-    )
+    defaults = {
+        "data": {"revenue": 1_000_000},
+        "provider": "test",
+        "ticker": "AAPL",
+        "data_type": "financials",
+        "timestamp": datetime(2024, 1, 1, tzinfo=UTC),
+    }
     defaults.update(kwargs)
     return DataResult(**defaults)
 

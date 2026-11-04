@@ -87,6 +87,4 @@ def is_us_equity_ticker(ticker: str) -> bool:
     t = ticker.strip().upper()
     if t.endswith(_NON_US_SUFFIXES):
         return False
-    if _A_SHARE_CODE_RE.match(t):
-        return False
-    return True
+    return not _A_SHARE_CODE_RE.match(t)

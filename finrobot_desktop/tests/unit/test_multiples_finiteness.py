@@ -24,17 +24,17 @@ from finrobot.engine.models.financial import CompanyFinancials, PeerComps
 
 
 def _company(ticker: str, **kw: float) -> CompanyFinancials:
-    base = dict(
-        ticker=ticker,
-        revenue=100e9,
-        ebitda=35e9,
-        net_income=12e9,
-        market_cap=550e9,
-        total_debt=0.0,
-        total_cash=0.0,
-        gross_margin=0.4,
-        operating_margin=0.2,
-    )
+    base = {
+        "ticker": ticker,
+        "revenue": 100e9,
+        "ebitda": 35e9,
+        "net_income": 12e9,
+        "market_cap": 550e9,
+        "total_debt": 0.0,
+        "total_cash": 0.0,
+        "gross_margin": 0.4,
+        "operating_margin": 0.2,
+    }
     base.update(kw)
     return CompanyFinancials(**base)
 

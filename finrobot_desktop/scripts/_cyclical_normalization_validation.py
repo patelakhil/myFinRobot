@@ -118,7 +118,7 @@ def _latest_inst(facts: dict, concepts: tuple[str, ...]) -> float | None:
         if not node:
             continue
         best: tuple[str, str, float] | None = None
-        for uk, items in node.get("units", {}).items():
+        for items in node.get("units", {}).values():
             for it in items:
                 if "start" in it:  # want instantaneous (balance) values
                     continue

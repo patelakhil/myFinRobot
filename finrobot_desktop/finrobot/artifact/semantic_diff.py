@@ -476,8 +476,10 @@ def _attribution_summary(
             # than naming a $0.00 driver or falsely claiming "assumptions unchanged".
             return (
                 f"公允价值变化 {fmt}，主要来自暂不支持逐项拆解的假设（如税率 / 营收增速）与数据重估。",
-                f"Fair value moved {fmt}, mainly from assumptions not yet isolable "
-                "(e.g. tax rate / revenue growth) and data re-basing.",
+                (
+                    f"Fair value moved {fmt}, mainly from assumptions not yet isolable "
+                    "(e.g. tax rate / revenue growth) and data re-basing."
+                ),
             )
         # No assumption moved at all → pure data-driven re-basing.
         return (
@@ -498,8 +500,10 @@ def _attribution_summary(
     if abs(total) > _EPS and abs(attributed) < abs(total) * _MATERIAL_DRIVER_FRACTION:
         return (
             f"公允价值变化 {fmt_total}，主要来自交互项与数据重估；模型假设变化甚微：{parts_zh}。",
-            f"Fair value moved {fmt_total}, mostly interaction terms and data "
-            f"re-basing; model assumptions barely moved ({parts_en}).",
+            (
+                f"Fair value moved {fmt_total}, mostly interaction terms and data "
+                f"re-basing; model assumptions barely moved ({parts_en})."
+            ),
         )
 
     resid_zh = (

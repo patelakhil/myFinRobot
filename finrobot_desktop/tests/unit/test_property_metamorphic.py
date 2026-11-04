@@ -103,23 +103,23 @@ def _company(*, pe: float = 20.0) -> CompanyFinancials:
 
 def _dcf_inputs(**overrides: object) -> DCFInputs:
     """Valid DCFInputs with a positive terminal-year FCF (no Gordon trap)."""
-    defaults: dict[str, object] = dict(
-        revenue_base=100_000_000_000.0,
-        revenue_growth_rates=[0.05] * 5,
-        ebitda_margin=0.35,
-        capex_pct_revenue=0.05,
-        nwc_pct_revenue=0.02,
-        da_pct_revenue=0.0,
-        tax_rate=0.21,
-        risk_free_rate=0.04,
-        beta=1.2,
-        equity_risk_premium=0.05,
-        cost_of_debt=0.04,
-        debt_ratio=0.1,
-        terminal_growth_rate=0.025,
-        shares_outstanding=1_000_000_000.0,
-        net_debt=10_000_000_000.0,
-    )
+    defaults: dict[str, object] = {
+        "revenue_base": 100_000_000_000.0,
+        "revenue_growth_rates": [0.05] * 5,
+        "ebitda_margin": 0.35,
+        "capex_pct_revenue": 0.05,
+        "nwc_pct_revenue": 0.02,
+        "da_pct_revenue": 0.0,
+        "tax_rate": 0.21,
+        "risk_free_rate": 0.04,
+        "beta": 1.2,
+        "equity_risk_premium": 0.05,
+        "cost_of_debt": 0.04,
+        "debt_ratio": 0.1,
+        "terminal_growth_rate": 0.025,
+        "shares_outstanding": 1_000_000_000.0,
+        "net_debt": 10_000_000_000.0,
+    }
     defaults.update(overrides)
     return DCFInputs(**defaults)  # type: ignore[arg-type]
 

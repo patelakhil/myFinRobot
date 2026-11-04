@@ -50,6 +50,7 @@ from pathlib import Path
 import aiosqlite
 
 from finrobot import paths as _paths
+from finrobot.storage.sqlite import Migration, SqliteDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,14 @@ CREATE TABLE IF NOT EXISTS {_QUOTES_TABLE} (
 _DROP_LEGACY_TABLE = "DROP TABLE IF EXISTS quotes_cache"
 
 
+async def _baseline(conn: aiosqlite.Connection) -> None:
+    await conn.execute(_CREATE_TABLE)
+    await conn.execute(_DROP_LEGACY_TABLE)
+
+
+MIGRATIONS: tuple[Migration, ...] = (Migration(1, "quotes: baseline", _baseline),)
+
+
 FetcherType = Callable[[list[str]], Awaitable[dict[str, "Quote | None"]]]
 
 
@@ -124,46 +133,19 @@ class QuoteCache:
         self._rate_limit_until = 0.0
         self._l1: dict[str, tuple[Quote | None, float]] = {}
         self._l1_lock = asyncio.Lock()
-        self._conn: aiosqlite.Connection | None = None
-        self._conn_lock = asyncio.Lock()
+        # Own file on purpose: quotes are disposable, never part of the
+        # consolidated user database.
+        self._db = SqliteDatabase(self._db_path, migrations=MIGRATIONS)
 
     async def _conn_ready(self) -> aiosqlite.Connection:
-        if self._conn is not None:
-            return self._conn
-        async with self._conn_lock:
-            if self._conn is None:
-                Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
-                conn = await aiosqlite.connect(self._db_path)
-                try:
-                    await _paths.configure_connection(conn)
-                    await conn.execute(_CREATE_TABLE)
-                    # Reclaim the v1 price-only table (schema bump); never read again.
-                    await conn.execute(_DROP_LEGACY_TABLE)
-                    await conn.commit()
-                except BaseException:
-                    await conn.close()
-                    raise
-                self._conn = conn
-        return self._conn
+        return await self._db.connection()
 
     async def _drop_conn(self) -> None:
-        """Discard the cached aiosqlite connection so the next call rebuilds.
-
-        Long-running desktop sessions occasionally end up with a wedged
-        connection (event-loop swap, sqlite worker thread died, WAL race).
-        When SQL raises ``sqlite3.Error`` we close + null the handle so the
-        very next ``_conn_ready`` call opens a fresh one — without this the
-        singleton would refuse to serve any caller for the rest of the
-        process lifetime, taking the entire landing page down with it.
-        """
-        async with self._conn_lock:
-            conn = self._conn
-            self._conn = None
-        if conn is not None:
-            try:
-                await conn.close()
-            except (sqlite3.Error, OSError, RuntimeError):
-                logger.exception("QuoteCache stale-conn close failed (non-fatal)")
+        """Discard a wedged connection so the next call rebuilds (see
+        :meth:`SqliteDatabase.reset`) — without this the singleton would refuse
+        every caller for the rest of the process lifetime, taking the whole
+        landing page down with it."""
+        await self._db.reset()
 
     async def _fill_from_stale(self, missing: list[str], result: dict[str, Quote | None]) -> None:
         """Populate ``result`` from L2 rows ignoring TTL.
@@ -289,21 +271,20 @@ class QuoteCache:
             # L2 write is best-effort. Same reasoning as the L2 read: a
             # broken conn must not poison L1 promotion or the response.
             try:
-                conn = await self._conn_ready()
-                for sym in missing:
-                    q = fetched.get(sym)
-                    await conn.execute(
-                        f"""
-                        INSERT INTO {_QUOTES_TABLE} (ticker, last_price, currency, fetched_at)
-                        VALUES (?, ?, ?, ?)
-                        ON CONFLICT(ticker) DO UPDATE SET
-                            last_price = excluded.last_price,
-                            currency = excluded.currency,
-                            fetched_at = excluded.fetched_at
-                        """,
-                        (sym, q.price if q else None, q.currency if q else None, now),
-                    )
-                await conn.commit()
+                async with self._db.transaction() as conn:
+                    for sym in missing:
+                        q = fetched.get(sym)
+                        await conn.execute(
+                            f"""
+                            INSERT INTO {_QUOTES_TABLE} (ticker, last_price, currency, fetched_at)
+                            VALUES (?, ?, ?, ?)
+                            ON CONFLICT(ticker) DO UPDATE SET
+                                last_price = excluded.last_price,
+                                currency = excluded.currency,
+                                fetched_at = excluded.fetched_at
+                            """,
+                            (sym, q.price if q else None, q.currency if q else None, now),
+                        )
             except sqlite3.Error:
                 logger.exception("QuoteCache L2 write failed for %s — dropping conn", missing)
                 await self._drop_conn()
@@ -373,6 +354,4 @@ class QuoteCache:
         return result
 
     async def close(self) -> None:
-        if self._conn is not None:
-            await self._conn.close()
-            self._conn = None
+        await self._db.close()

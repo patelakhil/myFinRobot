@@ -15,7 +15,7 @@ so a clean 4-quarter sequence can never false-positive.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from finrobot.engine.compute.operators.audit.ttm_period import audit_ttm_period
 from finrobot.engine.models.financial import (
@@ -28,7 +28,7 @@ from finrobot.engine.models.financial import (
 def _fd(ends: list[date]) -> FinancialData:
     return FinancialData(
         ticker="X",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(revenue=100e9, net_income=20e9),
         market=MarketData(market_cap=500e9, shares_outstanding=5e9, current_price=100.0),
         ttm_quarter_ends=ends,

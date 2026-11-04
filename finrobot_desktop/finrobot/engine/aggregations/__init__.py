@@ -24,9 +24,9 @@ from finrobot.engine.aggregations.recent_research import (
 )
 
 __all__ = [
+    "MAX_RUNS_PER_TICKER",
     "HitRateBucketStats",
     "HitRateOverviewStats",
-    "MAX_RUNS_PER_TICKER",
     "RecentTickerRun",
     "RecentTickerView",
     "assemble_recent_tickers",

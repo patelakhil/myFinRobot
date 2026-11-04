@@ -15,11 +15,11 @@ assembled list (DataType.CATALYST, keyed by min_importance). These tests pin:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from httpx import AsyncClient, ASGITransport
-from unittest.mock import patch, AsyncMock
+from httpx import ASGITransport, AsyncClient
 
 from finrobot.engine.compute.coordinators.news import NewsItem, RawNewsItem
 from finrobot.engine.data.interface import ProviderError
@@ -30,7 +30,7 @@ def _raw() -> list[RawNewsItem]:
         RawNewsItem(
             title="Apple Q4 beats",
             source="Reuters",
-            published=datetime(2026, 6, 4, tzinfo=timezone.utc),
+            published=datetime(2026, 6, 4, tzinfo=UTC),
             url="https://example.com/a",
         )
     ]
@@ -42,7 +42,7 @@ def _classified() -> list[NewsItem]:
         NewsItem(
             title="Apple Q4 beats",
             source="Reuters",
-            published=datetime(2026, 6, 4, tzinfo=timezone.utc),
+            published=datetime(2026, 6, 4, tzinfo=UTC),
             url="https://example.com/a",
             category="earnings",
             sentiment="positive",
@@ -52,7 +52,7 @@ def _classified() -> list[NewsItem]:
         NewsItem(
             title="Minor supplier note",
             source="Blog",
-            published=datetime(2026, 6, 3, tzinfo=timezone.utc),
+            published=datetime(2026, 6, 3, tzinfo=UTC),
             url="https://example.com/b",
             category="other",
             sentiment="neutral",
@@ -91,7 +91,7 @@ def _dup_classified() -> list[NewsItem]:
         NewsItem(
             title="Apple raises iPhone prices across the lineup",
             source="Reuters",
-            published=datetime(2026, 6, 4, tzinfo=timezone.utc),
+            published=datetime(2026, 6, 4, tzinfo=UTC),
             url="https://reuters.com/a",
             category="product",
             sentiment="negative",
@@ -101,7 +101,7 @@ def _dup_classified() -> list[NewsItem]:
         NewsItem(
             title="Apple raises iPhone prices on the new lineup",
             source="Bloomberg",
-            published=datetime(2026, 6, 4, tzinfo=timezone.utc),
+            published=datetime(2026, 6, 4, tzinfo=UTC),
             url="https://bloomberg.com/b",
             category="product",
             sentiment="negative",

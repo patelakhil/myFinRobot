@@ -1,17 +1,18 @@
 import os
-import pytest
 from pathlib import Path
 
+import pytest
+
 from finrobot.config import get_settings
-from finrobot.engine.skills.registry import SkillRegistry
 from finrobot.engine.agents.factory import create_sub_agents
-from finrobot.engine.pipelines.equity_research import create_equity_research_pipeline
+from finrobot.engine.data.cache import DataCache
+from finrobot.engine.data.layer import DataLayer
+from finrobot.engine.data.providers.yfinance_provider import YFinanceProvider
+from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.pipelines.comps import create_comps_pipeline
 from finrobot.engine.pipelines.dcf import create_dcf_pipeline
-from finrobot.engine.deps import FinRobotDeps
-from finrobot.engine.data.layer import DataLayer
-from finrobot.engine.data.cache import DataCache
-from finrobot.engine.data.providers.yfinance_provider import YFinanceProvider
+from finrobot.engine.pipelines.equity_research import create_equity_research_pipeline
+from finrobot.engine.skills.registry import SkillRegistry
 
 SKILLS_DIR = Path(get_settings().skills_dir)
 

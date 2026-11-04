@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -158,7 +159,7 @@ class TestRunsRoutes:
     @pytest.mark.asyncio
     async def test_runs_sse_emits_new_protocol_events(self, tmp_path):
         class FakePipeline:
-            steps = [object()]
+            steps: ClassVar[list[object]] = [object()]
 
             async def execute(self, deps, ticker, progress, lang=None, **kwargs):
                 # **kwargs tolerates execute() gaining keyword params (e.g.
@@ -175,6 +176,10 @@ class TestRunsRoutes:
                 # artifact_id). This fake DCF persists no artifact → None.
                 result.artifact_id = None
                 result.format_summary.return_value = "summary"
+                # _result_to_json serialises this; an unconfigured MagicMock is
+                # not JSON and would fail the (now atomic) finalisation, which
+                # correctly rolls back run.completed along with the status.
+                result.collect_warnings.return_value = []
                 return result
 
         settings = get_settings(model_name="test")

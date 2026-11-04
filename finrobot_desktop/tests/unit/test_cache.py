@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -17,7 +17,7 @@ def _result(ticker: str = "AAPL", data_type: str = "financials") -> DataResult:
         provider="yfinance",
         ticker=ticker,
         data_type=data_type,
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -46,7 +46,7 @@ class TestSetAndGet:
             provider="yfinance",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         await cache.set("financials", "AAPL", r1)
         await cache.set("financials", "AAPL", r2)
@@ -70,7 +70,7 @@ class TestStaleness:
 
         from finrobot.engine.data.cache import raw_slot_key
 
-        old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=25)).isoformat()
+        old_time = (datetime.now(tz=UTC) - timedelta(hours=25)).isoformat()
         async with aiosqlite.connect(cache._db_path) as conn:
             await conn.execute(
                 "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
@@ -89,7 +89,7 @@ class TestStaleness:
 
         import aiosqlite
 
-        old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=48)).isoformat()
+        old_time = (datetime.now(tz=UTC) - timedelta(hours=48)).isoformat()
         async with aiosqlite.connect(cache._db_path) as conn:
             await conn.execute(
                 "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
@@ -112,12 +112,14 @@ class TestCorruptRowSelfHeal:
     async def _row_count(cache: DataCache, slot_key: str, ticker: str) -> int:
         import aiosqlite
 
-        async with aiosqlite.connect(cache._db_path) as conn:
-            async with conn.execute(
+        async with (
+            aiosqlite.connect(cache._db_path) as conn,
+            conn.execute(
                 "SELECT COUNT(*) FROM cache WHERE data_type = ? AND ticker = ?",
                 (slot_key, ticker),
-            ) as cur:
-                row = await cur.fetchone()
+            ) as cur,
+        ):
+            row = await cur.fetchone()
         return int(row[0])
 
     async def test_broken_json_payload_is_miss_and_deleted(self, cache):
@@ -188,9 +190,11 @@ class TestWalMode:
         await cache._ensure_connection()
         import aiosqlite
 
-        async with aiosqlite.connect(cache._db_path) as conn:
-            async with conn.execute("PRAGMA journal_mode") as cursor:
-                row = await cursor.fetchone()
+        async with (
+            aiosqlite.connect(cache._db_path) as conn,
+            conn.execute("PRAGMA journal_mode") as cursor,
+        ):
+            row = await cursor.fetchone()
         await cache.close()
         assert row is not None
         assert row[0] == "wal"
@@ -219,7 +223,7 @@ class TestEvictExpired:
     async def _backdate(self, cache, data_type: str, ticker: str, days: float) -> None:
         import aiosqlite
 
-        old = (datetime.now(tz=timezone.utc) - timedelta(days=days)).isoformat()
+        old = (datetime.now(tz=UTC) - timedelta(days=days)).isoformat()
         from finrobot.engine.data.cache import raw_slot_key
 
         async with aiosqlite.connect(cache._db_path) as conn:
@@ -340,7 +344,7 @@ class TestCanonicalProviderQualifiedSlot:
         await cache.set_canonical("financials", "AAPL", '{"who":"fmp"}', provider="fmp")
         await cache.set_canonical("financials", "AAPL", '{"who":"yfinance"}', provider="yfinance")
         # Backdate the fmp slot so yfinance is the freshest.
-        old = (datetime.now(tz=timezone.utc) - timedelta(hours=2)).isoformat()
+        old = (datetime.now(tz=UTC) - timedelta(hours=2)).isoformat()
         async with aiosqlite.connect(cache._db_path) as conn:
             await conn.execute(
                 "UPDATE cache SET cached_at = ? WHERE data_type = ?",

@@ -13,9 +13,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 
+from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.layer import DataLayer
+from finrobot.engine.data.types import DataType
 from finrobot.engine.primitives.historical_valuation import (
     HistoricalBand,
     HistoricalMetricName,
@@ -23,9 +26,6 @@ from finrobot.engine.primitives.historical_valuation import (
     YearlyFinancials,
     compute_historical_band,
 )
-from finrobot.engine.data.interface import DataResult, ProviderError
-from finrobot.engine.data.layer import DataLayer
-from finrobot.engine.data.types import DataType
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +206,7 @@ async def load_price_history(ticker: str, data_layer: DataLayer, years: int) -> 
     if not hasattr(data_layer, "fetch_price_range"):
         return []
 
-    end = datetime.now(tz=timezone.utc).date()
+    end = datetime.now(tz=UTC).date()
     start = _same_day_years_ago(end, years)
     end_exclusive = end + timedelta(days=1)
     try:
@@ -388,7 +388,7 @@ def _parse_date(raw: Any) -> date | None:
     if not isinstance(raw, str):
         return None
     try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00")).date()
+        return datetime.fromisoformat(raw).date()
     except ValueError:
         pass
     try:

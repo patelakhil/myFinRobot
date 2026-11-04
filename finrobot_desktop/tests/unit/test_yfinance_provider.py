@@ -17,7 +17,6 @@ from finrobot.engine.data.interface import (
 )
 from finrobot.engine.data.providers.yfinance_provider import YFinanceProvider
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -106,11 +105,14 @@ class TestFetchFinancials:
         )
         # Empty-ish info → invalid ticker
         mock_ticker.info = {}
-        with patch(
-            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        with (
+            patch(
+                "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
+                return_value=mock_ticker,
+            ),
+            pytest.raises(ProviderError),
         ):
-            with pytest.raises(ProviderError):
-                await provider.fetch("INVALID_TICKER_XYZ", "financials")
+            await provider.fetch("INVALID_TICKER_XYZ", "financials")
 
     @pytest.mark.asyncio
     async def test_key_rich_but_priceless_info_raises_provider_error(self):
@@ -132,11 +134,14 @@ class TestFetchFinancials:
                 "symbol": "GHST",
             }
         )
-        with patch(
-            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        with (
+            patch(
+                "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
+                return_value=mock_ticker,
+            ),
+            pytest.raises(ProviderError, match="not found or returned no data"),
         ):
-            with pytest.raises(ProviderError, match="not found or returned no data"):
-                await provider.fetch("GHST", "financials")
+            await provider.fetch("GHST", "financials")
 
 
 class TestFetchQuote:
@@ -196,11 +201,14 @@ class TestFetchQuote:
         provider = YFinanceProvider()
         mock_ticker = MagicMock()
         mock_ticker.fast_info = self._FastInfo(None)
-        with patch(
-            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        with (
+            patch(
+                "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
+                return_value=mock_ticker,
+            ),
+            pytest.raises(ProviderError),
         ):
-            with pytest.raises(ProviderError):
-                await provider.fetch("AAPL", "quote")
+            await provider.fetch("AAPL", "quote")
 
 
 class TestFetchPrice:
@@ -266,11 +274,14 @@ class TestFetchPriceRange:
     async def test_empty_range_raises(self):
         provider = YFinanceProvider()
         mock_ticker = _make_mock_ticker(VALID_INFO, history=pd.DataFrame())
-        with patch(
-            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        with (
+            patch(
+                "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
+                return_value=mock_ticker,
+            ),
+            pytest.raises(ProviderError, match="no bars"),
         ):
-            with pytest.raises(ProviderError, match="no bars"):
-                await provider.fetch("AAPL", "price_range", start="1990-01-01", end="1990-01-02")
+            await provider.fetch("AAPL", "price_range", start="1990-01-01", end="1990-01-02")
 
 
 class TestFetchNews:
@@ -437,15 +448,17 @@ class TestRateLimitBehavior:
         type(mock_ticker).info = property(lambda self: (_ for _ in ()).throw(YFRateLimitError()))
 
         start = time.monotonic()
-        with patch(
-            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
-            return_value=mock_ticker,
+        # The typed YFRateLimitError must map to RateLimitedProviderError
+        # (primary classification path — survives Yahoo rewording the
+        # message), and the classifier must recognise it structurally.
+        with (
+            patch(
+                "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
+                return_value=mock_ticker,
+            ),
+            pytest.raises(RateLimitedProviderError, match="Failed to fetch ticker") as ei,
         ):
-            # The typed YFRateLimitError must map to RateLimitedProviderError
-            # (primary classification path — survives Yahoo rewording the
-            # message), and the classifier must recognise it structurally.
-            with pytest.raises(RateLimitedProviderError, match="Failed to fetch ticker") as ei:
-                await provider.fetch("AAPL", "financials")
+            await provider.fetch("AAPL", "financials")
         assert is_rate_limit_error(ei.value)
         elapsed = time.monotonic() - start
         assert elapsed < 1.0, (
@@ -478,21 +491,27 @@ class TestUnsupportedDataType:
     async def test_filings_raises_provider_error(self):
         provider = YFinanceProvider()
         mock_ticker = _make_mock_ticker(VALID_INFO)
-        with patch(
-            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        with (
+            patch(
+                "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
+                return_value=mock_ticker,
+            ),
+            pytest.raises(ProviderError, match="not supported"),
         ):
-            with pytest.raises(ProviderError, match="not supported"):
-                await provider.fetch("AAPL", "filings")
+            await provider.fetch("AAPL", "filings")
 
     @pytest.mark.asyncio
     async def test_unknown_type_raises_provider_error(self):
         provider = YFinanceProvider()
         mock_ticker = _make_mock_ticker(VALID_INFO)
-        with patch(
-            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        with (
+            patch(
+                "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
+                return_value=mock_ticker,
+            ),
+            pytest.raises(ProviderError),
         ):
-            with pytest.raises(ProviderError):
-                await provider.fetch("AAPL", "unknown_type")
+            await provider.fetch("AAPL", "unknown_type")
 
 
 class TestFetchHistoricalFinancials:

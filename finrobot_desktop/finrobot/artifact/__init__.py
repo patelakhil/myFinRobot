@@ -7,7 +7,8 @@ Every pipeline execution is persisted as an Artifact with five sections:
 - outputs:         structured result dump + summary + warnings
 - meta:            created_at + source + user_id + tags
 
-Storage: a single SQLite db at ``~/.finrobot/artifacts.db`` (since
+Storage: the ``artifacts`` table of the consolidated user database
+``~/.finrobot/finrobot.db`` (see :mod:`finrobot.storage.user_db`; SQLite since
 2026-05-23). The ``ArtifactStore`` name is a thin shim that delegates
 to :class:`finrobot.artifact.sqlite_store.SqliteArtifactStore`. Secondary
 indexed columns (verdict, entry_price, target_price, …) are populated at

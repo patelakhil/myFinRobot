@@ -14,6 +14,7 @@ away) is the last resort, kept for pipelines that declare no summary_steps
 
 from __future__ import annotations
 
+from datetime import UTC
 from typing import Any, cast
 
 from finrobot.artifact.builders import _summary_text
@@ -135,7 +136,7 @@ def test_build_ddm_artifact_summary_is_calc_line_not_generic_report() -> None:
     is the deterministic DDM calc line — never the generic report, never the
     verbose LLM narrative.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from finrobot.artifact.builders import build_ddm_artifact
     from finrobot.engine.models.financial import (
@@ -148,7 +149,7 @@ def test_build_ddm_artifact_summary_is_calc_line_not_generic_report() -> None:
 
     fd = FinancialData(
         ticker="JPM",
-        timestamp=datetime(2026, 6, 24, tzinfo=timezone.utc),
+        timestamp=datetime(2026, 6, 24, tzinfo=UTC),
         income=IncomeStatement(revenue=186_940_000_000, ebitda=83_820_000_000),
         balance=BalanceSheet(total_debt=1_233_000_000_000, total_cash=1_864_000_000_000),
         market=MarketData(

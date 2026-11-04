@@ -9,7 +9,7 @@ convention as the ticker-level `compute_hit_rate`.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from finrobot.engine.compute.operators.signal import Signal, compute_signal
@@ -83,7 +83,7 @@ def compute_hit_rate_overview(
         (empty stats when no artifacts qualify), so UI doesn't have to handle
         the missing-key case.
     """
-    clock = now if now is not None else datetime.now(tz=timezone.utc)
+    clock = now if now is not None else datetime.now(tz=UTC)
     cutoff_days = _WINDOW_DAYS[window]
     cutoff = clock - timedelta(days=cutoff_days) if cutoff_days is not None else None
 
@@ -150,5 +150,5 @@ def _bucket_stats(signals: list[Signal]) -> HitRateBucketStats:
 
 def _ensure_tz(dt: datetime) -> datetime:
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=UTC)
     return dt

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -39,7 +39,6 @@ from finrobot.engine.models.financial import (
 )
 from finrobot.routes.valuation import router
 
-UTC = timezone.utc
 NOW = datetime(2026, 5, 21, tzinfo=UTC)
 
 

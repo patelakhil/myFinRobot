@@ -280,7 +280,7 @@ async def build_all_overviews(
     data_layer: DataLayer | None,
     artifact_store: ArtifactStore | None = None,
     run_store: RunStore | None = None,
-    alert_store: "AlertStore | None" = None,
+    alert_store: AlertStore | None = None,
     cache_only: bool = True,
 ) -> list[PortfolioOverview]:
     """Every portfolio that has at least one lot, each assembled under its own

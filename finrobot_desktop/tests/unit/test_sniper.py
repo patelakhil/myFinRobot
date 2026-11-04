@@ -17,7 +17,6 @@ expected value is derived from manual arithmetic shown inline.
 
 from __future__ import annotations
 
-
 import pytest
 
 from finrobot.engine.compute.operators.sniper import (
@@ -27,7 +26,6 @@ from finrobot.engine.compute.operators.sniper import (
     calculate_sniper_points,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -35,11 +33,11 @@ from finrobot.engine.compute.operators.sniper import (
 
 def _req(**kwargs) -> SniperRequest:
     """Build a SniperRequest with sensible defaults."""
-    defaults = dict(
-        ticker="AAPL",
-        current_price=150.0,
-        dcf_target=200.0,
-        historical_prices=[
+    defaults = {
+        "ticker": "AAPL",
+        "current_price": 150.0,
+        "dcf_target": 200.0,
+        "historical_prices": [
             140.0,
             145.0,
             148.0,
@@ -61,7 +59,7 @@ def _req(**kwargs) -> SniperRequest:
             160.0,
             150.0,
         ],
-    )
+    }
     defaults.update(kwargs)
     return SniperRequest(**defaults)
 

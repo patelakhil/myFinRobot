@@ -35,20 +35,20 @@ from finrobot.engine.compute.operators.dcf_seed import (
     _BETA_OUT_OF_BAND_REASON,
     _BETA_RELATIVE_FLOOR,
     _BETA_RELATIVE_INDUSTRY_MIN,
-    _bank_beta_proxy,
     DEFAULT_EQUITY_RISK_PREMIUM,
     DEFAULT_PROJECTION_YEARS,
     DEFAULT_RISK_FREE_RATE,
     DEFAULT_TERMINAL_GROWTH,
+    _bank_beta_proxy,
     _decay_growth_schedule,
     _pick_with_provenance,
 )
 from finrobot.engine.compute.operators.wacc import adjust_beta_blume
 from finrobot.engine.data.industry_defaults import IndustryDefault, get_industry_default
-from finrobot.engine.primitives.dividend import reconcile_per_share_dividend_to_quote_unit
-from finrobot.engine.primitives.industry import is_balance_sheet_financial, is_bank
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials
 from finrobot.engine.models.financial import DDMInputs, FinancialData
+from finrobot.engine.primitives.dividend import reconcile_per_share_dividend_to_quote_unit
+from finrobot.engine.primitives.industry import is_balance_sheet_financial, is_bank
 
 # Generic payout used only when the provider reports neither a payout ratio nor
 # enough (DPS + positive EPS) to derive one. Market-wide, not per-company, so it

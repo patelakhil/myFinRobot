@@ -10,12 +10,10 @@ leaked watchlist names (TSLA/AMD) into an AAPL deep-dive report body.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.coverage.models import CoverageOverview, CoverageRow
 from finrobot.coverage.prompt import format_coverage_snapshot
-
-UTC = timezone.utc
 
 
 def _row(ticker: str, *, change: float | None = None, upside: float | None = None) -> CoverageRow:

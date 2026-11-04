@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -13,7 +13,6 @@ from finrobot.engine.data.normalize.contracts import NormalizedPrice, Provenance
 from finrobot.engine.data.types import DataType
 from finrobot.routes._artifact_signal import attach_signals
 
-UTC = timezone.utc
 ENTRY = datetime(2026, 4, 1, tzinfo=UTC)
 NOW = ENTRY + timedelta(days=30)
 

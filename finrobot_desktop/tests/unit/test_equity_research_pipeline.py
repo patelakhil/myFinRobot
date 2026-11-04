@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, AsyncMock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai import Agent
@@ -9,7 +9,6 @@ from pydantic_ai.models.test import TestModel
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.pipelines.equity_research import create_equity_research_pipeline
-
 
 # ---------------------------------------------------------------------------
 # Fakes
@@ -42,7 +41,7 @@ class FakeDataLayer:
             provider="fake",
             ticker=ticker,
             data_type=data_type,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def fetch_canonical(self, data_type, ticker, **kwargs):
@@ -163,7 +162,7 @@ class TestPipelineStructure:
             assert step.required_data == []
 
     def test_ownership_step_accepts_structured_model(self):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from finrobot.engine.models.sec import OwnershipGovernanceAnalysis
 
@@ -171,22 +170,20 @@ class TestPipelineStructure:
         step = next(s for s in pipeline.steps if s.name == "ownership_governance_analysis")
         result = step.validator(
             OwnershipGovernanceAnalysis(
-                generated_at=datetime.now(tz=timezone.utc),
+                generated_at=datetime.now(tz=UTC),
                 degraded_sections=["institutional_holdings"],
             )
         )
         assert result.passed is True
 
     def test_ownership_step_rejects_empty_structured_model(self):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from finrobot.engine.models.sec import OwnershipGovernanceAnalysis
 
         pipeline = create_equity_research_pipeline(_make_test_agents())
         step = next(s for s in pipeline.steps if s.name == "ownership_governance_analysis")
-        result = step.validator(
-            OwnershipGovernanceAnalysis(generated_at=datetime.now(tz=timezone.utc))
-        )
+        result = step.validator(OwnershipGovernanceAnalysis(generated_at=datetime.now(tz=UTC)))
         assert result.passed is False
         assert result.error is not None
         assert "no data" in result.error
@@ -309,27 +306,27 @@ async def test_step1_produces_financial_data(mock_deps):
     """
     from finrobot.engine.data.normalize.financials import normalize_financials
     from finrobot.engine.data.normalize.price import normalize_price
-    from finrobot.engine.pipelines._helpers import execute_financial_data_step
     from finrobot.engine.models.financial import FinancialData, StepOutput
+    from finrobot.engine.pipelines._helpers import execute_financial_data_step
 
     fin_raw = DataResult(
-        data=dict(
-            revenue=100e9,
-            ebitda=35e9,
-            net_income=20e9,
-            gross_margin=0.47,
-            operating_margin=0.28,
-            pe_ratio=28.5,
-            market_cap=3e12,
-            shares_outstanding=15e9,
-            current_price=200.0,
-            total_debt=50e9,
-            total_cash=20e9,
-        ),
+        data={
+            "revenue": 100e9,
+            "ebitda": 35e9,
+            "net_income": 20e9,
+            "gross_margin": 0.47,
+            "operating_margin": 0.28,
+            "pe_ratio": 28.5,
+            "market_cap": 3e12,
+            "shares_outstanding": 15e9,
+            "current_price": 200.0,
+            "total_debt": 50e9,
+            "total_cash": 20e9,
+        },
         provider="yfinance",
         ticker="AAPL",
         data_type="financials",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     price_raw = DataResult(
         data={
@@ -342,7 +339,7 @@ async def test_step1_produces_financial_data(mock_deps):
         provider="yfinance",
         ticker="AAPL",
         data_type="price",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     norm_fin = normalize_financials(fin_raw)
     norm_price = normalize_price(price_raw)
@@ -386,7 +383,7 @@ async def test_step3_dcf_deterministic(mock_deps):
     does not query an LLM for DCF parameters. Repeated calls with identical
     inputs must produce bit-identical outputs.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from finrobot.engine.models.financial import (
         BalanceSheet,
@@ -402,7 +399,7 @@ async def test_step3_dcf_deterministic(mock_deps):
     fd = FinancialData(
         ticker="AAPL",
         company_name="Apple Inc.",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=385e9,
             ebitda=130e9,
@@ -454,32 +451,31 @@ async def test_step3_dcf_deterministic(mock_deps):
 async def test_peer_analysis_raises_when_target_financials_missing(mock_deps):
     """execute_peer_analysis (shared, in _helpers) raises ValueError when no
     target FinancialData is present in structured_context (any step key)."""
-    from finrobot.engine.pipelines._helpers import execute_peer_analysis
-
     # fetch_canonical returns NormalizedFinancials so _fetch_one_peer succeeds
     # for all 3 tickers; the test expects that the code then raises "target
     # FinancialData" because structured_context is empty (no prior data step).
     from finrobot.engine.data.interface import DataResult
     from finrobot.engine.data.normalize.financials import normalize_financials
+    from finrobot.engine.pipelines._helpers import execute_peer_analysis
 
     fin_raw = DataResult(
-        data=dict(
-            revenue=50e9,
-            ebitda=15e9,
-            net_income=10e9,
-            gross_margin=0.40,
-            operating_margin=0.25,
-            pe_ratio=25.0,
-            market_cap=1e12,
-            shares_outstanding=5e9,
-            current_price=100.0,
-            total_debt=10e9,
-            total_cash=5e9,
-        ),
+        data={
+            "revenue": 50e9,
+            "ebitda": 15e9,
+            "net_income": 10e9,
+            "gross_margin": 0.40,
+            "operating_margin": 0.25,
+            "pe_ratio": 25.0,
+            "market_cap": 1e12,
+            "shares_outstanding": 5e9,
+            "current_price": 100.0,
+            "total_debt": 10e9,
+            "total_cash": 5e9,
+        },
         provider="yfinance",
         ticker="MSFT",
         data_type="financials",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     norm_fin = normalize_financials(fin_raw)
 
@@ -502,7 +498,7 @@ async def test_peer_analysis_raises_when_target_financials_missing(mock_deps):
             provider="fake",
             ticker="MSFT",
             data_type="xbrl_facts",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
     )
 
@@ -561,11 +557,11 @@ def test_sensitivity_center_preserved_for_low_wacc():
 @pytest.mark.asyncio
 async def test_catalyst_analysis_produces_catalyst_analysis_output(mock_deps):
     """_execute_catalyst_analysis returns StepOutput with CatalystAnalysis."""
-    from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
-    from finrobot.engine.models.financial import CatalystAnalysis, StepOutput
     from finrobot.engine.compute.coordinators.news import NewsItem
+    from finrobot.engine.models.financial import CatalystAnalysis, StepOutput
+    from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
 
-    _now = datetime.now(tz=timezone.utc)
+    _now = datetime.now(tz=UTC)
     news_result = DataResult(
         data={
             "news_items": [
@@ -656,15 +652,15 @@ async def test_catalyst_analysis_produces_catalyst_analysis_output(mock_deps):
 @pytest.mark.asyncio
 async def test_catalyst_analysis_empty_news(mock_deps):
     """_execute_catalyst_analysis handles no news gracefully."""
-    from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
     from finrobot.engine.models.financial import CatalystAnalysis, StepOutput
+    from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
 
     empty_news_result = DataResult(
         data={"news_items": []},
         provider="fake",
         ticker="AAPL",
         data_type="news",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     mock_deps.data_layer.fetch = AsyncMock(return_value=empty_news_result)
 
@@ -685,10 +681,10 @@ async def test_catalyst_analysis_empty_news(mock_deps):
 @pytest.mark.asyncio
 async def test_catalyst_analysis_net_sentiment_bullish(mock_deps):
     """Net sentiment > 0.5 maps to bullish overall_sentiment."""
-    from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
     from finrobot.engine.compute.coordinators.news import NewsItem
+    from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
 
-    _now = datetime.now(tz=timezone.utc)
+    _now = datetime.now(tz=UTC)
     classified = [
         NewsItem(
             title="Massive earnings beat",
@@ -725,10 +721,10 @@ async def test_catalyst_analysis_net_sentiment_bullish(mock_deps):
 @pytest.mark.asyncio
 async def test_catalyst_analysis_net_sentiment_bearish(mock_deps):
     """Net sentiment < -0.5 maps to bearish overall_sentiment."""
-    from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
     from finrobot.engine.compute.coordinators.news import NewsItem
+    from finrobot.engine.pipelines.equity_research import _execute_catalyst_analysis
 
-    _now = datetime.now(tz=timezone.utc)
+    _now = datetime.now(tz=UTC)
     classified = [
         NewsItem(
             title="Company faces massive lawsuit",
@@ -765,13 +761,13 @@ async def test_catalyst_analysis_net_sentiment_bearish(mock_deps):
 @pytest.mark.asyncio
 async def test_thesis_includes_catalyst_context(mock_deps):
     """_execute_thesis injects catalyst analysis into prompt when available."""
-    from finrobot.engine.pipelines.equity_research import _execute_thesis
     from finrobot.engine.models.financial import (
         CatalystAnalysis,
         CatalystEvent,
-        ThesisResult,
         StepOutput,
+        ThesisResult,
     )
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
 
     catalyst_analysis = CatalystAnalysis(
         events=[
@@ -848,13 +844,13 @@ async def test_thesis_overrides_llm_target_with_valuation_synthesis(mock_deps):
     ``thesis.price_target`` is traceable to a deterministic function call,
     per the CLAUDE.md core contract.
     """
-    from finrobot.engine.pipelines.equity_research import _execute_thesis
     from finrobot.engine.models.financial import (
-        ThesisResult,
         StepOutput,
+        ThesisResult,
         ValuationMethod,
         ValuationSynthesis,
     )
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
 
     # The LLM tries to invent a target. The code must overrule it.
     rogue_thesis = ThesisResult(
@@ -965,8 +961,8 @@ async def test_thesis_discloses_street_context_when_target_out_of_band(mock_deps
     A9/B1): canonical target entirely below the sell-side range → the fact line
     PLUS the out-of-consensus clause rides the step's warnings (→ report
     compute-warnings section). Verdict/target untouched — disclosure, not gate."""
-    from finrobot.engine.pipelines.equity_research import _execute_thesis
     from finrobot.engine.models.financial import StepOutput
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
 
     thesis, vs = _street_thesis_fixtures()
     mock_thesis_result = MagicMock()
@@ -1044,13 +1040,13 @@ async def test_thesis_overrides_llm_recommendation_with_upside_thresholds(mock_d
     pipeline would disagree on the verdict. Thresholds (±15%) match
     sell-side equity-research convention.
     """
-    from finrobot.engine.pipelines.equity_research import _execute_thesis
     from finrobot.engine.models.financial import (
-        ThesisResult,
         StepOutput,
+        ThesisResult,
         ValuationMethod,
         ValuationSynthesis,
     )
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
 
     rogue_thesis = ThesisResult(
         recommendation="Hold",  # rogue; -91% upside must classify as SELL
@@ -1103,12 +1099,12 @@ async def test_thesis_overrides_llm_recommendation_with_upside_thresholds(mock_d
 @pytest.mark.asyncio
 async def test_thesis_recommendation_hold_band(mock_deps):
     """Upside within ±15% must classify as HOLD even if LLM picks BUY/SELL."""
-    from finrobot.engine.pipelines.equity_research import _execute_thesis
     from finrobot.engine.models.financial import (
         ThesisResult,
         ValuationMethod,
         ValuationSynthesis,
     )
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
 
     rogue_thesis = ThesisResult(
         recommendation="Buy",
@@ -1153,8 +1149,8 @@ async def test_thesis_recommendation_hold_band(mock_deps):
 @pytest.mark.asyncio
 async def test_thesis_works_without_catalyst_context(mock_deps):
     """_execute_thesis works fine when catalyst_analysis is not in structured_context."""
+    from finrobot.engine.models.financial import StepOutput, ThesisResult
     from finrobot.engine.pipelines.equity_research import _execute_thesis
-    from finrobot.engine.models.financial import ThesisResult, StepOutput
 
     thesis_output = ThesisResult(
         recommendation="Hold",
@@ -1192,8 +1188,8 @@ async def test_thesis_works_without_catalyst_context(mock_deps):
 
 def test_validate_catalyst_analysis_passes_valid():
     """validate_catalyst_analysis passes for valid analysis."""
-    from finrobot.engine.pipelines.validators import validate_catalyst_analysis
     from finrobot.engine.models.financial import CatalystAnalysis, CatalystEvent
+    from finrobot.engine.pipelines.validators import validate_catalyst_analysis
 
     analysis = CatalystAnalysis(
         events=[
@@ -1219,8 +1215,8 @@ def test_validate_catalyst_analysis_passes_valid():
 
 def test_validate_catalyst_analysis_fails_empty_events():
     """validate_catalyst_analysis fails when events list is empty."""
-    from finrobot.engine.pipelines.validators import validate_catalyst_analysis
     from finrobot.engine.models.financial import CatalystAnalysis
+    from finrobot.engine.pipelines.validators import validate_catalyst_analysis
 
     analysis = CatalystAnalysis(
         events=[],
@@ -1256,7 +1252,7 @@ def _low_wacc_financial_data():
     return FinancialData(
         ticker="LOWW",
         company_name="Low WACC Co.",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=10e9,
             ebitda=4e9,
@@ -1383,7 +1379,7 @@ def _insurer_financial_data():
     insurer), is_bank False. USD/USD so financial_modeling's FX normalization is a
     network-free no-op and the is_bank DDM block never runs — the whole path stays
     deterministic and offline for the test."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from finrobot.engine.models.financial import (
         BalanceSheet,
@@ -1396,7 +1392,7 @@ def _insurer_financial_data():
     return FinancialData(
         ticker="ALL",
         company_name="Allstate",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         reporting_currency="USD",
         quote_currency="USD",
         income=IncomeStatement(revenue=5e10, ebitda=8e9, net_income=4e9),
@@ -1533,7 +1529,7 @@ def _twd_local_financial_data():
     DCF from USD, but the un-normalized TWD snapshot used to leak forward into
     technical_analysis / EV-EBITDA / synthesis.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from finrobot.engine.models.financial import (
         BalanceSheet,
@@ -1546,7 +1542,7 @@ def _twd_local_financial_data():
     return FinancialData(
         ticker="2330.TW",
         company_name="TSMC (local listing)",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         reporting_currency="TWD",
         quote_currency="TWD",
         income=IncomeStatement(
@@ -1804,7 +1800,7 @@ async def test_standalone_dcf_us_issuer_historical_data_unchanged(mock_deps):
     original = FinancialData(
         ticker="AAPL",
         company_name="Apple Inc.",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         reporting_currency="USD",
         quote_currency="USD",
         income=IncomeStatement(
@@ -1854,7 +1850,7 @@ async def test_standalone_ddm_writes_usd_snapshot_back_to_historical_data(mock_d
     async def _fixed_fx(currency, *, fmp_api_key=None):
         return 1.0 / twd_per_usd if currency.upper() == "TWD" else 1.0
 
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     norm_twd = NormalizedFinancials(
         ticker="2330.TW",
         revenue=2_160e9,
@@ -1970,12 +1966,14 @@ async def test_thesis_propagates_agent_run_error(mock_deps):
     mock_agent_instance.run = AsyncMock(side_effect=AgentRunError("rate limit (429)"))
     mock_agent = MagicMock()
 
-    with patch(
-        "finrobot.engine.pipelines.equity_research.Agent",
-        return_value=mock_agent_instance,
+    with (
+        patch(
+            "finrobot.engine.pipelines.equity_research.Agent",
+            return_value=mock_agent_instance,
+        ),
+        pytest.raises(AgentRunError),
     ):
-        with pytest.raises(AgentRunError):
-            await _execute_thesis(mock_agent, mock_deps, "base prompt", {}, "AAPL")
+        await _execute_thesis(mock_agent, mock_deps, "base prompt", {}, "AAPL")
 
 
 @pytest.mark.asyncio
@@ -1996,12 +1994,14 @@ async def test_thesis_wraps_validation_error_as_value_error(mock_deps):
     mock_agent_instance.run = AsyncMock(side_effect=validation_error)
     mock_agent = MagicMock()
 
-    with patch(
-        "finrobot.engine.pipelines.equity_research.Agent",
-        return_value=mock_agent_instance,
+    with (
+        patch(
+            "finrobot.engine.pipelines.equity_research.Agent",
+            return_value=mock_agent_instance,
+        ),
+        pytest.raises(ValueError, match="failed to produce valid thesis"),
     ):
-        with pytest.raises(ValueError, match="failed to produce valid thesis"):
-            await _execute_thesis(mock_agent, mock_deps, "base prompt", {}, "AAPL")
+        await _execute_thesis(mock_agent, mock_deps, "base prompt", {}, "AAPL")
 
 
 @pytest.mark.asyncio
@@ -2062,7 +2062,7 @@ async def test_deterministic_peer_selection_uses_candidate_screen(mock_deps):
             provider="fmp",
             ticker="NVDA",
             data_type=DataType.PEER_CANDIDATES,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
     )
 
@@ -2079,7 +2079,7 @@ async def test_peer_analysis_excludes_target_and_names_dropped_peers(mock_deps):
     the caller includes it, and (2) NAMES every dropped peer in the warnings so a
     comp lost to a transient fetch/FX failure is visibly accounted for rather than
     silently swapped."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from finrobot.engine.data.normalize.financials import normalize_financials
     from finrobot.engine.models.financial import (
@@ -2094,23 +2094,23 @@ async def test_peer_analysis_excludes_target_and_names_dropped_peers(mock_deps):
     def _mk_norm(t: str):
         return normalize_financials(
             DataResult(
-                data=dict(
-                    revenue=50e9,
-                    ebitda=15e9,
-                    net_income=10e9,
-                    gross_margin=0.40,
-                    operating_margin=0.25,
-                    pe_ratio=25.0,
-                    market_cap=1e12,
-                    shares_outstanding=5e9,
-                    current_price=100.0,
-                    total_debt=10e9,
-                    total_cash=5e9,
-                ),
+                data={
+                    "revenue": 50e9,
+                    "ebitda": 15e9,
+                    "net_income": 10e9,
+                    "gross_margin": 0.40,
+                    "operating_margin": 0.25,
+                    "pe_ratio": 25.0,
+                    "market_cap": 1e12,
+                    "shares_outstanding": 5e9,
+                    "current_price": 100.0,
+                    "total_debt": 10e9,
+                    "total_cash": 5e9,
+                },
                 provider="yfinance",
                 ticker=t,
                 data_type="financials",
-                timestamp=datetime.now(tz=timezone.utc),
+                timestamp=datetime.now(tz=UTC),
             )
         )
 
@@ -2134,7 +2134,7 @@ async def test_peer_analysis_excludes_target_and_names_dropped_peers(mock_deps):
             provider="fake",
             ticker="x",
             data_type="xbrl_facts",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
     )
     mock_deps.settings.fmp_api_key = None  # keep FX a no-op (all USD)
@@ -2142,7 +2142,7 @@ async def test_peer_analysis_excludes_target_and_names_dropped_peers(mock_deps):
     target_fd = FinancialData(
         ticker="AAPL",
         company_name="Apple Inc.",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=385e9,
             ebitda=130e9,
@@ -2188,7 +2188,7 @@ async def test_peer_analysis_drops_non_positive_revenue_peer_keeps_rest(mock_dep
     listing whose bank net-revenue caliber went negative, or a provider glitch) is
     dropped INDIVIDUALLY and named, and the remaining peers still compute a median —
     it no longer fails the WHOLE set (C/MER-PK comps crash, 2026-07-02)."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from finrobot.engine.data.normalize.financials import normalize_financials
     from finrobot.engine.models.financial import (
@@ -2203,23 +2203,23 @@ async def test_peer_analysis_drops_non_positive_revenue_peer_keeps_rest(mock_dep
     def _mk_norm(t: str, revenue: float):
         return normalize_financials(
             DataResult(
-                data=dict(
-                    revenue=revenue,
-                    ebitda=15e9,
-                    net_income=10e9,
-                    gross_margin=0.40,
-                    operating_margin=0.25,
-                    pe_ratio=20.0,
-                    market_cap=2e11,  # P/E = 2e11 / 10e9 net income = 20x (under the NM cap)
-                    shares_outstanding=5e9,
-                    current_price=100.0,
-                    total_debt=10e9,
-                    total_cash=5e9,
-                ),
+                data={
+                    "revenue": revenue,
+                    "ebitda": 15e9,
+                    "net_income": 10e9,
+                    "gross_margin": 0.40,
+                    "operating_margin": 0.25,
+                    "pe_ratio": 20.0,
+                    "market_cap": 2e11,  # P/E = 2e11 / 10e9 net income = 20x (under the NM cap)
+                    "shares_outstanding": 5e9,
+                    "current_price": 100.0,
+                    "total_debt": 10e9,
+                    "total_cash": 5e9,
+                },
                 provider="yfinance",
                 ticker=t,
                 data_type="financials",
-                timestamp=datetime.now(tz=timezone.utc),
+                timestamp=datetime.now(tz=UTC),
             )
         )
 
@@ -2240,7 +2240,7 @@ async def test_peer_analysis_drops_non_positive_revenue_peer_keeps_rest(mock_dep
             provider="fake",
             ticker="x",
             data_type="xbrl_facts",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
     )
     mock_deps.settings.fmp_api_key = None
@@ -2248,7 +2248,7 @@ async def test_peer_analysis_drops_non_positive_revenue_peer_keeps_rest(mock_dep
     target_fd = FinancialData(
         ticker="C",
         company_name="Citigroup Inc.",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(revenue=88e9, ebitda=26e9, net_income=16e9, interest_expense=83e9),
         balance=BalanceSheet(total_debt=749e9, total_cash=23e9),
         market=MarketData(
@@ -2378,13 +2378,13 @@ async def test_thesis_single_method_out_of_band_withholds_point_keeps_direction(
     number would be the market price in costume) while STILL issuing a directional
     verdict: target forced None, recommendation directional (never the deleted
     REVIEW), and the prompt carries the point-withheld instruction."""
-    from finrobot.engine.pipelines.equity_research import _execute_thesis
     from finrobot.engine.models.financial import (
-        ThesisResult,
         StepOutput,
+        ThesisResult,
         ValuationMethod,
         ValuationSynthesis,
     )
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
 
     rogue = ThesisResult(
         recommendation="Sell",
@@ -2442,12 +2442,12 @@ async def test_thesis_single_method_in_band_publishes_with_caveat(mock_deps):
     whose mid sits INSIDE the calibration band publishes as the canonical target
     — deterministic, with an explicit single-method/no-cross-check caveat — so
     JPM-class names keep coverage instead of degrading to REVIEW."""
-    from finrobot.engine.pipelines.equity_research import _execute_thesis
     from finrobot.engine.models.financial import (
         ThesisResult,
         ValuationMethod,
         ValuationSynthesis,
     )
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
 
     rogue = ThesisResult(
         recommendation="Buy",

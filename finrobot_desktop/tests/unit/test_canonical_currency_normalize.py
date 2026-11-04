@@ -23,7 +23,7 @@ The FX rate is FIXED here (no network) so the assertions are deterministic.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -37,7 +37,7 @@ from finrobot.engine.data.normalize.contracts import (
 from finrobot.engine.data.normalize.currency import normalize_canonical_financials_currency
 
 TWD_USD = 0.03176
-_NOW = datetime(2026, 6, 9, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 9, tzinfo=UTC)
 
 
 def _prov() -> Provenance:

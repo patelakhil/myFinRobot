@@ -6,40 +6,40 @@ hand-built models, no network, no store.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from finrobot.portfolio.models import PortfolioOverview, PortfolioPosition
 from finrobot.portfolio.prompt import format_portfolio_for_tool, format_portfolio_snapshot
 
-NOW = datetime(2026, 5, 1, tzinfo=timezone.utc)
+NOW = datetime(2026, 5, 1, tzinfo=UTC)
 D = date(2024, 1, 1)
 
 
 def _pos(ticker: str, **over) -> PortfolioPosition:
-    base = dict(
-        ticker=ticker,
-        units=10.0,
-        avg_cost_per_unit=150.0,
-        cost_basis=1500.0,
-        cost_currency="USD",
-        first_purchase_date=D,
-        last_purchase_date=D,
-        lot_count=1,
-        needs_research=False,
-    )
+    base = {
+        "ticker": ticker,
+        "units": 10.0,
+        "avg_cost_per_unit": 150.0,
+        "cost_basis": 1500.0,
+        "cost_currency": "USD",
+        "first_purchase_date": D,
+        "last_purchase_date": D,
+        "lot_count": 1,
+        "needs_research": False,
+    }
     base.update(over)
     return PortfolioPosition(**base)
 
 
 def _overview(positions: list[PortfolioPosition], **over) -> PortfolioOverview:
-    base = dict(
-        portfolio_id="pf_1",
-        portfolio_name="Core",
-        base_currency="USD",
-        positions=positions,
-        total_cost_basis=sum(p.cost_basis for p in positions),
-        generated_at=NOW,
-    )
+    base = {
+        "portfolio_id": "pf_1",
+        "portfolio_name": "Core",
+        "base_currency": "USD",
+        "positions": positions,
+        "total_cost_basis": sum(p.cost_basis for p in positions),
+        "generated_at": NOW,
+    }
     base.update(over)
     return PortfolioOverview(**base)
 

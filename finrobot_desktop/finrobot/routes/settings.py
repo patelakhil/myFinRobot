@@ -23,9 +23,9 @@ from finrobot.config import (
     LogLevel,
     ProviderConfig,
 )
+from finrobot.engine.data.factory import build_data_layer
 from finrobot.llm_probe import LlmProbeGate, probe_model
 from finrobot.secret_store import SecretStorageMode, SecretStoreError
-from finrobot.engine.data.factory import build_data_layer
 
 logger = logging.getLogger(__name__)
 

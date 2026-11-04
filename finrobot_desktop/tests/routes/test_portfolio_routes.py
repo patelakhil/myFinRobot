@@ -23,6 +23,7 @@ from finrobot.portfolio.alert_store import AlertStore
 from finrobot.portfolio.sqlite_store import PortfolioStore
 from finrobot.routes.portfolio import _OVERVIEW_CACHE, router
 from finrobot.run_store import RunStore
+from finrobot.storage.user_db import user_database
 
 NOW = datetime(2026, 5, 1, tzinfo=UTC)
 ENTRY = datetime.now(tz=UTC) - timedelta(
@@ -99,9 +100,11 @@ async def client(tmp_path: Path):
     _OVERVIEW_CACHE.clear()
     app = FastAPI()
     app.include_router(router)
-    store = PortfolioStore(db_path=tmp_path / "portfolio.db")
-    alert_store = AlertStore(db_path=tmp_path / "portfolio.db")
-    run_store = RunStore(db_path=tmp_path / "runs.db")
+    # One shared database, as in production (server.lifespan).
+    db = user_database(tmp_path / "finrobot.db")
+    store = PortfolioStore(database=db)
+    alert_store = AlertStore(database=db)
+    run_store = RunStore(database=db)
     app.state.portfolio_store = store
     app.state.alert_store = alert_store
     app.state.run_store = run_store
@@ -112,9 +115,7 @@ async def client(tmp_path: Path):
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         ac._app = app  # type: ignore[attr-defined]
         yield ac
-    await alert_store.close()
-    await run_store.close()
-    await store.close()
+    await db.close()
 
 
 LOT = {"ticker": "aapl", "units": 10, "cost_per_unit": 150, "purchase_date": "2024-01-15"}

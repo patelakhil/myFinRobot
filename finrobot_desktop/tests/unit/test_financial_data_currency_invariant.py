@@ -13,7 +13,7 @@ common case after the FX gate) are untouched.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.engine.models.financial import (
     BalanceSheet,
@@ -23,7 +23,7 @@ from finrobot.engine.models.financial import (
     ValuationMetrics,
 )
 
-_NOW = datetime(2026, 6, 9, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 9, tzinfo=UTC)
 
 
 def _fd(*, reporting: str, quote: str, ev: float | None, pe: float | None) -> FinancialData:

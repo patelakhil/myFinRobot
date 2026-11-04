@@ -1,38 +1,39 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from finrobot.engine.models.financial import (
+    CompanyFinancials,
+    DCFInputs,
+    DCFResult,
     FinancialData,
     IncomeStatement,
     MarketData,
     PeerComps,
-    CompanyFinancials,
-    DCFInputs,
-    DCFResult,
     ThesisResult,
 )
 from finrobot.engine.pipelines.validators import (
+    validate_dcf_result,
     validate_financial_data,
     validate_peer_comps,
-    validate_dcf_result,
     validate_thesis,
 )
 
 
 def _make_fd(**overrides):
     """Build FinancialData with sub-models. Accepts flat-style overrides for convenience."""
-    flat = dict(
-        revenue=100e9,
-        ebitda=35e9,
-        net_income=20e9,
-        gross_margin=0.47,
-        operating_margin=0.28,
-        market_cap=3e12,
-        shares_outstanding=15e9,
-        current_price=200.0,
-    )
+    flat = {
+        "revenue": 100e9,
+        "ebitda": 35e9,
+        "net_income": 20e9,
+        "gross_margin": 0.47,
+        "operating_margin": 0.28,
+        "market_cap": 3e12,
+        "shares_outstanding": 15e9,
+        "current_price": 200.0,
+    }
     flat.update(overrides)
     return FinancialData(
         ticker="AAPL",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=flat["revenue"],
             ebitda=flat["ebitda"],
@@ -65,21 +66,21 @@ def _make_dcf_result(**overrides):
         shares_outstanding=1e9,
         net_debt=10e9,
     )
-    defaults = dict(
-        cost_of_equity=0.10,
-        wacc=0.09,
-        projection_years=1,
-        projected_revenue=[105e9],
-        projected_ebitda=[36.75e9],
-        projected_fcf=[21e9],
-        terminal_value=300e9,
-        pv_terminal=200e9,
-        pv_fcf_total=19e9,
-        enterprise_value=219e9,
-        equity_value=209e9,
-        implied_price=209.0,
-        inputs=inputs,
-    )
+    defaults = {
+        "cost_of_equity": 0.10,
+        "wacc": 0.09,
+        "projection_years": 1,
+        "projected_revenue": [105e9],
+        "projected_ebitda": [36.75e9],
+        "projected_fcf": [21e9],
+        "terminal_value": 300e9,
+        "pv_terminal": 200e9,
+        "pv_fcf_total": 19e9,
+        "enterprise_value": 219e9,
+        "equity_value": 209e9,
+        "implied_price": 209.0,
+        "inputs": inputs,
+    }
     defaults.update(overrides)
     return DCFResult(**defaults)
 

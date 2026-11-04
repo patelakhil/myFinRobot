@@ -1,7 +1,7 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-from finrobot.engine.models.financial import CompanyFinancials, PeerComps
+
 from finrobot.engine.compute.operators.multiples import (
     calculate_core_pe,
     calculate_ev,
@@ -11,6 +11,7 @@ from finrobot.engine.compute.operators.multiples import (
     current_ev_ebitda,
     fcf_yield,
 )
+from finrobot.engine.models.financial import CompanyFinancials, PeerComps
 from finrobot.engine.primitives.ebitda import (
     calculate_ebitda_operating,
     calculate_ebitda_reported,
@@ -159,7 +160,7 @@ def _financial_data(*, market_cap, ebitda, preferred=None, noncontrolling_intere
     return FinancialData(
         ticker="TST",
         company_name="Test Co.",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=10e9,
             ebitda=ebitda,

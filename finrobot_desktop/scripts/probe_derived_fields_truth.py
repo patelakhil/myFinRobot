@@ -65,7 +65,7 @@ import sys
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -178,7 +178,7 @@ _NCI_CONCEPTS = ("MinorityInterest", "MinorityInterestInVariableInterestEntity")
 
 def _http_json(url: str) -> Any:
     req = urllib.request.Request(url, headers={"User-Agent": _SEC_UA, "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=40, context=_SSL) as resp:  # noqa: S310
+    with urllib.request.urlopen(req, timeout=40, context=_SSL) as resp:
         return json.loads(resp.read().decode())
 
 
@@ -198,7 +198,7 @@ def _days_old(period_end: str) -> int | None:
         end = date.fromisoformat(period_end)
     except ValueError:
         return None
-    return (datetime.now(tz=timezone.utc).date() - end).days
+    return (datetime.now(tz=UTC).date() - end).days
 
 
 def _is_stale_instant(period_end: str) -> bool:
@@ -266,7 +266,7 @@ class _CompanyFacts:
         self.note = note
 
     @classmethod
-    def fetch(cls, cik: int | None) -> "_CompanyFacts":
+    def fetch(cls, cik: int | None) -> _CompanyFacts:
         if cik is None:
             return cls({}, available=False, note="no SEC CIK for ticker")
         url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
@@ -914,7 +914,7 @@ def _fmt(v: Any) -> str:
 def summarize(rows: list[FieldRow]) -> dict[str, Any]:
     candidates = [r for r in rows if r.verdict == "candidate_bug"]
     return {
-        "generated_at": datetime.now(tz=timezone.utc).isoformat(),
+        "generated_at": datetime.now(tz=UTC).isoformat(),
         "total": len(rows),
         "pass": sum(1 for r in rows if r.verdict == "pass"),
         "candidate_bug": len(candidates),

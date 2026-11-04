@@ -1,6 +1,9 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.0
+    # Keep in lockstep with the ruff version in uv.lock: ruff's default rule set
+    # and formatter output changed materially at 0.16/0.17, so a hook on an older
+    # ruff would undo CI's formatting.
+    rev: v0.17.3
     hooks:
       - id: ruff
         args: [--fix]

@@ -19,22 +19,22 @@ from finrobot.engine.models.financial import DCFInputs
 
 
 def _make_inputs(**overrides: Any) -> DCFInputs:
-    defaults: dict[str, Any] = dict(
-        revenue_base=100_000_000_000,
-        revenue_growth_rates=[0.05] * 5,
-        ebitda_margin=0.35,
-        capex_pct_revenue=0.05,
-        nwc_pct_revenue=0.02,
-        tax_rate=0.21,
-        risk_free_rate=0.04,
-        beta=1.2,
-        equity_risk_premium=0.05,
-        cost_of_debt=0.04,
-        debt_ratio=0.1,
-        terminal_growth_rate=0.025,
-        shares_outstanding=1_000_000_000,
-        net_debt=10_000_000_000,
-    )
+    defaults: dict[str, Any] = {
+        "revenue_base": 100_000_000_000,
+        "revenue_growth_rates": [0.05] * 5,
+        "ebitda_margin": 0.35,
+        "capex_pct_revenue": 0.05,
+        "nwc_pct_revenue": 0.02,
+        "tax_rate": 0.21,
+        "risk_free_rate": 0.04,
+        "beta": 1.2,
+        "equity_risk_premium": 0.05,
+        "cost_of_debt": 0.04,
+        "debt_ratio": 0.1,
+        "terminal_growth_rate": 0.025,
+        "shares_outstanding": 1_000_000_000,
+        "net_debt": 10_000_000_000,
+    }
     defaults.update(overrides)
     return DCFInputs(**defaults)
 

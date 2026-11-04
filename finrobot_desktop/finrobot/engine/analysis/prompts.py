@@ -20,23 +20,23 @@ from finrobot.engine.compute.coordinators.extractor import (
     extract_company_financials,
     normalize_peer_to_usd,
 )
+from finrobot.engine.compute.operators.cyclical_peers import screen_peers_with_cyclical
 from finrobot.engine.compute.operators.multiples import (
     calculate_multiples,
     compute_ttm_fcf,
     fcf_yield,
 )
-from finrobot.engine.compute.operators.cyclical_peers import screen_peers_with_cyclical
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials
 from finrobot.engine.data.ticker import validate_ticker
-from finrobot.engine.models.financial import CompanyFinancials
 from finrobot.engine.data.types import DataType
+from finrobot.engine.models.financial import CompanyFinancials
 
 logger = logging.getLogger(__name__)
 
 
-def _fmt_num(value: float | int | None, decimals: int = 1) -> str:
+def _fmt_num(value: float | None, decimals: int = 1) -> str:
     """Format a number with magnitude suffix (B/M/K) for prompt tables."""
     if value is None:
         return "N/A"

@@ -10,7 +10,7 @@ Upstream has TWO formats:
 
 import argparse
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
@@ -178,7 +178,7 @@ def main():
                 count_a += 1
             else:
                 count_b += 1
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — batch tool: report and keep converting the rest
             print(f"  ERROR: {skill_path}: {e}")
             errors += 1
 
@@ -188,7 +188,7 @@ def main():
     version_file = output / "UPSTREAM_VERSION.txt"
     version_file.write_text(
         f"Source: {source}\n"
-        f"Converted: {datetime.now(timezone.utc).isoformat()}\n"
+        f"Converted: {datetime.now(UTC).isoformat()}\n"
         f"Total: {total} skills ({count_a} Format A, {count_b} Format B)\n"
         f"Errors: {errors}\n"
     )

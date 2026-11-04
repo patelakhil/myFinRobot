@@ -25,7 +25,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 # ---------------------------------------------------------------------------
 # Provenance — required on every SEC number written to an artifact
 # ---------------------------------------------------------------------------

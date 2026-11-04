@@ -1,8 +1,8 @@
-import yaml  # type: ignore[import-untyped]
 from pathlib import Path
 from typing import Any
 
 import pydantic
+import yaml  # type: ignore[import-untyped]
 
 from finrobot.engine.skills.spec import Skill
 
@@ -86,7 +86,7 @@ def _parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
 
 def _extract_description(frontmatter: dict[str, Any], body: str) -> str:
     """Get description from frontmatter, or fall back to first paragraph of body."""
-    if "description" in frontmatter and frontmatter["description"]:
+    if frontmatter.get("description"):
         return str(frontmatter["description"])
 
     # Fall back to first non-empty paragraph of body

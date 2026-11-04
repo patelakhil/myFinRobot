@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -16,7 +16,6 @@ from finrobot.engine.data.normalize.contracts import NormalizedPrice, PriceBar, 
 from finrobot.engine.data.types import DataType
 from finrobot.routes.valuation import router
 
-UTC = timezone.utc
 NOW = datetime(2026, 5, 21, tzinfo=UTC)
 
 
@@ -122,7 +121,7 @@ def _app(tmp_path: Path) -> tuple[FastAPI, _StubDataLayer]:
 
 @pytest.mark.asyncio
 async def test_historical_bands_endpoint_ev_ebitda_returns_quantiles(tmp_path: Path) -> None:
-    app, layer = _app(tmp_path)
+    app, _layer = _app(tmp_path)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
         r = await client.get("/api/valuation/historical-bands/NVDA?metric=ev_ebitda&years=3")
     assert r.status_code == 200, r.text

@@ -12,7 +12,8 @@ cross-check (~$241), NOT the naive constant-payout DDM (~$102 / -66%).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import ClassVar
 
 import pytest
 
@@ -58,7 +59,7 @@ def _financials(
     return FinancialData(
         ticker="JPM",
         company_name="JPMorgan Chase & Co.",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=1.6e11,
             ebitda=1.0e11,
@@ -88,7 +89,7 @@ def _normalized(
     book_value_per_share: float | None = JPM_BVPS,
     beta: float | None = JPM_BETA,
 ) -> NormalizedFinancials:
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     return NormalizedFinancials(
         ticker="JPM",
         revenue=1.6e11,
@@ -255,7 +256,7 @@ class TestSeedClamps:
         recapture buyback cash as future dividends and value the dividend stream above
         price (the 2026-06-26 DDM bug: AAPL DDM $443 > $277). Same inputs as a bank
         keep the step-up; only the industry differs → clean isolation."""
-        roe_distorted = dict(return_on_equity=1.467, payout_ratio=0.127)
+        roe_distorted = {"return_on_equity": 1.467, "payout_ratio": 0.127}
         # Non-financial (Apple's bucket) → None → naive Gordon.
         nonfin = seed_ddm_inputs(
             _financials(industry="Consumer Electronics"),
@@ -317,7 +318,7 @@ class TestSeedClamps:
 
 
 class TestSeedProvenance:
-    _REQUIRED_KEYS = {
+    _REQUIRED_KEYS: ClassVar[set[str]] = {
         "dividend_per_share",
         "dividend_growth_rates",
         "payout_ratio",

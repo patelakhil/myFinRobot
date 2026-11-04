@@ -9,7 +9,7 @@ minorityInterest (KO 2.1B, CMCSA 0.47B) — those reported values now ride in EV
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.engine.compute.operators.audit.ev_bridge import audit_ev_bridge
 from finrobot.engine.models.financial import (
@@ -30,7 +30,7 @@ def _fd(
 ) -> FinancialData:
     return FinancialData(
         ticker=ticker,
-        timestamp=datetime(2026, 6, 6, tzinfo=timezone.utc),
+        timestamp=datetime(2026, 6, 6, tzinfo=UTC),
         income=IncomeStatement(revenue=100e9, net_income=20e9),
         balance=BalanceSheet(
             total_debt=50e9,

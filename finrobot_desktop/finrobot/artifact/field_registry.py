@@ -321,7 +321,7 @@ def _fmt_abs_currency(value: float, symbol: str, decimals: int) -> str:
 
 def format_caliber_value(
     caliber: FieldCaliber,
-    value: float | int | None,
+    value: float | None,
     *,
     currency: str | None = None,
 ) -> str:

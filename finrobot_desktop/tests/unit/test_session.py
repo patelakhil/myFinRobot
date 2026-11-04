@@ -8,7 +8,7 @@ bug — a daily bar's as_of must read its real session close, never midnight.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from finrobot.engine.data.normalize.session import (
     _coerce_quote_dt,
@@ -20,8 +20,8 @@ from finrobot.engine.data.normalize.session import (
 
 # External baseline (this session's FMP probe): TSLA Friday close timestamp.
 FRI_CLOSE_TS = 1780689600  # 2026-06-05T20:00:00Z (16:00 ET)
-FRI_CLOSE_DT = datetime(2026, 6, 5, 20, 0, tzinfo=timezone.utc)
-MON_PREMARKET = datetime(2026, 6, 8, 8, 0, tzinfo=timezone.utc)  # 04:00 ET
+FRI_CLOSE_DT = datetime(2026, 6, 5, 20, 0, tzinfo=UTC)
+MON_PREMARKET = datetime(2026, 6, 8, 8, 0, tzinfo=UTC)  # 04:00 ET
 
 
 def test_session_close_dt_us_is_2000z_not_midnight():
@@ -47,21 +47,21 @@ def test_derive_falls_back_to_session_close_when_no_timestamp():
 
 def test_derive_midnight_only_when_exchange_unresolvable():
     as_of, approx = derive_price_as_of(None, date(2026, 6, 5), ticker="ABC.XYZ")
-    assert as_of == datetime(2026, 6, 5, 0, 0, tzinfo=timezone.utc)
+    assert as_of == datetime(2026, 6, 5, 0, 0, tzinfo=UTC)
     assert approx is True
 
 
 def test_derive_session_close_never_after_fetch():
     """A still-open session has no close yet → don't stamp a future as_of; floor
     to midnight (flagged) rather than a session close past the fetch instant."""
-    fetched = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)  # before 20:00Z close
+    fetched = datetime(2026, 6, 8, 12, 0, tzinfo=UTC)  # before 20:00Z close
     as_of, approx = derive_price_as_of(None, date(2026, 6, 8), ticker="TSLA", fetched_at=fetched)
     assert as_of <= fetched
     assert approx is True
 
 
 def test_derive_no_bar_no_timestamp_uses_fetched_at():
-    fetched = datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc)
+    fetched = datetime(2026, 6, 8, 12, 0, tzinfo=UTC)
     as_of, approx = derive_price_as_of(None, None, fetched_at=fetched)
     assert as_of == fetched
     assert approx is True
@@ -136,7 +136,7 @@ def test_market_state_overrides_clock_window():
     pre_market, NOT the clock-derived live. (Defensive — in practice the feed's
     phase and the clock agree; this proves the precedence, not a real conflict.)"""
     # 17:00 UTC = 13:00 EDT → inside the US 09:30–16:00 ET regular window.
-    now = datetime(2026, 5, 27, 17, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 5, 27, 17, 0, tzinfo=UTC)
     assert compute_session_state("2026-05-27", market_state="PRE", ticker="AAPL", now=now) == (
         "pre_market"
     )
@@ -167,7 +167,7 @@ def test_market_state_full_enum_is_covered():
 def test_unrecognized_market_state_falls_back_to_clock_live():
     """An unknown marketState string is NOT trusted — fall back to the clock
     window, which (US regular hours, today's bar) yields live."""
-    now = datetime(2026, 5, 27, 17, 0, tzinfo=timezone.utc)  # 13:00 EDT, regular hours
+    now = datetime(2026, 5, 27, 17, 0, tzinfo=UTC)  # 13:00 EDT, regular hours
     assert (
         compute_session_state("2026-05-27", market_state="WEIRD", ticker="AAPL", now=now) == "live"
     )
@@ -186,13 +186,13 @@ def test_none_market_state_falls_back_to_clock():
 
 def test_empty_market_state_falls_back_to_clock():
     """An empty-string marketState is treated as absent → clock fallback."""
-    now = datetime(2026, 5, 27, 17, 0, tzinfo=timezone.utc)  # 13:00 EDT, regular hours
+    now = datetime(2026, 5, 27, 17, 0, tzinfo=UTC)  # 13:00 EDT, regular hours
     assert compute_session_state("2026-05-27", market_state="", ticker="AAPL", now=now) == "live"
 
 
 def test_fallback_still_returns_unknown_for_unresolvable_exchange():
     """No marketState + unmapped foreign suffix → unknown (BUG-081 preserved)."""
-    now = datetime(2026, 5, 27, 17, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 5, 27, 17, 0, tzinfo=UTC)
     assert compute_session_state("2026-05-27", ticker="ABC.XYZ", now=now) == "unknown"
 
 
@@ -201,10 +201,10 @@ def test_fallback_still_returns_unknown_for_unresolvable_exchange():
 # True → a newer settled close exists (or market live) → worth fetching; None →
 # unresolvable exchange → caller refetches conservatively. US regular session is
 # 09:30–16:00 ET = 13:30–20:00 UTC in June (EDT).
-SAT = datetime(2026, 6, 6, 18, 0, tzinfo=timezone.utc)  # Sat afternoon
-MON_INSESSION = datetime(2026, 6, 8, 14, 30, tzinfo=timezone.utc)  # 10:30 ET, open
-MON_AFTERCLOSE = datetime(2026, 6, 8, 21, 0, tzinfo=timezone.utc)  # 17:00 ET, closed
-MON_CLOSE_DT = datetime(2026, 6, 8, 20, 0, tzinfo=timezone.utc)  # Mon 16:00 ET
+SAT = datetime(2026, 6, 6, 18, 0, tzinfo=UTC)  # Sat afternoon
+MON_INSESSION = datetime(2026, 6, 8, 14, 30, tzinfo=UTC)  # 10:30 ET, open
+MON_AFTERCLOSE = datetime(2026, 6, 8, 21, 0, tzinfo=UTC)  # 17:00 ET, closed
+MON_CLOSE_DT = datetime(2026, 6, 8, 20, 0, tzinfo=UTC)  # Mon 16:00 ET
 
 
 def test_no_newer_session_weekend_premarket_is_false():
@@ -234,15 +234,15 @@ def test_no_newer_session_after_close_holding_today_close_is_false():
 
 def test_quote_instant_one_second_after_nominal_close_is_not_stale():
     """as_of = 20:00:01Z (real quote instant) still counts as holding the 20:00 close."""
-    quote_instant = datetime(2026, 6, 5, 20, 0, 1, tzinfo=timezone.utc)
+    quote_instant = datetime(2026, 6, 5, 20, 0, 1, tzinfo=UTC)
     assert has_newer_session_since(quote_instant, ticker="TSLA", now=SAT) is False
 
 
 def test_hk_overnight_in_session_is_true():
     """A .HK quote sits in ET overnight; judged in HK time it can be mid-session."""
     # now = 2026-06-05T04:00Z = 12:00 HKT Friday → HK regular session in progress.
-    hk_now = datetime(2026, 6, 5, 4, 0, tzinfo=timezone.utc)
-    prev_hk_close = datetime(2026, 6, 4, 8, 0, tzinfo=timezone.utc)  # 16:00 HKT Thu
+    hk_now = datetime(2026, 6, 5, 4, 0, tzinfo=UTC)
+    prev_hk_close = datetime(2026, 6, 4, 8, 0, tzinfo=UTC)  # 16:00 HKT Thu
     assert has_newer_session_since(prev_hk_close, ticker="0700.HK", now=hk_now) is True
 
 

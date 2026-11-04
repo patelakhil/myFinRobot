@@ -21,7 +21,7 @@ data layer); re-exported here for the breaker's historical call sites.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from finrobot.engine.data.interface import is_rate_limit_error
 
@@ -29,7 +29,7 @@ __all__ = ["ProviderHealth", "ProviderState", "is_rate_limit_error"]
 
 
 def _utcnow() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 @dataclass

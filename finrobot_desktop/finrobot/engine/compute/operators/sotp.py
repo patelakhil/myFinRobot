@@ -26,7 +26,7 @@ ZERO I/O: segment extraction (SEC) lives in the coordinator
 from __future__ import annotations
 
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.engine.models.financial import (
     SegmentValuation,
@@ -121,7 +121,7 @@ def compute_sotp_breakdown(
 
     return SOTPBreakdown(
         ticker=ticker,
-        as_of=as_of or datetime.now(tz=timezone.utc),
+        as_of=as_of or datetime.now(tz=UTC),
         modelable_segments=modelable_segments,
         ev_floor=ev_floor,
         net_debt=net_debt,

@@ -24,6 +24,10 @@ from typing import Any
 
 from pydantic_ai import Agent
 
+from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
+from finrobot.engine.compute.coordinators.historical_extractor import (
+    fetch_historical_metrics,
+)
 from finrobot.engine.compute.operators.dcf import (
     calculate_dcf,
     calculate_sensitivity,
@@ -31,18 +35,10 @@ from finrobot.engine.compute.operators.dcf import (
 )
 from finrobot.engine.compute.operators.dcf_seed import dcf_current_actuals, seed_dcf_inputs
 from finrobot.engine.compute.operators.forward_estimates import get_forward_revenue_growth
-from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
 from finrobot.engine.compute.operators.wacc import calculate_wacc
-from finrobot.engine.compute.coordinators.historical_extractor import (
-    fetch_historical_metrics,
-)
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import FinancialData, StepOutput
-from finrobot.engine.primitives.industry import (
-    is_balance_sheet_financial,
-    is_commodity_cyclical,
-)
 from finrobot.engine.pipelines._helpers import (
     build_sensitivity_ranges,
     execute_financial_data_step,
@@ -54,20 +50,24 @@ from finrobot.engine.pipelines.base import (
     TextValidator,
 )
 from finrobot.engine.pipelines.validators import (
+    validate_dcf_output,
+    validate_dcf_result,
+    validate_financial_data,
     validate_has_fields,
     validate_is_non_empty,
-    validate_dcf_output,
-    validate_financial_data,
-    validate_dcf_result,
+)
+from finrobot.engine.primitives.industry import (
+    is_balance_sheet_financial,
+    is_commodity_cyclical,
 )
 
 logger = logging.getLogger(__name__)
 
 
 async def _execute_dcf_calc(
-    agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
+    agent: Agent[Any, Any],
     deps: FinRobotDeps,
-    prompt: str,  # noqa: ARG001 — kept for executor signature; unused
+    prompt: str,
     structured_context: dict[str, object],
     ticker: str,
     **_kwargs: object,

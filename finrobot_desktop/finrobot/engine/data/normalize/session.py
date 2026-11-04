@@ -18,7 +18,7 @@ Two responsibilities, kept orthogonal on purpose:
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal
 from zoneinfo import ZoneInfo
 
@@ -82,7 +82,7 @@ _MARKET_STATE_MAP: dict[str, SessionState] = {
 class _MarketSession:
     """Regular-session window for one exchange, in that exchange's timezone."""
 
-    __slots__ = ("tz", "open", "close")
+    __slots__ = ("close", "open", "tz")
 
     def __init__(self, tz: str, open_: time, close: time) -> None:
         self.tz = ZoneInfo(tz)
@@ -196,7 +196,7 @@ def session_close_dt(
     if session is None:
         return None
     local_close = datetime.combine(d, session.close, tzinfo=session.tz)
-    return local_close.astimezone(timezone.utc)
+    return local_close.astimezone(UTC)
 
 
 def _coerce_quote_dt(value: object) -> datetime | None:
@@ -211,7 +211,7 @@ def _coerce_quote_dt(value: object) -> datetime | None:
     if value is None:
         return None
     if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
     if isinstance(value, bool):  # bool is an int subclass — never a timestamp
         return None
     if isinstance(value, (int, float)):
@@ -221,7 +221,7 @@ def _coerce_quote_dt(value: object) -> datetime | None:
         if epoch > 1e12:  # milliseconds → seconds
             epoch /= 1000.0
         try:
-            return datetime.fromtimestamp(epoch, tz=timezone.utc)
+            return datetime.fromtimestamp(epoch, tz=UTC)
         except (OverflowError, OSError, ValueError):
             return None
     if isinstance(value, str):
@@ -231,10 +231,10 @@ def _coerce_quote_dt(value: object) -> datetime | None:
         if s.isdigit():
             return _coerce_quote_dt(int(s))
         try:
-            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(s)
         except ValueError:
             return None
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
     return None
 
 
@@ -267,10 +267,10 @@ def derive_price_as_of(
         close = session_close_dt(last_bar_date, ticker=ticker, exchange=exchange)
         if close is not None and (fetched_at is None or close <= fetched_at):
             return close, True
-        return datetime.combine(last_bar_date, time.min, tzinfo=timezone.utc), True
+        return datetime.combine(last_bar_date, time.min, tzinfo=UTC), True
     if fetched_at is not None:
         return fetched_at, True
-    return datetime.now(tz=timezone.utc), True
+    return datetime.now(tz=UTC), True
 
 
 def compute_session_state(
@@ -344,16 +344,16 @@ def compute_session_state(
 def _coerce_as_of_dt(value: str | datetime) -> datetime | None:
     """Coerce a provenance ``as_of`` (ISO string or datetime) to a UTC datetime."""
     if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
     if isinstance(value, str):
         s = value.strip()
         if not s:
             return None
         try:
-            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(s)
         except ValueError:
             return None
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
     return None
 
 

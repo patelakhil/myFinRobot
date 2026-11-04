@@ -20,8 +20,8 @@ import logging
 import re
 import subprocess
 import uuid
-from datetime import datetime, timezone
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -174,7 +174,7 @@ def _assert_price_snapshot_coherent(
 
 
 def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 def _get_version() -> str:
@@ -190,6 +190,7 @@ def _get_git_commit() -> str | None:
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
+            check=False,  # a non-zero exit (not a repo) is handled via returncode below
             capture_output=True,
             text=True,
             timeout=2,
@@ -222,7 +223,7 @@ def _make_artifact_id(ticker: str | None, type_: str) -> str:
 
 
 def _extract_financial_data_dump(
-    result: "PipelineResult", *step_names: str
+    result: PipelineResult, *step_names: str
 ) -> tuple[str, datetime, dict[str, Any]]:
     """Extract data_source, fetched_at, and raw_data from the first matching structured step.
 
@@ -242,7 +243,7 @@ def _extract_financial_data_dump(
     return "unknown", _now(), {}
 
 
-def _extract_financial_data(result: "PipelineResult", *step_names: str) -> Any | None:
+def _extract_financial_data(result: PipelineResult, *step_names: str) -> Any | None:
     """Return the first FinancialData structured output from named steps."""
     from finrobot.engine.models.financial import FinancialData
 
@@ -298,7 +299,7 @@ def _numeric_audit_warnings(audit: Any) -> list[str]:
 
 def _attach_numeric_audit(
     structured_out: dict[str, Any],
-    result: "PipelineResult",
+    result: PipelineResult,
     deps: Any,
     *financial_step_names: str,
     withhold_keys: tuple[str, ...] = (),
@@ -353,7 +354,7 @@ def _attach_numeric_audit(
 def _report_drift_flag(
     structured_out: dict[str, Any],
     raw_data: dict[str, Any],
-    result: "PipelineResult",
+    result: PipelineResult,
     *narrative_steps: str,
 ) -> list[str]:
     """Plan-B report reconcile — the shared sink for every builder whose pipeline
@@ -421,10 +422,12 @@ def _data_capability_warnings(deps: Any) -> list[str]:
     if getattr(settings, "fmp_api_key", ""):
         return []
     return [
-        "[DATA-CAPABILITY/caveat] FMP API key unavailable — financial statements "
-        "fall back to non-cross-validated sources; D&A, earnings surprises, and "
-        "provider cross-checks may be incomplete. Artifact is data-quality CAVEATED "
-        "(the directional verdict still ships; a price target may be withheld)."
+        (
+            "[DATA-CAPABILITY/caveat] FMP API key unavailable — financial statements "
+            "fall back to non-cross-validated sources; D&A, earnings surprises, and "
+            "provider cross-checks may be incomplete. Artifact is data-quality CAVEATED "
+            "(the directional verdict still ships; a price target may be withheld)."
+        )
     ]
 
 
@@ -471,7 +474,7 @@ def _withhold_summary_note(structured_out: dict[str, Any], lang: str) -> str:
 
 
 def _summary_text(
-    result: "PipelineResult",
+    result: PipelineResult,
     structured_out: dict[str, Any],
     deps: Any,
     *,
@@ -527,7 +530,7 @@ def _make_base_compute_version(
     )
 
 
-def _collect_warnings(result: "PipelineResult") -> list[str]:
+def _collect_warnings(result: PipelineResult) -> list[str]:
     """The artifact's machine-readable warning haul.
 
     Delegates to ``PipelineResult.collect_warnings`` (the single source of
@@ -545,10 +548,10 @@ def _collect_warnings(result: "PipelineResult") -> list[str]:
 
 
 def build_dcf_artifact(
-    result: "PipelineResult",
+    result: PipelineResult,
     ticker: str,
-    deps: "FinRobotDeps",
-) -> "Artifact":
+    deps: FinRobotDeps,
+) -> Artifact:
     """Build an Artifact from a completed DCF pipeline result."""
     from finrobot.engine.models.financial import DCFResult
 
@@ -603,10 +606,10 @@ def build_dcf_artifact(
 
 
 def build_lbo_artifact(
-    result: "PipelineResult",
+    result: PipelineResult,
     ticker: str,
-    deps: "FinRobotDeps",
-) -> "Artifact":
+    deps: FinRobotDeps,
+) -> Artifact:
     """Build an Artifact from a completed LBO pipeline result."""
     from finrobot.engine.models.financial import LBOInputs, LBOResult
 
@@ -663,10 +666,10 @@ def build_lbo_artifact(
 
 
 def build_comps_artifact(
-    result: "PipelineResult",
+    result: PipelineResult,
     ticker: str,
-    deps: "FinRobotDeps",
-) -> "Artifact":
+    deps: FinRobotDeps,
+) -> Artifact:
     """Build an Artifact from a completed comps pipeline result."""
     from finrobot.engine.models.financial import PeerComps
     from finrobot.engine.primitives.industry import is_balance_sheet_financial
@@ -727,10 +730,10 @@ def build_comps_artifact(
 
 
 def build_ddm_artifact(
-    result: "PipelineResult",
+    result: PipelineResult,
     ticker: str,
-    deps: "FinRobotDeps",
-) -> "Artifact":
+    deps: FinRobotDeps,
+) -> Artifact:
     """Build an Artifact from a completed DDM pipeline result."""
     from finrobot.engine.models.financial import DDMInputs, DDMResult
 
@@ -780,10 +783,10 @@ def build_ddm_artifact(
 
 
 def build_earnings_artifact(
-    result: "PipelineResult",
+    result: PipelineResult,
     ticker: str,
-    deps: "FinRobotDeps",
-) -> "Artifact":
+    deps: FinRobotDeps,
+) -> Artifact:
     """Build an Artifact from a completed earnings analysis pipeline result."""
     from finrobot.engine.models.financial import EarningsResult
 
@@ -1014,18 +1017,20 @@ def _fill_narrative_fallbacks(
         # plain language, no bracketed engineering tag (external audit
         # 2026-07-07 read "[NARRATIVE-FALLBACK]" as an internal marker leak).
         return [
-            f"Narrative note: {', '.join(filled)} were assembled directly from the "
-            "report's own computed figures rather than written by the model — every "
-            "statement traces to the structured data."
+            (
+                f"Narrative note: {', '.join(filled)} were assembled directly from the "
+                "report's own computed figures rather than written by the model — every "
+                "statement traces to the structured data."
+            )
         ]
     return []
 
 
 def build_equity_research_artifact(
-    result: "PipelineResult",
+    result: PipelineResult,
     ticker: str,
-    deps: "FinRobotDeps",
-) -> "Artifact":
+    deps: FinRobotDeps,
+) -> Artifact:
     """Build an Artifact from a completed equity research pipeline result."""
     from finrobot.engine.models.financial import DCFResult, FinancialData
 
@@ -1243,10 +1248,10 @@ def build_equity_research_artifact(
 
 
 def build_ic_memo_artifact(
-    result: "PipelineResult",
+    result: PipelineResult,
     ticker: str,
-    deps: "FinRobotDeps",
-) -> "Artifact":
+    deps: FinRobotDeps,
+) -> Artifact:
     """Build an Artifact from a completed IC Memo pipeline result."""
     from finrobot.engine.models.financial import ICFinancials
 

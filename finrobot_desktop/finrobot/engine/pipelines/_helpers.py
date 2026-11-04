@@ -4,25 +4,23 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from statistics import median
 from typing import Any
 
 from pydantic_ai import Agent
 
-from finrobot.engine.compute.operators.cyclical_peers import screen_peers_with_cyclical
-from finrobot.engine.primitives.corporate_actions import detect_mna_transition
-from finrobot.engine.primitives.industry import (
-    is_balance_sheet_financial,
-    is_bank,
-    is_commodity_cyclical,
-)
 from finrobot.engine.compute.coordinators.extractor import (
     extract_company_financials,
     extract_financial_data,
     normalize_peer_to_usd,
 )
 from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
+from finrobot.engine.compute.operators.cyclical_peers import screen_peers_with_cyclical
+from finrobot.engine.compute.operators.forward_estimates import (
+    ForwardFinancials,
+    get_forward_financials,
+)
 from finrobot.engine.compute.operators.multiples import (
     calculate_core_pe,
     calculate_multiples,
@@ -39,10 +37,6 @@ from finrobot.engine.compute.operators.xbrl_aligned_comps import (
     override_company_with_xbrl,
 )
 from finrobot.engine.data.interface import ProviderError
-from finrobot.engine.compute.operators.forward_estimates import (
-    ForwardFinancials,
-    get_forward_financials,
-)
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import (
@@ -58,6 +52,12 @@ from finrobot.engine.models.financial import (
     StepOutput,
     ValuationMethod,
     ValuationSynthesis,
+)
+from finrobot.engine.primitives.corporate_actions import detect_mna_transition
+from finrobot.engine.primitives.industry import (
+    is_balance_sheet_financial,
+    is_bank,
+    is_commodity_cyclical,
 )
 from finrobot.warning_text import safe_error_text
 
@@ -188,8 +188,8 @@ def _artifact_created_at_utc(artifact: object) -> datetime | None:
     if not isinstance(created_at, datetime):
         return None
     if created_at.tzinfo is None:
-        return created_at.replace(tzinfo=timezone.utc)
-    return created_at.astimezone(timezone.utc)
+        return created_at.replace(tzinfo=UTC)
+    return created_at.astimezone(UTC)
 
 
 def _sticky_peer_max_age_days(deps: FinRobotDeps) -> int:
@@ -225,7 +225,7 @@ async def _sticky_peer_selection(
     created_at = _artifact_created_at_utc(artifact)
     if max_age_days <= 0 or created_at is None:
         return None
-    if datetime.now(tz=timezone.utc) - created_at > timedelta(days=max_age_days):
+    if datetime.now(tz=UTC) - created_at > timedelta(days=max_age_days):
         logger.info(
             "Parent artifact %s is older than peer sticky window (%s days); reselecting peers",
             source_artifact_id,

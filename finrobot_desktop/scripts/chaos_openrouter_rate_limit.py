@@ -42,15 +42,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests" / "chaos"))
 
-from finrobot.engine.pipelines.base import Pipeline, PipelineStep, PipelineStepError, TextValidator  # noqa: E402
-from finrobot.engine.pipelines.runner import (  # noqa: E402
+from _openrouter_fakes import make_openrouter_429, make_text_only_429
+
+from finrobot.engine.pipelines.base import Pipeline, PipelineStep, PipelineStepError, TextValidator
+from finrobot.engine.pipelines.runner import (
     _RATE_LIMIT_MAX_BONUS_ATTEMPTS,
     _RATE_LIMIT_MAX_TOTAL_QUEUE_S,
     _RETRY_DELAYS,
 )
-from finrobot.engine.pipelines.validators import validate_is_non_empty  # noqa: E402
-
-from _openrouter_fakes import make_openrouter_429, make_text_only_429  # noqa: E402
+from finrobot.engine.pipelines.validators import validate_is_non_empty
 
 
 @dataclass

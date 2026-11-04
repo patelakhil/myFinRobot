@@ -13,7 +13,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from finrobot.engine.data.types import DataType
 

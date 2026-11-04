@@ -17,17 +17,16 @@ Scenarios covered:
 from __future__ import annotations
 
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 
+from finrobot.engine.compute.coordinators.historical_extractor import _build_from_yearly
 from finrobot.engine.compute.operators.data_processor import calculate_cagr
 from finrobot.engine.compute.operators.dcf_seed import _median_ratio, seed_dcf_inputs
-from finrobot.engine.compute.coordinators.historical_extractor import _build_from_yearly
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.types import DataType
-
 
 # ---------------------------------------------------------------------------
 # Helpers — build the normalized per-year DataResults a provider emits
@@ -58,7 +57,7 @@ def _yearly_results(
                 provider="test",
                 ticker="TEST",
                 data_type=DataType.FINANCIALS,
-                timestamp=datetime.now(tz=timezone.utc),
+                timestamp=datetime.now(tz=UTC),
                 warnings=[],
             )
         )
@@ -171,7 +170,7 @@ class TestMissingNumeratorMarginsAreNone:
                 provider="test",
                 ticker="TEST",
                 data_type=DataType.FINANCIALS,
-                timestamp=datetime.now(tz=timezone.utc),
+                timestamp=datetime.now(tz=UTC),
                 warnings=[],
             ),
             DataResult(
@@ -186,7 +185,7 @@ class TestMissingNumeratorMarginsAreNone:
                 provider="test",
                 ticker="TEST",
                 data_type=DataType.FINANCIALS,
-                timestamp=datetime.now(tz=timezone.utc),
+                timestamp=datetime.now(tz=UTC),
                 warnings=[],
             ),
         ]
@@ -213,7 +212,7 @@ class TestMissingNumeratorMarginsAreNone:
                 provider="test",
                 ticker="TEST",
                 data_type=DataType.FINANCIALS,
-                timestamp=datetime.now(tz=timezone.utc),
+                timestamp=datetime.now(tz=UTC),
                 warnings=[],
             ),
         ]
@@ -286,7 +285,7 @@ class TestMedianRatioNanSkip:
 
 def _make_minimal_financials() -> Any:
     """Import here to avoid circular import at module level."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from finrobot.engine.models.financial import (
         BalanceSheet,
@@ -299,7 +298,7 @@ def _make_minimal_financials() -> Any:
     return FinancialData(
         ticker="AAPL",
         company_name="Apple Inc.",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=391_035_000_000,
             ebitda=131_900_000_000,

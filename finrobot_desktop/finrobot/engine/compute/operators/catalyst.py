@@ -11,13 +11,12 @@ What this code does that raw LLM cannot:
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
-from urllib.parse import urlparse
+from datetime import UTC, datetime
 from typing import Any, cast
+from urllib.parse import urlparse
 
 from finrobot.engine.compute.coordinators.news import NewsItem
 from finrobot.engine.models.financial import CatalystEvent
-
 
 # ---------------------------------------------------------------------------
 # Catalyst category taxonomy & mapping from news categories
@@ -400,9 +399,9 @@ def _within_window(a: datetime | None, b: datetime | None) -> bool:
     if a is None or b is None:
         return False
     if a.tzinfo is None:
-        a = a.replace(tzinfo=timezone.utc)
+        a = a.replace(tzinfo=UTC)
     if b.tzinfo is None:
-        b = b.replace(tzinfo=timezone.utc)
+        b = b.replace(tzinfo=UTC)
     return abs((a - b).days) <= _DEDUP_WINDOW_DAYS
 
 
@@ -411,10 +410,10 @@ def _same_day(a: datetime | None, b: datetime | None) -> bool:
     if a is None or b is None:
         return False
     if a.tzinfo is None:
-        a = a.replace(tzinfo=timezone.utc)
+        a = a.replace(tzinfo=UTC)
     if b.tzinfo is None:
-        b = b.replace(tzinfo=timezone.utc)
-    return a.astimezone(timezone.utc).date() == b.astimezone(timezone.utc).date()
+        b = b.replace(tzinfo=UTC)
+    return a.astimezone(UTC).date() == b.astimezone(UTC).date()
 
 
 # ---------------------------------------------------------------------------
@@ -637,13 +636,11 @@ def _is_near_duplicate(
     if domain_a is not None and domain_a == domain_b and _same_day(a.published, b.published):
         return True
     bucket_a = _event_type_bucket(a.headline)
-    if (
+    return bool(
         bucket_a is not None
         and bucket_a == _event_type_bucket(b.headline)
         and entities_a & entities_b
-    ):
-        return True
-    return False
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -906,14 +903,14 @@ def filter_fresh_news(
     An item with no publish date (``published is None``) cannot be proven fresh,
     so it is dropped and counted as stale — never kept as if recent.
     """
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     fresh: list[NewsItem] = []
     for item in news_items:
         pub = item.published
         if pub is None:
             continue
         if pub.tzinfo is None:
-            pub = pub.replace(tzinfo=timezone.utc)
+            pub = pub.replace(tzinfo=UTC)
         if (now - pub).days <= max_age_days:
             fresh.append(item)
     return fresh, len(news_items) - len(fresh)

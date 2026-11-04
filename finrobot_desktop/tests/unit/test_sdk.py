@@ -11,7 +11,7 @@ Covers:
 Every test injects a mock DataLayer so we never touch the network or disk.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -45,7 +45,7 @@ def _fake_result() -> DataResult:
         provider="test",
         ticker="TEST",
         data_type="financials",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -229,7 +229,7 @@ async def test_aanalyze_returns_string(monkeypatch):
 
 async def test_aask_returns_string(monkeypatch):
     """SDK ask method returns RAG-based answer text."""
-    import finrobot.engine.analysis.qa as qa
+    from finrobot.engine.analysis import qa
 
     async def mock_run_qa(data_layer, settings, ticker, question, top_k=5):
         return f"Based on [Item 1A], {ticker} faces regulatory risks."
@@ -247,8 +247,8 @@ async def test_aask_returns_string(monkeypatch):
 
 async def test_abacktest_returns_result(monkeypatch):
     """SDK backtest method returns BacktestResult."""
-    from finrobot.engine.backtest.engine import BacktestConfig, BacktestResult
     import finrobot.engine.backtest.backtrader_adapter as bta
+    from finrobot.engine.backtest.engine import BacktestConfig, BacktestResult
 
     async def mock_run(self, config):
         return BacktestResult(

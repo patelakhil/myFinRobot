@@ -21,7 +21,7 @@ import functools
 import importlib
 import io
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from finrobot.engine.backtest.engine import (
     BacktestConfig,
@@ -135,12 +135,11 @@ class BackTraderAdapter(BacktestEngine):
         if config.strategy == "sma_crossover":
             fast = config.strategy_params.get("fast", 10)
             slow = config.strategy_params.get("slow", 30)
-            if isinstance(fast, (int, float)) and isinstance(slow, (int, float)):
-                if fast >= slow:
-                    raise ValueError(
-                        f"SMA crossover requires fast ({fast}) < slow ({slow}). "
-                        f"Swap the values or adjust parameters."
-                    )
+            if isinstance(fast, (int, float)) and isinstance(slow, (int, float)) and fast >= slow:
+                raise ValueError(
+                    f"SMA crossover requires fast ({fast}) < slow ({slow}). "
+                    f"Swap the values or adjust parameters."
+                )
 
         cerebro = bt.Cerebro()
         cerebro.broker.setcash(config.initial_cash)
@@ -258,7 +257,7 @@ class BackTraderAdapter(BacktestEngine):
     # the Strategy class (BUG-063). Resolving a name from this registry never
     # touches importlib, so a user-supplied string can only ever reach a vetted,
     # in-repo class. Add new built-ins here rather than via module:ClassName.
-    _STRATEGY_REGISTRY: dict[str, Any] = {"sma_crossover": _get_sma_crossover}
+    _STRATEGY_REGISTRY: ClassVar[dict[str, Any]] = {"sma_crossover": _get_sma_crossover}
 
     def _resolve_strategy(self, strategy_name: str) -> type:
         """Resolve a strategy name to a BackTrader Strategy class.

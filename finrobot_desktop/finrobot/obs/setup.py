@@ -19,7 +19,7 @@ _CONFIGURED = False
 
 
 def setup_logging(
-    settings: "FinRobotSettings",
+    settings: FinRobotSettings,
     *,
     logs_dir: Path | None = None,
     force: bool = False,

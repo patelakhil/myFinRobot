@@ -35,8 +35,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from datetime import UTC, date, datetime, timedelta
+from typing import Any, ClassVar
 
 import httpx
 
@@ -60,6 +60,8 @@ except ImportError:  # pragma: no cover — defensive; we always pin edgartools
     get_filings = None
     set_identity = None
     _EDGAR_AVAILABLE = False
+
+import itertools
 
 from finrobot.engine.data.interface import (
     DataProvider,
@@ -96,9 +98,7 @@ def _is_valid_identity(s: str | None) -> bool:
         return False
     if s == "FinRobot admin@example.com":  # our config.py placeholder
         return False
-    if _sec_header_identity(s) is None:
-        return False
-    return True
+    return _sec_header_identity(s) is not None
 
 
 def _sec_header_identity(s: str | None) -> str | None:
@@ -362,7 +362,7 @@ def _validate_ttm_periods(periods: Any) -> bool:
     if len(set(normalized)) != 4:  # four DISTINCT quarters
         return False
     ordered = sorted(normalized)
-    for (y0, q0), (y1, q1) in zip(ordered, ordered[1:]):
+    for (y0, q0), (y1, q1) in itertools.pairwise(ordered):
         nxt = (y0, q0 + 1) if q0 < 4 else (y0 + 1, 1)
         if (y1, q1) != nxt:  # consecutive, no gap/overlap
             return False
@@ -646,7 +646,7 @@ def _slice_proxy_text(full_text: str) -> str:
     # header in a compensation-overview section inside the intro window, while
     # the real Summary Compensation Table sits much deeper.
     nap_first: int | None = None
-    for nap_m in re.finditer(r"Name and Principal Position", full_text, re.I):
+    for nap_m in re.finditer(r"Name and Principal Position", full_text, re.IGNORECASE):
         if nap_first is None:
             nap_first = nap_m.start()
         if nap_m.start() >= _PROXY_INTRO_CHARS:
@@ -657,7 +657,7 @@ def _slice_proxy_text(full_text: str) -> str:
     # chars by a data row (a 4-digit year next to a comma-grouped number) —
     # skips TOC entries and prose cross-references.
     if anchor is None:
-        for m in re.finditer(r"Summary Compensation Table", full_text, re.I):
+        for m in re.finditer(r"Summary Compensation Table", full_text, re.IGNORECASE):
             if m.start() < _PROXY_INTRO_CHARS:
                 continue
             tail = full_text[m.start() : m.start() + 1500]
@@ -692,7 +692,7 @@ def _slice_proxy_text(full_text: str) -> str:
         r"|(?:CEO|chief executive officer)['’s]{0,2}\s+"
         r"(?:annual\s+|fiscal\s+\d{4}\s+)*total compensation",
         full_text,
-        re.I,
+        re.IGNORECASE,
     ):
         if not (sct_lo <= dm.start() <= sct_hi):
             lo = max(0, dm.start() - 2_000)
@@ -786,7 +786,7 @@ def _schedule13_filer(f: Any) -> tuple[str, str | None]:
 # "Aggregated" (with a D) is a real filer spelling variant (Warner Bros 13G/A).
 _SCHED13_AGG_LABEL = re.compile(
     r"Aggregat(?:e|ed)\s+Amount\s+Beneficially\s+Owned",
-    re.I,
+    re.IGNORECASE,
 )
 # Cover-page row keywords that bound Row-9's cell. A vertical-label table layout
 # renders Row 9 with NO inline number (the value sits in a stripped column), so
@@ -797,14 +797,14 @@ _SCHED13_ROW_BOUNDARY = re.compile(
     r"\b(?:CHECK\s+(?:BOX|IF)|PERCENT\s+OF\s+CLASS|TYPE\s+OF\s+REPORTING"
     r"|SOLE\s+VOTING|SHARED\s+VOTING|SOLE\s+DISPOSITIVE|SHARED\s+DISPOSITIVE"
     r"|ROW\s*\(?\s*\d)",
-    re.I,
+    re.IGNORECASE,
 )
 # Item 4(a) prose form: paper-style 13G (e.g. FMR LLC) with no cover-page table
 # states the aggregate inline — "Amount beneficially owned: N". Also the body
 # fallback for vertical-label tables whose cover Row 9 carries no inline number.
 _SCHED13_ITEM4A = re.compile(
     r"Amount\s+beneficially\s+owned\s*[:\-]?\s*([0-9][0-9,]{3,})",
-    re.I,
+    re.IGNORECASE,
 )
 _SCHED13_NUMBER = re.compile(r"([0-9][0-9,]{3,})")
 
@@ -855,7 +855,7 @@ def _schedule13_pct(text: str) -> float | None:
     m = re.search(
         r"Percent\s+of\s+Class[^0-9]{0,40}([0-9]+(?:\.[0-9]+)?)\s*%",
         text,
-        re.I,
+        re.IGNORECASE,
     )
     if m is None:
         return None
@@ -1072,7 +1072,7 @@ def _companyfacts_point_series(
         node = usgaap.get(concept)
         if not node:
             continue
-        for unit_key, items in node.get("units", {}).items():
+        for items in node.get("units", {}).values():
             for it in items:
                 if it.get("form") not in ("10-K", "10-K/A"):
                     continue
@@ -1240,12 +1240,9 @@ def _normalize_segment_member(member: str | None) -> str | None:
     if not member:
         return None
     m = member.split(":", 1)[-1]
-    if m.endswith("Member"):
-        m = m[: -len("Member")]
-    if m.endswith("Segment"):
-        m = m[: -len("Segment")]
-    if m.endswith("Revenues"):
-        m = m[: -len("Revenues")]
+    m = m.removesuffix("Member")
+    m = m.removesuffix("Segment")
+    m = m.removesuffix("Revenues")
     return m or None
 
 
@@ -1424,7 +1421,7 @@ def _seg_unit_currency(fact: dict[str, Any]) -> str | None:
 # OFFICER". Section-906 certs (Ex-32.x) are EXCLUDED — an issuer may file a
 # single COMBINED 906 cert signed by BOTH officers, so a name off that document
 # is ambiguous.
-_EX31_ATTACHMENT_RE = re.compile(r"^EX[-\s]?0*31(?:[.\-_ ]0*([0-9]+|[A-Za-z]))?$", re.I)
+_EX31_ATTACHMENT_RE = re.compile(r"^EX[-\s]?0*31(?:[.\-_ ]0*([0-9]+|[A-Za-z]))?$", re.IGNORECASE)
 
 
 def _ceo_cert_attachment_rank(document_type: str, description: str, document: str) -> int | None:
@@ -1516,7 +1513,7 @@ class EdgarToolsProvider(DataProvider):
             provider=self.name,
             ticker=ticker.upper(),
             data_type=data_type,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             warnings=warnings,
         )
 
@@ -1569,7 +1566,7 @@ class EdgarToolsProvider(DataProvider):
             provider=self.name,
             ticker=ticker.upper(),
             data_type=DataType.FINANCIALS,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def fetch_annual_segments(self, ticker: str) -> DataResult:
@@ -1593,7 +1590,7 @@ class EdgarToolsProvider(DataProvider):
             provider=self.name,
             ticker=ticker.upper(),
             data_type=DataType.FILINGS_10K,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             warnings=warnings,
         )
 
@@ -1677,7 +1674,7 @@ class EdgarToolsProvider(DataProvider):
     # ------------------------------------------------------------------
 
     # Mapping: (canonical_id, edgar TenK attr name, display title)
-    _SECTION_ATTRS: list[tuple[str, str, str]] = [
+    _SECTION_ATTRS: ClassVar[list[tuple[str, str, str]]] = [
         ("item_1_business", "business", "Item 1 — Business"),
         ("item_1a_risk_factors", "risk_factors", "Item 1A — Risk Factors"),
         ("item_7_mdna", "management_discussion", "Item 7 — Management's Discussion and Analysis"),
@@ -1925,7 +1922,7 @@ class EdgarToolsProvider(DataProvider):
         if facts is None:
             return {"facts_available": False}, ["EntityFacts unavailable"]
 
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now(UTC).date()
         warnings: list[str] = []
 
         # Concept-aware TTM (ADR-0008): pick the live concept by latest period_end
@@ -2008,9 +2005,9 @@ class EdgarToolsProvider(DataProvider):
         # inside asyncio.to_thread so a `nest_asyncio` re-entrant call is
         # safe. The lookup function itself is async (aiosqlite).
         from finrobot.engine.data.sec_holdings_cache import (
+            cache_status,
             ephemeral_connection,
             lookup_holders_for_ticker,
-            cache_status,
         )
 
         async def _go() -> tuple[list[dict[str, Any]], dict[str, Any]]:

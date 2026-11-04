@@ -30,14 +30,14 @@ from finrobot.server import hydrate_settings_from_secrets
 
 BASKET = sys.argv[1:] or ["MSFT", "NVDA", "AAPL", "AVGO", "GOOGL", "KO", "JNJ"]
 
-OLD = dict(erp=0.055, blume=False, yrs=5, tg=0.025)
+OLD = {"erp": 0.055, "blume": False, "yrs": 5, "tg": 0.025}
 VARIANTS = [
     ("OLD-baseline", OLD),
-    ("+ERP4.23only", dict(erp=0.0423, blume=False, yrs=5, tg=0.025)),
-    ("+Blume-only ", dict(erp=0.055, blume=True, yrs=5, tg=0.025)),
-    ("+10y-only   ", dict(erp=0.055, blume=False, yrs=10, tg=0.025)),
-    ("+tg3.0-only ", dict(erp=0.055, blume=False, yrs=5, tg=0.030)),
-    ("NEW-combined", dict(erp=0.0423, blume=True, yrs=10, tg=0.030)),
+    ("+ERP4.23only", {"erp": 0.0423, "blume": False, "yrs": 5, "tg": 0.025}),
+    ("+Blume-only ", {"erp": 0.055, "blume": True, "yrs": 5, "tg": 0.025}),
+    ("+10y-only   ", {"erp": 0.055, "blume": False, "yrs": 10, "tg": 0.025}),
+    ("+tg3.0-only ", {"erp": 0.055, "blume": False, "yrs": 5, "tg": 0.030}),
+    ("NEW-combined", {"erp": 0.0423, "blume": True, "yrs": 10, "tg": 0.030}),
 ]
 
 

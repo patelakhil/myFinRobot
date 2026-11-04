@@ -30,7 +30,6 @@ from finrobot.engine.data.providers.edgar_provider import (
     extract_segment_facts,
 )
 
-
 # --- External SEC anchors (TSLA FY2025 10-K 0001628280-26-003952) -------------
 TSLA_AUTO_GP = 13.292e9
 TSLA_ENERGY_GP = 3.802e9
@@ -45,7 +44,7 @@ class _FakeQuery:
         self._rows = rows_by_concept
         self._concept: str | None = None
 
-    def by_concept(self, concept: str) -> "_FakeQuery":
+    def by_concept(self, concept: str) -> _FakeQuery:
         self._concept = concept
         return self
 
@@ -366,7 +365,7 @@ def test_segment_query_attributeerror_degrades_without_reader_warning() -> None:
     # miss must degrade to empty WITHOUT polluting the reader-facing warnings with
     # "segment query failed: AttributeError" (it's logged to the app log instead).
     class _RaisingXBRL:
-        def query(self):  # noqa: ANN202
+        def query(self):
             raise AttributeError("edgartools query shape mismatch")
 
     data, warnings = extract_segment_facts(_RaisingXBRL())

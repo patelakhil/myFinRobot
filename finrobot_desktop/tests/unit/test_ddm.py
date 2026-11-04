@@ -6,7 +6,10 @@ Terminal Value = D_n * (1 + tg) / (CoE - tg)  (Gordon Growth Model)
 Cost of Equity = Risk-Free Rate + Beta * Equity Risk Premium  (CAPM)
 """
 
+from datetime import UTC
+
 import pytest
+from pydantic import ValidationError
 
 from finrobot.engine.compute.operators.ddm import calculate_ddm, calculate_ddm_sensitivity
 from finrobot.engine.models.financial import DDMInputs
@@ -14,17 +17,17 @@ from finrobot.engine.models.financial import DDMInputs
 
 def _make_inputs(**overrides: object) -> DDMInputs:
     """Build DDMInputs with reasonable bank defaults."""
-    defaults: dict[str, object] = dict(
-        dividend_per_share=3.0,
-        dividend_growth_rates=[0.05, 0.05, 0.05, 0.04, 0.03],
-        payout_ratio=0.5,
-        risk_free_rate=0.045,
-        beta=1.0,
-        equity_risk_premium=0.055,
-        terminal_growth_rate=0.025,
-        shares_outstanding=3_000_000_000,
-        current_price=150.0,
-    )
+    defaults: dict[str, object] = {
+        "dividend_per_share": 3.0,
+        "dividend_growth_rates": [0.05, 0.05, 0.05, 0.04, 0.03],
+        "payout_ratio": 0.5,
+        "risk_free_rate": 0.045,
+        "beta": 1.0,
+        "equity_risk_premium": 0.055,
+        "terminal_growth_rate": 0.025,
+        "shares_outstanding": 3_000_000_000,
+        "current_price": 150.0,
+    }
     defaults.update(overrides)
     return DDMInputs(**defaults)  # type: ignore[arg-type]
 
@@ -213,7 +216,7 @@ class TestDDMEdgeCases:
 
     def test_terminal_growth_exceeds_coe_pydantic(self) -> None:
         """Terminal growth > 0.05 is rejected by Pydantic field constraint."""
-        with pytest.raises(Exception):  # Pydantic ValidationError
+        with pytest.raises(ValidationError):
             _make_inputs(
                 risk_free_rate=0.045,
                 beta=0.5,
@@ -339,7 +342,7 @@ class TestDDMModels:
 
     def test_ddm_inputs_validation(self) -> None:
         """DDMInputs should enforce field constraints."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             DDMInputs(
                 dividend_per_share=-1.0,  # must be > 0
                 dividend_growth_rates=[0.05],
@@ -383,7 +386,7 @@ class TestNonLifeInsurerDegradation:
     hit this gate (covered by TestIsNonLifeInsurer)."""
 
     def _insurer_fd(self, industry: str):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from finrobot.engine.models.financial import (
             BalanceSheet,
@@ -406,7 +409,7 @@ class TestNonLifeInsurerDegradation:
             ),
             valuation=ValuationMetrics(),
             data_source="test",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def test_ddm_seed_degrades_for_non_life_insurer(self) -> None:

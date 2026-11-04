@@ -61,7 +61,7 @@ async def main() -> None:
                 result = await asyncio.wait_for(
                     pipeline.execute(deps, ticker, lang="zh"), timeout=200
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 print(f"  {ticker:8s} TIMEOUT >200s", flush=True)
                 continue
             except Exception as e:  # noqa: BLE001

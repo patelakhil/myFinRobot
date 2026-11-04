@@ -8,7 +8,7 @@ seed_dcf_inputs; absent consensus, it falls back to trailing unchanged.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.config import get_settings
 from finrobot.engine.deps import FinRobotDeps
@@ -22,7 +22,7 @@ from finrobot.engine.models.financial import (
 )
 from finrobot.engine.pipelines.equity_research import _execute_financial_modeling
 
-NOW = datetime.now(tz=timezone.utc)
+NOW = datetime.now(tz=UTC)
 
 
 class _FakeDataLayer:

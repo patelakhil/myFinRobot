@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import scripts.probe_derived_fields_truth as probe
 
@@ -10,7 +10,7 @@ def _instant(value: float, end: str) -> dict[str, object]:
 
 
 def test_sec_total_debt_candidates_include_lease_alternate() -> None:
-    end = datetime.now(tz=timezone.utc).date().isoformat()
+    end = datetime.now(tz=UTC).date().isoformat()
     facts = probe._CompanyFacts(
         {
             "LongTermDebtNoncurrent": _instant(7_470_000_000.0, end),
@@ -29,7 +29,7 @@ def test_sec_total_debt_candidates_include_lease_alternate() -> None:
 
 
 def test_best_sec_total_debt_chooses_nearest_accepted_caliber() -> None:
-    end = datetime.now(tz=timezone.utc).date().isoformat()
+    end = datetime.now(tz=UTC).date().isoformat()
     facts = probe._CompanyFacts(
         {
             "LongTermDebtNoncurrent": _instant(7_470_000_000.0, end),

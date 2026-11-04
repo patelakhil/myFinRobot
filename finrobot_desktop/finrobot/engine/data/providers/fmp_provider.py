@@ -6,18 +6,11 @@ import math
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import httpx
 
-from finrobot.engine.primitives.ebitda import calculate_ebitda_operating
-from finrobot.engine.primitives.industry import (
-    bank_net_revenue,
-    bank_operating_income_net_caliber,
-    is_bank,
-    semiconductor_role,
-)
 from finrobot.engine.data.interface import (
     DataProvider,
     DataResult,
@@ -26,6 +19,13 @@ from finrobot.engine.data.interface import (
     RateLimitedProviderError,
 )
 from finrobot.engine.data.types import DataType
+from finrobot.engine.primitives.ebitda import calculate_ebitda_operating
+from finrobot.engine.primitives.industry import (
+    bank_net_revenue,
+    bank_operating_income_net_caliber,
+    is_bank,
+    semiconductor_role,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +212,7 @@ def _ttm_trailing_row_count(income_rows: list[dict[str, Any]]) -> int:
     return 4
 
 
-def _book_value_per_share(bal: dict[str, Any], shares: int | float | None) -> float | None:
+def _book_value_per_share(bal: dict[str, Any], shares: float | None) -> float | None:
     """Book value per COMMON share = (stockholders' equity − preferred) / shares.
 
     Same None ≠ 0 contract as ``_resolve_total_debt``: None (never 0, never
@@ -589,7 +589,7 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=data_type,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             warnings=warnings,
         )
 
@@ -966,7 +966,7 @@ class FMPProvider(DataProvider):
         # early-2025 lows into the 52-week low). The dividend-adjusted variant
         # carries the full adjusted OHLC bar — the 52-week high/low need the
         # intraday high/low, so the close-only "light" variant won't do.
-        today = datetime.now(tz=timezone.utc).date()
+        today = datetime.now(tz=UTC).date()
         start = today - timedelta(days=_PRICE_HISTORY_DAYS)
         with self._wrap_errors(ticker, "price fetch"):
             quote_resp = (await self._get("/quote", params={"symbol": ticker})).json()
@@ -1016,7 +1016,7 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.PRICE,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def _fetch_price_range(
@@ -1067,7 +1067,7 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.PRICE_RANGE,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def _fetch_quote(self, ticker: str) -> DataResult:
@@ -1093,7 +1093,7 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.QUOTE,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def _quote_currency(self, ticker: str) -> str | None:
@@ -1164,7 +1164,7 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.NEWS,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def _fetch_earnings(self, ticker: str) -> DataResult:
@@ -1197,7 +1197,7 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.EARNINGS,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def _fetch_earnings_transcript(
@@ -1270,7 +1270,7 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.EARNINGS_TRANSCRIPT,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def _fetch_forward_estimates(self, ticker: str) -> DataResult:
@@ -1300,7 +1300,7 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.FORWARD_ESTIMATES,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def fetch_price_target_consensus(self, ticker: str) -> DataResult:
@@ -1349,7 +1349,7 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.FORWARD_ESTIMATES,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     # NOTE (BACKLOG A4, 2026-07-09): a ``fetch_revenue_segmentation`` route to
@@ -1401,7 +1401,7 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.DIVIDENDS,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def _fetch_peer_candidates(self, ticker: str) -> DataResult:
@@ -1682,7 +1682,7 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.PEER_CANDIDATES,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             warnings=warnings,
         )
 

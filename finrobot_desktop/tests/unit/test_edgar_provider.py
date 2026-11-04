@@ -28,13 +28,12 @@ from finrobot.engine.data.interface import (
     is_rate_limit_error,
 )
 from finrobot.engine.data.providers.edgar_provider import (
-    EdgarToolsProvider,
     _MIN_VALID_SECTION_CHARS,
+    EdgarToolsProvider,
     _is_valid_identity,
     _sec_header_identity,
 )
 from finrobot.engine.data.types import DataType
-
 
 # ---------------------------------------------------------------------------
 # Local identity gate
@@ -1113,9 +1112,9 @@ async def test_fetch_returns_well_formed_data_result(
 # TTM concept selection + validity gate (ADR-0008)
 # ---------------------------------------------------------------------------
 
-from datetime import date as _date  # noqa: E402
+from datetime import date as _date
 
-from finrobot.engine.data.providers.edgar_provider import (  # noqa: E402
+from finrobot.engine.data.providers.edgar_provider import (
     _TTM_REVENUE_CONCEPTS,
     _select_recent_ttm,
     _validate_ttm_periods,
@@ -1534,7 +1533,7 @@ def test_fetch_schedule13_parses_dedups_and_skips_self_filing() -> None:
     c.name = "NVIDIA CORP"
     c.get_filings.return_value = filings
 
-    data, warnings = p._fetch_schedule13(c, limit=8)
+    data, _warnings = p._fetch_schedule13(c, limit=8)
     alerts = data["alerts"]
     names = [a["filer_name"] for a in alerts]
     assert names == ["FMR LLC", "BlackRock Inc."]  # deduped, self + no-shares skipped
@@ -1828,14 +1827,14 @@ class TestCompanyfactsAnnualSeries:
                                     val=70_000,
                                     fy=2024,
                                     filed="2025-02-19",
-                                ),  # noqa: E501
+                                ),
                                 _fact(
                                     start="2025-01-01",
                                     end="2025-12-31",
                                     val=77_084,
                                     fy=2025,
                                     filed="2026-02-19",
-                                ),  # noqa: E501
+                                ),
                             ]
                         }
                     },
@@ -1848,14 +1847,14 @@ class TestCompanyfactsAnnualSeries:
                                     val=2_300,
                                     fy=2024,
                                     filed="2025-02-19",
-                                ),  # noqa: E501
+                                ),
                                 _fact(
                                     start="2025-01-01",
                                     end="2025-12-31",
                                     val=2_436,
                                     fy=2025,
                                     filed="2026-02-19",
-                                ),  # noqa: E501
+                                ),
                             ]
                         }
                     },
@@ -1889,7 +1888,7 @@ class TestCompanyfactsAnnualSeries:
                                     val=265_595,
                                     fy=2018,
                                     filed="2018-11-05",
-                                ),  # noqa: E501
+                                ),
                             ]
                         }
                     },
@@ -1902,7 +1901,7 @@ class TestCompanyfactsAnnualSeries:
                                     val=416_161,
                                     fy=2025,
                                     filed="2025-11-01",
-                                ),  # noqa: E501
+                                ),
                             ]
                         }
                     },

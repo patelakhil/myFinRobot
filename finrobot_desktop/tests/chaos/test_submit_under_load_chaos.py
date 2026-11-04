@@ -97,7 +97,7 @@ def app(tmp_path, monkeypatch) -> FastAPI:
 
 @pytest.mark.asyncio
 async def test_probe_is_bounded_and_classified_timeout(monkeypatch):
-    import pydantic_ai.direct as direct
+    from pydantic_ai import direct
 
     async def hangs_forever(*_a: Any, **_k: Any) -> None:
         await asyncio.sleep(3600)  # the SDK sleeping through Retry-After retries

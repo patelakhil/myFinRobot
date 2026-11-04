@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 from datetime import date
 from pathlib import Path
+from typing import Any, ClassVar
 
 from finrobot.engine.compute.operators.forward_estimates import (
     ForwardFinancials,
@@ -74,7 +75,7 @@ class TestSingleEntryPoint:
     its own, or a pipeline guessing forward EBITDA = revenue * 0.3.
     """
 
-    _ALLOWED_FILES = {
+    _ALLOWED_FILES: ClassVar[set[str]] = {
         # The leaf itself + its tests
         Path("finrobot/engine/compute/operators/forward_estimates.py"),
         Path("tests/audit/test_forward_estimates_red_lines.py"),
@@ -289,7 +290,7 @@ class TestForwardPeriodSelection:
     fiscal-year-end), not whatever happens to sit at rows[0]. Using a 4-years-out
     estimate as the 'forward' P/E numerator would be a wrong number."""
 
-    _MULTI_YEAR = {
+    _MULTI_YEAR: ClassVar[dict[str, Any]] = {
         "rows": [
             # FMP returns newest/farthest-future first — rows[0] is FY+3.
             {"date": "2029-09-30", "epsAvg": 12.0, "revenueAvg": 5.5e11},
@@ -366,14 +367,22 @@ class TestForwardFxMismatchGuard:
 
     # Live UMC /analyst-estimates FY2026 row (probe 2026-06-14): native TWD.
     # Trailing anchors are the USD-canonical figures (FMP financials FX-normalized).
-    _UMC_ROW = {"date": "2026-12-31", "epsAvg": 23.1096, "netIncomeAvg": 57704671223.0}
+    _UMC_ROW: ClassVar[dict[str, Any]] = {
+        "date": "2026-12-31",
+        "epsAvg": 23.1096,
+        "netIncomeAvg": 57704671223.0,
+    }
     _UMC_TRAIL_NI_USD = 1_585_291_390.0  # canonical net income (USD)
     _UMC_TRAIL_REV_USD = 7_615_689_016.0  # canonical revenue (USD)
 
     # Live SONY FY row: native JPY netIncomeAvg ~1.25e12, and trailing NI is
     # NEGATIVE (one-off loss) so the NI-ratio leg can't form — the revenue leg
     # must catch it (net income can't exceed revenue).
-    _SONY_ROW = {"date": "2026-03-31", "epsAvg": 209.06, "netIncomeAvg": 1_249_350_000_000.0}
+    _SONY_ROW: ClassVar[dict[str, Any]] = {
+        "date": "2026-03-31",
+        "epsAvg": 209.06,
+        "netIncomeAvg": 1_249_350_000_000.0,
+    }
     _SONY_TRAIL_NI_USD = -2_144_712_202.0
     _SONY_TRAIL_REV_USD = 78_670_000_000.0
 
@@ -476,7 +485,11 @@ class TestForwardFxMismatchGuard:
     # net margin vs KOF's real ~8% (≈10× low) — so ni_ratio 2.78 and rev_ratio 0.20
     # both stay IN-BAND while the native-MXN epsAvg 120.98 leaks a fwd P/E 8.7 (= USD
     # market cap / MXN net income). Anchors are the canonical USD trailing figures.
-    _KOF_ROW = {"date": "2026-12-31", "epsAvg": 120.98476, "netIncomeAvg": 2_541_684_254.0}
+    _KOF_ROW: ClassVar[dict[str, Any]] = {
+        "date": "2026-12-31",
+        "epsAvg": 120.98476,
+        "netIncomeAvg": 2_541_684_254.0,
+    }
     _KOF_TRAIL_NI_USD = 913_425_199.02  # canonical net income (USD)
     _KOF_TRAIL_REV_USD = 12_588_199_212.26  # canonical revenue (USD)
     _KOF_TRAIL_EPS_USD = 4.34792  # 913_425_199.02 / 210_083_226 canonical ADR shares

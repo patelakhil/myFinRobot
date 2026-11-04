@@ -4,7 +4,6 @@ from typing import Final
 
 from finrobot.engine.skills.spec import Skill
 
-
 _PIPELINE_SAFE_METHODOLOGY: Final[dict[str, str]] = {
     "competitive-analysis": """
 Pipeline-safe competitive landscape framework:

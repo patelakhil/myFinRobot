@@ -34,7 +34,7 @@ import json
 import ssl
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -91,12 +91,12 @@ _SHARES_CONCEPT = ("dei", "EntityCommonStockSharesOutstanding")
 
 def _http_json(url: str) -> Any:
     req = urllib.request.Request(url, headers={"User-Agent": _SEC_UA, "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=40, context=_SSL) as resp:  # noqa: S310
+    with urllib.request.urlopen(req, timeout=40, context=_SSL) as resp:
         return json.loads(resp.read().decode())
 
 
 def _now_iso() -> str:
-    return datetime.now(tz=timezone.utc).isoformat()
+    return datetime.now(tz=UTC).isoformat()
 
 
 def _is_stale(period_end: str) -> bool:
@@ -105,7 +105,7 @@ def _is_stale(period_end: str) -> bool:
         end = datetime.fromisoformat(period_end).date()
     except ValueError:
         return False
-    return (datetime.now(tz=timezone.utc).date() - end).days > _STALE_FACT_DAYS
+    return (datetime.now(tz=UTC).date() - end).days > _STALE_FACT_DAYS
 
 
 @dataclass(frozen=True)

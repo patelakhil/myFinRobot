@@ -14,7 +14,7 @@ skips the invariant) to exercise the backstop's detection logic in isolation.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.engine.compute.operators.audit.currency_caliber import (
     audit_currency_caliber,
@@ -44,7 +44,7 @@ def _fd(
 ) -> FinancialData:
     fd = FinancialData(
         ticker="X",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(revenue=100e9, net_income=20e9),
         market=MarketData(
             market_cap=500e9,

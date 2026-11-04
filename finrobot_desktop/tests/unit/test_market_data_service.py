@@ -10,7 +10,7 @@ a raw DataResult fixture so the test data shape is unchanged.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -45,7 +45,7 @@ def _price_raw(
         provider=provider,
         ticker="AAPL",
         data_type=DataType.PRICE,
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -150,7 +150,7 @@ class TestLatestSessionChange:
             provider="test",
             ticker="TEST",
             data_type=DataType.PRICE,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         return normalize_price(raw)
 

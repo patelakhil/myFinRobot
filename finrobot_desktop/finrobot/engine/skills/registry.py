@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from finrobot.engine.skills.loader import load_skill, SkillLoadError
+from finrobot.engine.skills.loader import SkillLoadError, load_skill
 from finrobot.engine.skills.spec import Skill
 
 logger = logging.getLogger(__name__)

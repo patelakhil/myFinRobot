@@ -13,7 +13,7 @@ Coverage:
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -21,8 +21,6 @@ import pytest
 from finrobot.artifact.models import Artifact
 from finrobot.artifact.store import ArtifactStore
 from tests.artifact.conftest import _make_artifact
-
-UTC = timezone.utc
 
 
 @pytest.fixture

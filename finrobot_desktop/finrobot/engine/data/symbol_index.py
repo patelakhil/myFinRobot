@@ -24,7 +24,7 @@ import re
 import tempfile
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -213,13 +213,13 @@ def _cache_is_fresh(data: dict[str, Any]) -> bool:
         fetched = datetime.fromisoformat(ts)
     except ValueError:
         return False
-    age = datetime.now(timezone.utc) - fetched
+    age = datetime.now(UTC) - fetched
     return 0 <= age.total_seconds() and age.days < _MAX_AGE_DAYS
 
 
 def _write_cache(path: Path, index: SymbolIndex) -> None:
     rows = [{"ticker": e.symbol, "title": e.name} for e in index.entries]
-    payload = {"fetched": datetime.now(timezone.utc).isoformat(), "symbols": rows}
+    payload = {"fetched": datetime.now(UTC).isoformat(), "symbols": rows}
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")

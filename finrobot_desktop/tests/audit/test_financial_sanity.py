@@ -14,12 +14,11 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.engine.compute.operators.wacc import calculate_wacc
 from finrobot.engine.compute.operators.dcf import calculate_dcf, calculate_sensitivity
 from finrobot.engine.compute.operators.lbo import calculate_lbo
 from finrobot.engine.compute.operators.multiples import calculate_ev
+from finrobot.engine.compute.operators.wacc import calculate_wacc
 from finrobot.engine.models.financial import DCFInputs, LBOInputs
-
 
 # ---------------------------------------------------------------------------
 # WACC — CAPM formula (CFA Level I reference)

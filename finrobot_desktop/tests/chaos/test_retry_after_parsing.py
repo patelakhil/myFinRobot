@@ -19,8 +19,9 @@ No network, no real OpenRouter/pydantic_ai model call — see
 from __future__ import annotations
 
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
+from typing import Any, ClassVar
 
 import pytest
 
@@ -50,14 +51,14 @@ class TestCoerceRetryAfterValue:
 
     def test_http_date_future(self):
         now = time.time()
-        future = datetime.fromtimestamp(now, tz=timezone.utc) + timedelta(seconds=30)
+        future = datetime.fromtimestamp(now, tz=UTC) + timedelta(seconds=30)
         header = format_datetime(future, usegmt=True)
         assert _coerce_retry_after_value(header, now=now) == pytest.approx(30.0, abs=1.0)
 
     def test_http_date_past_clamped_to_zero(self):
         # A stale/late header must never produce a NEGATIVE sleep duration.
         now = time.time()
-        past = datetime.fromtimestamp(now, tz=timezone.utc) - timedelta(seconds=30)
+        past = datetime.fromtimestamp(now, tz=UTC) - timedelta(seconds=30)
         header = format_datetime(past, usegmt=True)
         assert _coerce_retry_after_value(header, now=now) == 0.0
 
@@ -194,7 +195,9 @@ class TestSharedHintModule:
             "leaked = [m for m in ('pydantic_ai', 'httpx', 'openai') if m in sys.modules]\n"
             "sys.exit(1 if leaked else 0)\n"
         )
-        assert subprocess.run([sys.executable, "-c", probe], timeout=120).returncode == 0
+        assert (
+            subprocess.run([sys.executable, "-c", probe], check=False, timeout=120).returncode == 0
+        )
 
     def test_newer_pydantic_ai_headers_attribute_is_honoured(self):
         """pydantic_ai >= 2.x puts a lower-cased header dict straight on
@@ -226,7 +229,7 @@ class TestOpenRouterBodyMetadataHeaders:
     ``error`` body, and the stringified repr — so the run is parked until the
     real reset, not a 60s default."""
 
-    _BODY = {
+    _BODY: ClassVar[dict[str, Any]] = {
         "message": (
             "Rate limit exceeded: free-models-per-day. Add 10 credits to unlock "
             "1000 free model requests per day"

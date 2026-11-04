@@ -7,7 +7,7 @@ secondary failure never blocks the primary price.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -32,7 +32,7 @@ def _price_result(
         provider=provider,
         ticker="AAPL",
         data_type=DataType.PRICE,
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -110,14 +110,14 @@ class _StubProvider(DataProvider):
                 provider=self._name,
                 ticker=ticker,
                 data_type=DataType.QUOTE,
-                timestamp=datetime.now(tz=timezone.utc),
+                timestamp=datetime.now(tz=UTC),
             )
         return DataResult(
             data={"current_price": self._price, "price_history": []},
             provider=self._name,
             ticker=ticker,
             data_type=DataType.PRICE,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
 

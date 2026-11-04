@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Final, Literal
 
 import httpx
@@ -11,7 +11,60 @@ from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
 
+from finrobot.engine.analysis.news_classifier import classify_news
+from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
+from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
+from finrobot.engine.compute.coordinators.news import fetch_news
+from finrobot.engine.compute.coordinators.segment_extractor import (
+    build_segment_overview,
+    build_sotp_breakdown,
+)
+from finrobot.engine.compute.coordinators.technical_payload import (
+    TECHNICAL_DCF_UNAVAILABLE_MARKER,
+    TechnicalAnalysis,
+    build_technical_analysis,
+)
+from finrobot.engine.compute.operators.audit import (
+    audit_momentum_narrative_hedge,
+    audit_narrative_numeric_grounding,
+    compute_momentum_context,
+)
+from finrobot.engine.compute.operators.catalyst import (
+    cluster_near_duplicates,
+    compute_expected_impact,
+    extract_catalysts_from_news,
+    filter_fresh_news,
+    summarize_catalyst_outlook,
+)
+from finrobot.engine.compute.operators.dcf import (
+    calculate_dcf,
+    calculate_sensitivity,
+    classify_market_implied_nature,
+    margin_swing,
+    market_implied_check,
+)
+from finrobot.engine.compute.operators.dcf_seed import dcf_current_actuals, seed_dcf_inputs
+from finrobot.engine.compute.operators.forward_estimates import (
+    ForwardFinancials,
+    get_forward_revenue_growth,
+)
+from finrobot.engine.compute.operators.multiples import current_ev_ebitda
+from finrobot.engine.compute.operators.ownership import compute_ownership_governance
+from finrobot.engine.compute.operators.residual_income import calculate_residual_income
+from finrobot.engine.compute.operators.valuation_synthesis import (
+    CanonicalThesis,
+    resolve_canonical_thesis,
+    street_range_disclosure,
+)
+from finrobot.engine.compute.operators.xbrl_aligned_comps import (
+    xbrl_concept_snapshot,
+)
+from finrobot.engine.data.historical_loaders import (
+    REPORT_BAND_WINDOW_YEARS,
+    fetch_reverse_multiple_band,
+)
 from finrobot.engine.data.interface import ProviderError
+from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import (
@@ -22,97 +75,44 @@ from finrobot.engine.models.financial import (
     FinancialData,
     HistoricalMetrics,
     PeerComps,
-    ThesisResult,
     StepOutput,
+    ThesisResult,
     ValuationSynthesis,
 )
-from finrobot.engine.compute.operators.residual_income import calculate_residual_income
-from finrobot.engine.compute.operators.audit import (
-    audit_momentum_narrative_hedge,
-    audit_narrative_numeric_grounding,
-    compute_momentum_context,
-)
 from finrobot.engine.models.reconcile_tolerances import NARRATIVE_DRIFT_TOLERANCE
-from finrobot.engine.compute.operators.catalyst import (
-    extract_catalysts_from_news,
-    cluster_near_duplicates,
-    filter_fresh_news,
-    compute_expected_impact,
-    summarize_catalyst_outlook,
-)
-from finrobot.engine.compute.operators.dcf import (
-    calculate_dcf,
-    calculate_sensitivity,
-    classify_market_implied_nature,
-    margin_swing,
-    market_implied_check,
-)
-from finrobot.engine.compute.coordinators.segment_extractor import (
-    build_segment_overview,
-    build_sotp_breakdown,
-)
-from finrobot.engine.compute.operators.dcf_seed import dcf_current_actuals, seed_dcf_inputs
-from finrobot.engine.compute.operators.forward_estimates import (
-    ForwardFinancials,
-    get_forward_revenue_growth,
-)
-from finrobot.engine.compute.operators.multiples import current_ev_ebitda
-from finrobot.engine.compute.operators.valuation_synthesis import (
-    CanonicalThesis,
-    resolve_canonical_thesis,
-    street_range_disclosure,
-)
-from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
-from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
-from finrobot.engine.data.historical_loaders import (
-    REPORT_BAND_WINDOW_YEARS,
-    fetch_reverse_multiple_band,
-)
-from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
-from finrobot.engine.compute.operators.ownership import compute_ownership_governance
 from finrobot.engine.models.sec import OwnershipGovernanceAnalysis
-from finrobot.engine.compute.coordinators.technical_payload import (
-    TECHNICAL_DCF_UNAVAILABLE_MARKER,
-    TechnicalAnalysis,
-    build_technical_analysis,
-)
-from finrobot.engine.compute.operators.xbrl_aligned_comps import (
-    xbrl_concept_snapshot,
-)
-from finrobot.engine.analysis.news_classifier import classify_news
-from finrobot.engine.compute.coordinators.news import fetch_news
-from finrobot.engine.pipelines.base import (
-    Pipeline,
-    PipelineStep,
-    StructuredValidator,
-    TextValidator,
-)
-from finrobot.engine.pipelines.step import CarryOver
 from finrobot.engine.pipelines._helpers import (
     build_sensitivity_ranges,
     execute_financial_data_step,
     execute_peer_analysis,
 )
 from finrobot.engine.pipelines._thesis_prompt import build_thesis_prompt
+from finrobot.engine.pipelines.base import (
+    Pipeline,
+    PipelineStep,
+    StructuredValidator,
+    TextValidator,
+)
 from finrobot.engine.pipelines.ddm import _execute_ddm_calc, _execute_ddm_seed
+from finrobot.engine.pipelines.step import CarryOver
+from finrobot.engine.pipelines.validators import (
+    validate_catalyst_analysis,
+    validate_dcf_result,
+    validate_financial_data,
+    validate_has_fields,
+    validate_has_peers,
+    validate_has_thesis,
+    validate_is_non_empty,
+    validate_ownership_governance,
+    validate_peer_comps,
+    validate_report_format,
+    validate_technical_analysis,
+    validate_thesis,
+)
 from finrobot.engine.primitives.industry import (
     is_balance_sheet_financial,
     is_bank,
     is_commodity_cyclical,
-)
-from finrobot.engine.pipelines.validators import (
-    validate_catalyst_analysis,
-    validate_has_fields,
-    validate_has_peers,
-    validate_has_thesis,
-    validate_report_format,
-    validate_is_non_empty,
-    validate_financial_data,
-    validate_ownership_governance,
-    validate_peer_comps,
-    validate_dcf_result,
-    validate_technical_analysis,
-    validate_thesis,
 )
 
 logger = logging.getLogger(__name__)
@@ -143,7 +143,7 @@ async def _fetch_optional_sec(
             deps.data_layer.fetch(data_type, ticker, **kwargs),
             timeout=_SEC_FETCH_TIMEOUT_S,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         msg = f"SEC {data_type.name} fetch exceeded {_SEC_FETCH_TIMEOUT_S:.0f}s — SEC slow/unreachable, skipped"
         logger.warning("%s (%s)", msg, ticker)
         return {"available": False, "error": msg, "warnings": [msg]}
@@ -286,8 +286,8 @@ def _sec_8k_to_catalyst(event: dict[str, Any]) -> CatalystEvent:
     published: datetime | None = None
     if raw_date:
         try:
-            dt = datetime.fromisoformat(str(raw_date).replace("Z", "+00:00"))
-            published = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            dt = datetime.fromisoformat(str(raw_date))
+            published = dt if dt.tzinfo else dt.replace(tzinfo=UTC)
         except (ValueError, AttributeError):
             published = None
 
@@ -425,9 +425,9 @@ async def _execute_catalyst_analysis(
 
 
 async def _execute_ownership_governance_analysis(
-    agent: Agent[Any, Any],  # noqa: ARG001
+    agent: Agent[Any, Any],
     deps: FinRobotDeps,
-    prompt: str,  # noqa: ARG001
+    prompt: str,
     structured_context: dict[str, object],
     ticker: str,
     **_kwargs: object,
@@ -513,9 +513,9 @@ def _forward_roe(
 
 
 async def _execute_financial_modeling(
-    agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
+    agent: Agent[Any, Any],
     deps: FinRobotDeps,
-    prompt: str,  # noqa: ARG001 — kept for executor signature; unused
+    prompt: str,
     structured_context: dict[str, object],
     ticker: str,
     **_kwargs: object,
@@ -733,10 +733,12 @@ async def _execute_financial_modeling(
             ),
             structured=None,
             warnings=[
-                f"financial_modeling withheld: FCFF-DCF is a category error for balance-sheet "
-                f"financial {ticker} — no EBITDA/FCF trajectory, terminal value, EV, implied "
-                f"price, Monte-Carlo or EV/EBITDA band produced; valued on P/B · P/E · RI · DDM "
-                f"— method withheld"
+                (
+                    f"financial_modeling withheld: FCFF-DCF is a category error for balance-sheet "
+                    f"financial {ticker} — no EBITDA/FCF trajectory, terminal value, EV, implied "
+                    f"price, Monte-Carlo or EV/EBITDA band produced; valued on P/B · P/E · RI · DDM "
+                    f"— method withheld"
+                )
             ],
         )
 
@@ -967,9 +969,9 @@ async def _execute_financial_modeling(
 
 
 async def _execute_technical_analysis(
-    agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
+    agent: Agent[Any, Any],
     deps: FinRobotDeps,
-    prompt: str,  # noqa: ARG001 — kept for executor signature; unused
+    prompt: str,
     structured_context: dict[str, object],
     ticker: str,
     **_kwargs: object,
@@ -1007,9 +1009,11 @@ async def _execute_technical_analysis(
             )
             reason_warnings = [
                 TECHNICAL_DCF_UNAVAILABLE_MARKER,
-                "technical_analysis withheld: Monte Carlo and the EV/EBITDA band are "
-                "DCF / enterprise-value derived — category errors for a balance-sheet "
-                "financial; no cash-flow overlays produced — method withheld",
+                (
+                    "technical_analysis withheld: Monte Carlo and the EV/EBITDA band are "
+                    "DCF / enterprise-value derived — category errors for a balance-sheet "
+                    "financial; no cash-flow overlays produced — method withheld"
+                ),
             ]
         else:
             text = (

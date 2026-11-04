@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 _LEVEL_COLOR = {
     "DEBUG": "\x1b[36m",
@@ -18,7 +18,7 @@ _RESET = "\x1b[0m"
 
 
 def _iso(record: logging.LogRecord) -> str:
-    return datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat()
+    return datetime.fromtimestamp(record.created, tz=UTC).isoformat()
 
 
 class JsonFormatter(logging.Formatter):

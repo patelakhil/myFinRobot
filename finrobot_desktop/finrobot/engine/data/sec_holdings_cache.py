@@ -31,11 +31,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sqlite3
 import re
+import sqlite3
 from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -487,7 +487,7 @@ async def mark_period_complete(
     BlackRock entirely). The marker lets the guard re-run an incomplete quarter.
     """
     period_str = period_end.isoformat() if isinstance(period_end, date) else str(period_end)
-    completed_at = datetime.now(tz=timezone.utc).isoformat()
+    completed_at = datetime.now(tz=UTC).isoformat()
     c = conn if conn is not None else await _conn()
     await c.execute(
         """

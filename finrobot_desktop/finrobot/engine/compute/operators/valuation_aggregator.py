@@ -30,7 +30,7 @@ cannot honestly revive it.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Final
 
 from finrobot.engine.models.financial import (
@@ -436,7 +436,7 @@ def aggregate_valuation(
     return ValuationAggregate(
         ticker=ticker.upper(),
         current_price=current_price,
-        as_of=as_of if as_of is not None else datetime.now(tz=timezone.utc),
+        as_of=as_of if as_of is not None else datetime.now(tz=UTC),
         methods=methods,
         warnings=warnings,
         forward_fiscal_period=forward_fiscal_period,

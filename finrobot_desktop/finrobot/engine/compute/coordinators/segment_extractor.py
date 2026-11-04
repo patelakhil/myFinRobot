@@ -48,7 +48,7 @@ decomposition.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from finrobot.engine.compute.operators.sotp import compute_sotp_breakdown, value_segment
@@ -151,7 +151,7 @@ async def build_sotp_breakdown(
     period = result.data.get("period") or {}
     accession = result.data.get("accession")
     currency = result.data.get("currency")
-    as_of = datetime.now(tz=timezone.utc)
+    as_of = datetime.now(tz=UTC)
 
     warnings: list[str] = list(result.warnings)
     if currency and currency != "USD":
@@ -338,7 +338,7 @@ def _segment_overview_from_xbrl(ticker: str, result: DataResult) -> SegmentOverv
     warnings = [*result.warnings, _SEGMENT_RECONCILIATION_CAVEAT]
     return SegmentOverview(
         ticker=ticker,
-        as_of=datetime.now(tz=timezone.utc),
+        as_of=datetime.now(tz=UTC),
         source="sec_xbrl_business_segment",
         period_label=period_label,
         segments=_segment_shares(rows),

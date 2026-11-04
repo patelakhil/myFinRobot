@@ -153,9 +153,11 @@ class TestAdanosFetch:
         async def mock_get(path, params=None):
             raise httpx.TimeoutException("timeout")
 
-        with patch.object(provider, "_get", side_effect=mock_get):
-            with pytest.raises(ProviderError) as exc_info:
-                await provider.fetch("AAPL", "sentiment")
+        with (
+            patch.object(provider, "_get", side_effect=mock_get),
+            pytest.raises(ProviderError) as exc_info,
+        ):
+            await provider.fetch("AAPL", "sentiment")
         # Timeouts are not rate-limit — must NOT be classified as throttling.
         assert not is_rate_limit_error(exc_info.value)
 
@@ -178,9 +180,11 @@ class TestAdanosFetch:
                 response=response,
             )
 
-        with patch.object(provider, "_get", side_effect=mock_get):
-            with pytest.raises(RateLimitedProviderError) as exc_info:
-                await provider.fetch("MU", "sentiment")
+        with (
+            patch.object(provider, "_get", side_effect=mock_get),
+            pytest.raises(RateLimitedProviderError) as exc_info,
+        ):
+            await provider.fetch("MU", "sentiment")
         assert is_rate_limit_error(exc_info.value)
         message = str(exc_info.value)
         assert "HTTP 429" in message or "rate limited" in message
@@ -259,20 +263,22 @@ class TestAdanosFetch:
             "GET", "https://api.adanos.org/reddit/stocks/v1/compare?tickers=AAPL&days=7"
         )
         response = httpx.Response(429, request=request)
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(
-                side_effect=httpx.HTTPStatusError(
-                    "Client error '429 Too Many Requests' for url "
-                    "'https://api.adanos.org/reddit/stocks/v1/compare?tickers=AAPL&days=7'",
-                    request=request,
-                    response=response,
-                )
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(
+                    side_effect=httpx.HTTPStatusError(
+                        "Client error '429 Too Many Requests' for url "
+                        "'https://api.adanos.org/reddit/stocks/v1/compare?tickers=AAPL&days=7'",
+                        request=request,
+                        response=response,
+                    )
+                ),
             ),
+            pytest.raises(RateLimitedProviderError) as exc_info,
         ):
-            with pytest.raises(RateLimitedProviderError) as exc_info:
-                await provider._fetch_one_platform(_PLATFORM_SPECS[0], "AAPL", 7)
+            await provider._fetch_one_platform(_PLATFORM_SPECS[0], "AAPL", 7)
         assert is_rate_limit_error(exc_info.value)
         message = str(exc_info.value)
         assert "HTTP 429" in message

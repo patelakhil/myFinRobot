@@ -46,7 +46,7 @@ async def main() -> None:
             fin = await asyncio.wait_for(
                 deps.data_layer.fetch_canonical(DataType.FINANCIALS, TICKER), timeout=90
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             print(
                 f"[{TICKER}] !!! FINANCIALS fetch HUNG >90s — data-fetch is the hang source",
                 flush=True,
@@ -59,7 +59,7 @@ async def main() -> None:
             price = await asyncio.wait_for(
                 deps.data_layer.fetch_canonical(DataType.PRICE, TICKER), timeout=90
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             print(f"[{TICKER}] !!! PRICE fetch HUNG >90s", flush=True)
             return
         print(f"[{TICKER}] PRICE ok in {time.monotonic() - t0:.1f}s", flush=True)
@@ -111,7 +111,7 @@ async def main() -> None:
             out = await asyncio.wait_for(
                 _execute_financial_modeling(MagicMock(), deps, "p", ctx, TICKER), timeout=120
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             print("  !!! _execute_financial_modeling HUNG >120s", flush=True)
             return
         except Exception as e:  # noqa: BLE001

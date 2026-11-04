@@ -11,11 +11,12 @@ Coverage:
 
 from __future__ import annotations
 
+from datetime import UTC
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from finrobot.artifact.models import Artifact
 from finrobot.artifact.store import ArtifactStore
@@ -311,17 +312,17 @@ class TestTimeline:
         assert "art_timeline_archived" in ids
 
     def test_timeline_sorted_newest_first(self, client: TestClient, store: ArtifactStore) -> None:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         early = _make_artifact(
             id="art_early_TSLA",
             ticker="TSLA",
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
         late = _make_artifact(
             id="art_late_TSLA",
             ticker="TSLA",
-            created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
+            created_at=datetime(2026, 6, 1, tzinfo=UTC),
         )
         _save_sync(store, early)
         _save_sync(store, late)

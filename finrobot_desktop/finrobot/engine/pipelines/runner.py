@@ -134,9 +134,7 @@ _STEP_BOUNDARY_EXCEPTIONS = (
 )
 
 
-def _stamp_integration_tags(
-    artifact: Any, deps: "FinRobotDeps", refresh: "RefreshPlan | None"
-) -> None:
+def _stamp_integration_tags(artifact: Any, deps: FinRobotDeps, refresh: RefreshPlan | None) -> None:
     """Tag the artifact with the integrations wired for this run (+ refresh tags).
 
     Best-effort metadata: any failure leaves the tags untouched rather than
@@ -157,7 +155,7 @@ def _stamp_integration_tags(
         logger.debug("Could not stamp integration tags", exc_info=True)
 
 
-def _resolve_step_methodology(step: PipelineStep, skill_runtime: "SkillRegistry | None") -> str:
+def _resolve_step_methodology(step: PipelineStep, skill_runtime: SkillRegistry | None) -> str:
     """Load one-or-many step skills and render pipeline-safe methodology blocks."""
     if skill_runtime is None:
         return ""
@@ -518,14 +516,14 @@ class Pipeline:
 
     async def execute(
         self,
-        deps: "FinRobotDeps",
+        deps: FinRobotDeps,
         ticker: str,
         progress: ProgressCallback | None = None,
         lang: str | None = None,
         source_artifact_id: str | None = None,
-        refresh: "RefreshPlan | None" = None,
+        refresh: RefreshPlan | None = None,
         **kwargs: object,
-    ) -> "PipelineResult":
+    ) -> PipelineResult:
         """Run every step and persist the artifact.
 
         ``refresh`` (a partial refresh, see ``engine/pipelines/refresh.py``)
@@ -568,14 +566,14 @@ class Pipeline:
 
     async def _execute_steps(
         self,
-        deps: "FinRobotDeps",
+        deps: FinRobotDeps,
         ticker: str,
         progress: ProgressCallback | None = None,
         lang: str | None = None,
         source_artifact_id: str | None = None,
-        refresh: "RefreshPlan | None" = None,
+        refresh: RefreshPlan | None = None,
         **kwargs: object,
-    ) -> "PipelineResult":
+    ) -> PipelineResult:
         results: dict[str, str] = {}
         structured_results: dict[str, object] = {}
         failed_validations: list[dict[str, str]] = []
@@ -785,7 +783,7 @@ class Pipeline:
     async def _attempt(
         self,
         step: PipelineStep,
-        deps: "FinRobotDeps",
+        deps: FinRobotDeps,
         prompt: str,
         ticker: str,
         results: dict[str, str],
@@ -838,7 +836,7 @@ class Pipeline:
         step_name: str,
         results: dict[str, str],
         structured_results: dict[str, object],
-    ) -> "ValidationResult":
+    ) -> ValidationResult:
         """Delegate to step.validator with the best available output."""
         output: str | object = structured_results.get(step_name, results[step_name])
         return step.validator(output)
@@ -846,7 +844,7 @@ class Pipeline:
     async def _run_step(
         self,
         step: PipelineStep,
-        deps: "FinRobotDeps",
+        deps: FinRobotDeps,
         prompt: str,
         ticker: str,
         results: dict[str, str],
@@ -889,7 +887,7 @@ class Pipeline:
 
         async def _attempt_with_exc_retry(
             current_prompt: str,
-        ) -> tuple["ValidationResult | None", str | None, BaseException | None]:
+        ) -> tuple[ValidationResult | None, str | None, BaseException | None]:
             """Run _attempt, catching recoverable exceptions as retry signals.
 
             Returns (validation_result, exc_error_str, exc_obj).
@@ -1135,8 +1133,8 @@ class Pipeline:
 
     async def _gather_data(
         self,
-        deps: "FinRobotDeps",
-        required_data: "list[str | DataType]",
+        deps: FinRobotDeps,
+        required_data: list[str | DataType],
         ticker: str,
         previous_results: dict[str, str],
         *,

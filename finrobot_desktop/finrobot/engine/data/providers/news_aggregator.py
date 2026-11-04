@@ -29,7 +29,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -40,9 +40,9 @@ from finrobot.engine.data.interface import (
     ProviderError,
     RateLimitedProviderError,
 )
-from finrobot.engine.primitives.sentiment import score_headline
 from finrobot.engine.data.providers.yfinance_provider import YFinanceProvider
 from finrobot.engine.data.types import DataType
+from finrobot.engine.primitives.sentiment import score_headline
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,7 @@ class NewsAggregatorProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.NEWS,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             warnings=warnings,
         )
 
@@ -273,16 +273,16 @@ class NewsAggregatorProvider(DataProvider):
             return ""
         if isinstance(value, (int, float)):
             try:
-                return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
+                return datetime.fromtimestamp(value, tz=UTC).isoformat()
             except (ValueError, OSError, OverflowError):
                 return ""
         text = str(value).strip()
         if not text:
             return ""
         try:
-            dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(text)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             return dt.isoformat()
         except (ValueError, TypeError):
             # Non-ISO text is unusable downstream (only fromisoformat is tried),
@@ -300,7 +300,7 @@ class NewsAggregatorProvider(DataProvider):
         try:
             # "20240115T183000"
             dt = datetime.strptime(date_str, "%Y%m%dT%H%M%S")
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
             return dt.isoformat()
         except (ValueError, TypeError):
             return ""

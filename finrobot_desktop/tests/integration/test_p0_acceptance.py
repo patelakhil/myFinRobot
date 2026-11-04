@@ -57,7 +57,7 @@ async def test_mode_b_equity_research():
     """P0 acceptance: finrobot research AAPL
     Must produce a Markdown report with real data in < 60 seconds,
     all 5 pipeline steps logged."""
-    agent, deps = _build_runtime()
+    _agent, deps = _build_runtime()
     sub_agents = create_sub_agents(deps.settings)
     pipeline = create_equity_research_pipeline(sub_agents)
 

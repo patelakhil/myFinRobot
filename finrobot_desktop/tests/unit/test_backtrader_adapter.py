@@ -246,7 +246,7 @@ class TestExtractAnalyzers:
             "lost": {"total": 8},
         }
         warnings: list[str] = []
-        total, won, lost = adapter._extract_trades(strat, warnings)
+        total, _won, _lost = adapter._extract_trades(strat, warnings)
         assert total == 20
         assert any("open positions" in w for w in warnings)
 

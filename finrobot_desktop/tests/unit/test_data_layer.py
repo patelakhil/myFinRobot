@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -13,7 +13,6 @@ from finrobot.engine.data.interface import (
     is_rate_limit_error,
 )
 from finrobot.engine.data.layer import DataLayer
-from finrobot.engine.data.provider_health import ProviderHealth
 from finrobot.engine.data.normalize import NormalizedFinancials, NormalizedPrice
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CIRCUIT_OPEN_PREFIX,
@@ -24,8 +23,8 @@ from finrobot.engine.data.normalize.contracts import (
     degraded_price_divergence,
     degraded_provider_divergence,
 )
+from finrobot.engine.data.provider_health import ProviderHealth
 from finrobot.engine.data.types import DataType
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -40,7 +39,7 @@ def _make_result(
         provider=provider,
         ticker=ticker,
         data_type=data_type,
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -121,7 +120,7 @@ class TestFetchFromProvider:
                     provider=self._name,
                     ticker=ticker,
                     data_type=data_type,
-                    timestamp=datetime.now(tz=timezone.utc),
+                    timestamp=datetime.now(tz=UTC),
                 )
 
         provider = EchoKwargsProvider("adanos", ["sentiment"])
@@ -139,8 +138,9 @@ class TestFetchFromProvider:
         assert again.data["echo"] == {"days_back": 7}
 
     async def test_stale_cache_calls_provider_and_updates_cache(self, cache, tmp_path):
-        import aiosqlite
         from datetime import timedelta
+
+        import aiosqlite
 
         provider = MockProvider("mock", ["financials"])
         layer = DataLayer([provider], cache)
@@ -149,7 +149,7 @@ class TestFetchFromProvider:
         # Backdate cache entry
         from finrobot.engine.data.cache import raw_slot_key
 
-        old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=25)).isoformat()
+        old_time = (datetime.now(tz=UTC) - timedelta(hours=25)).isoformat()
         async with aiosqlite.connect(str(tmp_path / "layer_test.db")) as conn:
             await conn.execute(
                 "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
@@ -164,8 +164,9 @@ class TestFetchFromProvider:
 
 class TestProviderFailure:
     async def test_provider_fails_returns_stale_cache_with_warning(self, cache, tmp_path):
-        import aiosqlite
         from datetime import timedelta
+
+        import aiosqlite
 
         good_provider = MockProvider("good", ["financials"])
         layer = DataLayer([good_provider], cache)
@@ -174,7 +175,7 @@ class TestProviderFailure:
         # Backdate so it's stale
         from finrobot.engine.data.cache import raw_slot_key
 
-        old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=25)).isoformat()
+        old_time = (datetime.now(tz=UTC) - timedelta(hours=25)).isoformat()
         async with aiosqlite.connect(str(tmp_path / "layer_test.db")) as conn:
             await conn.execute(
                 "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
@@ -242,7 +243,7 @@ def _range_result(provider: str, ticker: str = "AAPL") -> DataResult:
         provider=provider,
         ticker=ticker,
         data_type="price_range",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -379,7 +380,7 @@ class TestChainFallback:
             provider="fmp",
             ticker="NVDA",
             data_type="price",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         p_fmp = MockProvider("fmp", ["price"], result=fmp_result)
         layer = DataLayer([p_yf, p_fmp], cache)
@@ -403,14 +404,14 @@ class TestCrossValidationIntegration:
             provider="fmp",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         r2 = DataResult(
             data=payload_p2,
             provider="finnhub",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         p1 = MockProvider("fmp", ["financials"], result=r1)
         p2 = MockProvider("finnhub", ["financials"], result=r2)
@@ -427,14 +428,14 @@ class TestCrossValidationIntegration:
             provider="fmp",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         r2 = DataResult(
             data=payload,
             provider="finnhub",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         p1 = MockProvider("fmp", ["financials"], result=r1)
         p2 = MockProvider("finnhub", ["financials"], result=r2)
@@ -461,7 +462,7 @@ class TestCrossValidationIntegration:
             provider="fmp",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             warnings=["primary warning A"],
         )
         secondary = DataResult(
@@ -469,7 +470,7 @@ class TestCrossValidationIntegration:
             provider="finnhub",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             warnings=["finnhub: data delayed 15 min"],
         )
         p1 = MockProvider("fmp", ["financials"], result=primary)
@@ -489,7 +490,7 @@ class TestCrossValidationIntegration:
             provider="fmp",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             warnings=[shared],
         )
         secondary = DataResult(
@@ -497,7 +498,7 @@ class TestCrossValidationIntegration:
             provider="finnhub",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             warnings=[shared],
         )
         p1 = MockProvider("fmp", ["financials"], result=primary)
@@ -514,14 +515,14 @@ class TestCrossValidationIntegration:
             provider="placeholder",
             ticker="TEST",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         r_discrepant = DataResult(
             data={"revenue": 200_000, "ebitda": 50_000},
             provider="p3",
             ticker="TEST",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         p1 = MockProvider("p1", ["financials"], result=r_base.model_copy(update={"provider": "p1"}))
         p2 = MockProvider("p2", ["financials"], result=r_base.model_copy(update={"provider": "p2"}))
@@ -541,21 +542,21 @@ class TestCrossValidationIntegration:
             provider="p1",
             ticker="TEST",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         r2_empty = DataResult(
             data={},
             provider="p2",
             ticker="TEST",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         r3 = DataResult(
             data={"revenue": 200_000, "ebitda": 50_000},
             provider="p3",
             ticker="TEST",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         p1 = MockProvider("p1", ["financials"], result=r1)
         p2 = MockProvider("p2", ["financials"], result=r2_empty)
@@ -576,14 +577,14 @@ class TestCrossValidationIntegration:
             provider="p1",
             ticker="TEST",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         r2_all_none = DataResult(
             data={"revenue": None, "net_income": None, "market_cap": None, "total_cash": None},
             provider="p2",
             ticker="TEST",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         p1 = MockProvider("p1", ["financials"], result=r1)
         p2 = MockProvider("p2", ["financials"], result=r2_all_none)
@@ -608,7 +609,7 @@ class TestCrossValidationIntegration:
                 provider=f"p{i}",
                 ticker="TEST",
                 data_type="financials",
-                timestamp=datetime.now(tz=timezone.utc),
+                timestamp=datetime.now(tz=UTC),
             )
             providers.append(MockProvider(f"p{i}", ["financials"], result=r))
         layer = DataLayer(providers, cache)
@@ -654,7 +655,7 @@ class TestCircuitOpenProvenance:
             provider="yfinance",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         yf = MockProvider("yfinance", ["financials"], result=yf_result)
         layer = DataLayer([fmp, yf], cache, health=health)
@@ -695,7 +696,7 @@ class TestCircuitOpenProvenance:
             provider="yfinance",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         yf = MockProvider("yfinance", ["financials"], result=yf_result)
         layer = DataLayer([fmp, yf], cache, health=health)
@@ -739,8 +740,9 @@ class TestReadCanonicalCached:
         assert provider.fetch_called == 0  # cache read, no network
 
     async def test_stale_snapshot_still_returned_flagged_no_provider(self, cache, tmp_path):
-        import aiosqlite
         from datetime import timedelta
+
+        import aiosqlite
 
         from finrobot.engine.data.cache import canonical_key
 
@@ -752,7 +754,7 @@ class TestReadCanonicalCached:
         # provider-qualified (BUG: provider swap could overwrite a different
         # caliber under one shared key — fixed by folding the winning provider
         # into the slot), so target the 'mock' provider's slot the fetch wrote.
-        old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=25)).isoformat()
+        old_time = (datetime.now(tz=UTC) - timedelta(hours=25)).isoformat()
         async with aiosqlite.connect(str(tmp_path / "layer_test.db")) as conn:
             await conn.execute(
                 "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
@@ -835,10 +837,11 @@ class TestCanonicalStaleNoLaundering:
 
     @staticmethod
     async def _backdate_all(db_path: str, ticker: str, hours: float) -> None:
-        import aiosqlite
         from datetime import timedelta
 
-        old = (datetime.now(tz=timezone.utc) - timedelta(hours=hours)).isoformat()
+        import aiosqlite
+
+        old = (datetime.now(tz=UTC) - timedelta(hours=hours)).isoformat()
         async with aiosqlite.connect(db_path) as conn:
             # WHERE ticker only → backdates BOTH the raw slot and the canonical slot.
             await conn.execute("UPDATE cache SET cached_at = ? WHERE ticker = ?", (old, ticker))
@@ -869,7 +872,7 @@ class TestCanonicalStaleNoLaundering:
             data={
                 "current_price": 311.52,
                 "exchange": "NASDAQ",
-                "quote_timestamp": int(datetime.now(tz=timezone.utc).timestamp()),
+                "quote_timestamp": int(datetime.now(tz=UTC).timestamp()),
                 "price_history": [
                     {
                         "date": "2026-06-08",
@@ -884,7 +887,7 @@ class TestCanonicalStaleNoLaundering:
             provider="good",
             ticker="AAPL",
             data_type=DataType.PRICE,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         good = MockProvider("good", [DataType.PRICE], result=price_payload)
         await DataLayer([good], cache).fetch_canonical(DataType.PRICE, "AAPL")
@@ -921,7 +924,7 @@ def _fin_caliber_result(provider: str, *, period_basis: str, revenue: float) -> 
         provider=provider,
         ticker="AAPL",
         data_type=DataType.FINANCIALS,
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -1083,7 +1086,7 @@ def _make_data_result(ticker: str = "AAPL", year: int = 2024) -> DataResult:
         provider="mock",
         ticker=ticker,
         data_type="financials",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -1095,7 +1098,7 @@ def _make_multi_year_data_result(ticker: str = "AAPL", years: int = 5) -> DataRe
         provider="mock",
         ticker=ticker,
         data_type="financials",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -1200,8 +1203,9 @@ class TestFetchHistorical:
 
     @pytest.mark.asyncio
     async def test_fetch_historical_all_fail_returns_stale_cache(self, cache, tmp_path):
-        import aiosqlite
         from datetime import timedelta
+
+        import aiosqlite
 
         historical = DataResult(
             data={
@@ -1213,11 +1217,11 @@ class TestFetchHistorical:
             provider="fmp",
             ticker="AAPL",
             data_type=DataType.FINANCIALS,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         cache_key = "AAPL:historical:financials:5"
         await cache.set(DataType.HISTORICAL, cache_key, historical)
-        old_time = (datetime.now(tz=timezone.utc) - timedelta(days=2)).isoformat()
+        old_time = (datetime.now(tz=UTC) - timedelta(days=2)).isoformat()
         async with aiosqlite.connect(str(tmp_path / "layer_test.db")) as conn:
             await conn.execute(
                 "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
@@ -1377,15 +1381,16 @@ class TestQuoteOnlyHistoryGraft:
             provider=provider,
             ticker="AAPL",
             data_type="price",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     @staticmethod
     async def _backdate_raw_price(tmp_path, hours: float = 1.0) -> None:
-        import aiosqlite
         from datetime import timedelta
 
-        old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=hours)).isoformat()
+        import aiosqlite
+
+        old_time = (datetime.now(tz=UTC) - timedelta(hours=hours)).isoformat()
         async with aiosqlite.connect(str(tmp_path / "layer_test.db")) as conn:
             await conn.execute(
                 "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
@@ -1456,7 +1461,7 @@ class TestQuoteOnlyHistoryGraft:
                 provider="other",
                 ticker="AAPL",
                 data_type="price",
-                timestamp=datetime.now(tz=timezone.utc),
+                timestamp=datetime.now(tz=UTC),
             ),
         )
         layer = DataLayer([q1, q2], cache)
@@ -1478,8 +1483,9 @@ class TestQuoteOnlyHistoryGraft:
         assert quote_only.fetch_called == 1
 
     async def test_canonical_graft_stamps_degraded_marker_and_skips_recache(self, cache, tmp_path):
-        import aiosqlite
         from datetime import timedelta
+
+        import aiosqlite
 
         from finrobot.engine.data.cache import canonical_key
         from finrobot.engine.data.normalize.contracts import DEGRADED_PRICE_HISTORY_STALE
@@ -1488,7 +1494,7 @@ class TestQuoteOnlyHistoryGraft:
         await DataLayer([seed], cache).fetch_canonical("price", "AAPL")
         # Backdate BOTH slots so the canonical read misses and the raw fetch
         # walks the provider chain.
-        old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=1)).isoformat()
+        old_time = (datetime.now(tz=UTC) - timedelta(hours=1)).isoformat()
         async with aiosqlite.connect(str(tmp_path / "layer_test.db")) as conn:
             for slot in (raw_slot_key("price"), canonical_key("price")):
                 await conn.execute(
@@ -1524,7 +1530,7 @@ def _price_result(provider: str = "mock") -> DataResult:
         provider=provider,
         ticker="AAPL",
         data_type="price",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -1552,7 +1558,7 @@ class TestFetchCanonical:
                         provider=name_,
                         ticker="AAPL",
                         data_type="price",
-                        timestamp=datetime.now(tz=timezone.utc),
+                        timestamp=datetime.now(tz=UTC),
                     ),
                 )
 
@@ -1580,7 +1586,7 @@ class TestFetchCanonical:
             provider="fmp",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         layer = DataLayer([MockProvider("fmp", ["financials"], result=r)], cache)
         out = await layer.fetch_canonical("financials", "AAPL")
@@ -1606,14 +1612,14 @@ class TestFetchCanonical:
             provider="fmp",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         r2 = DataResult(
             data={"revenue": 150_000_000, "financial_currency": "USD"},  # 33% off
             provider="finnhub",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         layer = DataLayer(
             [MockProvider("fmp", ["financials"], r1), MockProvider("finnhub", ["financials"], r2)],
@@ -1632,14 +1638,14 @@ class TestFetchCanonical:
             provider="fmp",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         r2 = DataResult(
             data={"revenue": 150_000_000, "financial_currency": "USD"},  # 33% off
             provider="finnhub",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         layer = DataLayer(
             [MockProvider("fmp", ["financials"], r1), MockProvider("finnhub", ["financials"], r2)],
@@ -1660,14 +1666,14 @@ class TestFetchCanonical:
             provider="fmp",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         r2 = DataResult(
             data={"revenue": 105_000_000, "financial_currency": "USD"},  # ~5%, within 15%
             provider="finnhub",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         layer = DataLayer(
             [MockProvider("fmp", ["financials"], r1), MockProvider("finnhub", ["financials"], r2)],
@@ -1908,7 +1914,7 @@ class TestRawFetchSingleFlight:
                     provider="slow",
                     ticker=ticker,
                     data_type="news",
-                    timestamp=datetime.now(tz=timezone.utc),
+                    timestamp=datetime.now(tz=UTC),
                 )
 
         p = SlowProvider()
@@ -1942,7 +1948,7 @@ class TestRawFetchSingleFlight:
                     provider="rec",
                     ticker=ticker,
                     data_type="sentiment",
-                    timestamp=datetime.now(tz=timezone.utc),
+                    timestamp=datetime.now(tz=UTC),
                 )
 
         p = RecordingProvider()
@@ -1973,7 +1979,7 @@ def _adr_financials_result(ticker: str = "TSM") -> DataResult:
         provider="fmp",
         ticker=ticker,
         data_type="financials",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -2020,7 +2026,7 @@ class TestCanonicalFxNormalization:
             provider="fmp",
             ticker="AAPL",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         layer = DataLayer([MockProvider("fmp", ["financials"], result=result)], cache)
 
@@ -2108,7 +2114,7 @@ def _sec_yearly_result(years: list[int]) -> DataResult:
         provider="edgar_tools",
         ticker="MU",
         data_type=DataType.FINANCIALS,
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -2258,8 +2264,9 @@ class TestSentimentRateLimitEntersFailureMachinery:
     """
 
     def _all_429_provider(self):
-        import httpx
         from unittest.mock import AsyncMock, patch
+
+        import httpx
 
         from finrobot.engine.data.providers.adanos_provider import AdanosProvider
 

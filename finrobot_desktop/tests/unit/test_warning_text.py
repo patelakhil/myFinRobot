@@ -19,8 +19,10 @@ class TestHumanizeWarnings:
     def test_strips_httpx_url_tail_keeps_lead_text(self) -> None:
         out = humanize_warnings(
             [
-                "Server error '500' for url 'https://fmp.example/api/v3/quote?apikey=SECRET'\n"
-                "For more information check: https://developer.mozilla.org/..."
+                (
+                    "Server error '500' for url 'https://fmp.example/api/v3/quote?apikey=SECRET'\n"
+                    "For more information check: https://developer.mozilla.org/..."
+                )
             ]
         )
         assert out == ["Server error '500'"]

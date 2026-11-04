@@ -1,11 +1,11 @@
 from finrobot.engine.pipelines.validators import (
+    validate_dcf_output,
+    validate_has_comps_table,
     validate_has_fields,
-    validate_is_non_empty,
     validate_has_peers,
     validate_has_thesis,
+    validate_is_non_empty,
     validate_report_format,
-    validate_has_comps_table,
-    validate_dcf_output,
 )
 
 

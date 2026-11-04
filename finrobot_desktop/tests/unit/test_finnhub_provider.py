@@ -1,5 +1,6 @@
 """Finnhub Provider unit tests. All HTTP calls are mocked."""
 
+from datetime import UTC
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -71,11 +72,13 @@ class TestFinnhubFetch:
 
     @pytest.mark.asyncio
     async def test_timeout_raises_provider_error(self, provider):
-        with patch.object(
-            provider, "_get", AsyncMock(side_effect=httpx.TimeoutException("timeout"))
+        with (
+            patch.object(
+                provider, "_get", AsyncMock(side_effect=httpx.TimeoutException("timeout"))
+            ),
+            pytest.raises(ProviderError, match="timeout"),
         ):
-            with pytest.raises(ProviderError, match="timeout"):
-                await provider.fetch("AAPL", "price")
+            await provider.fetch("AAPL", "price")
 
 
 class TestFinnhubInterface:
@@ -117,9 +120,9 @@ _CANDLE_DATES = ("2026-05-21", "2026-05-22", "2026-05-23")
 
 
 def _ts(iso_date: str) -> int:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    return int(datetime.fromisoformat(iso_date).replace(tzinfo=timezone.utc).timestamp())
+    return int(datetime.fromisoformat(iso_date).replace(tzinfo=UTC).timestamp())
 
 
 def _finnhub_candle_response(days: int = 3) -> dict:
@@ -213,13 +216,15 @@ class TestFinnhubPrice:
     async def test_fetch_price_zero_quote_raises(self, provider):
         """Finnhub returns c=0 for an unknown/delisted symbol — must raise so
         DataLayer falls through, not stamp a fabricated $0 live price."""
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(return_value=_mock_response(_finnhub_quote_response(price=0.0))),
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(return_value=_mock_response(_finnhub_quote_response(price=0.0))),
+            ),
+            pytest.raises(ProviderError, match="no usable price"),
         ):
-            with pytest.raises(ProviderError, match="no usable price"):
-                await provider.fetch("DELISTED", "price")
+            await provider.fetch("DELISTED", "price")
 
     @pytest.mark.asyncio
     async def test_fetch_price_normalizes_to_canonical_price(self, provider):
@@ -252,9 +257,11 @@ class TestFinnhubPrice:
             _mock_response(_finnhub_profile_response()),
             candle_500,
         ]
-        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
-            with pytest.raises(ProviderError, match="API error"):
-                await provider.fetch("AAPL", "price")
+        with (
+            patch.object(provider, "_get", AsyncMock(side_effect=responses)),
+            pytest.raises(ProviderError, match="API error"),
+        ):
+            await provider.fetch("AAPL", "price")
 
 
 def _finnhub_news_response():
@@ -298,43 +305,51 @@ class TestFinnhubNetworkErrors:
 
     @pytest.mark.asyncio
     async def test_connect_error_raises_provider_error(self, provider):
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(side_effect=httpx.ConnectError("connection refused")),
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(side_effect=httpx.ConnectError("connection refused")),
+            ),
+            pytest.raises(ProviderError, match="network error"),
         ):
-            with pytest.raises(ProviderError, match="network error"):
-                await provider.fetch("AAPL", "price")
+            await provider.fetch("AAPL", "price")
 
     @pytest.mark.asyncio
     async def test_remote_protocol_error_raises_provider_error(self, provider):
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(side_effect=httpx.RemoteProtocolError("unexpected EOF")),
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(side_effect=httpx.RemoteProtocolError("unexpected EOF")),
+            ),
+            pytest.raises(ProviderError, match="network error"),
         ):
-            with pytest.raises(ProviderError, match="network error"):
-                await provider.fetch("AAPL", "price")
+            await provider.fetch("AAPL", "price")
 
     @pytest.mark.asyncio
     async def test_read_error_raises_provider_error(self, provider):
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(side_effect=httpx.ReadError("read failed")),
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(side_effect=httpx.ReadError("read failed")),
+            ),
+            pytest.raises(ProviderError, match="network error"),
         ):
-            with pytest.raises(ProviderError, match="network error"):
-                await provider.fetch("AAPL", "news")
+            await provider.fetch("AAPL", "news")
 
     @pytest.mark.asyncio
     async def test_write_error_raises_provider_error(self, provider):
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(side_effect=httpx.WriteError("write failed")),
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(side_effect=httpx.WriteError("write failed")),
+            ),
+            pytest.raises(ProviderError, match="network error"),
         ):
-            with pytest.raises(ProviderError, match="network error"):
-                await provider.fetch("AAPL", "price")
+            await provider.fetch("AAPL", "price")
 
     @pytest.mark.asyncio
     async def test_http_429_raises_typed_rate_limited_error(self, provider):
@@ -343,20 +358,22 @@ class TestFinnhubNetworkErrors:
         rewording; substring matching is fallback only."""
         request = httpx.Request("GET", "https://finnhub.io/api/v1/quote?symbol=AAPL")
         response = httpx.Response(429, request=request)
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(
-                side_effect=httpx.HTTPStatusError(
-                    "Client error '429 Too Many Requests' for url "
-                    "'https://finnhub.io/api/v1/quote?symbol=AAPL'",
-                    request=request,
-                    response=response,
-                )
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(
+                    side_effect=httpx.HTTPStatusError(
+                        "Client error '429 Too Many Requests' for url "
+                        "'https://finnhub.io/api/v1/quote?symbol=AAPL'",
+                        request=request,
+                        response=response,
+                    )
+                ),
             ),
+            pytest.raises(RateLimitedProviderError) as exc_info,
         ):
-            with pytest.raises(RateLimitedProviderError) as exc_info:
-                await provider.fetch("AAPL", "price")
+            await provider.fetch("AAPL", "price")
         assert is_rate_limit_error(exc_info.value)
         message = str(exc_info.value)
         assert "HTTP 429" in message
@@ -367,20 +384,22 @@ class TestFinnhubNetworkErrors:
     async def test_non_429_http_error_is_clean_no_raw_url(self, provider):
         request = httpx.Request("GET", "https://finnhub.io/api/v1/quote?symbol=AAPL")
         response = httpx.Response(500, request=request)
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(
-                side_effect=httpx.HTTPStatusError(
-                    "Server error '500 Internal Server Error' for url "
-                    "'https://finnhub.io/api/v1/quote?symbol=AAPL'",
-                    request=request,
-                    response=response,
-                )
+        with (
+            patch.object(
+                provider,
+                "_get",
+                AsyncMock(
+                    side_effect=httpx.HTTPStatusError(
+                        "Server error '500 Internal Server Error' for url "
+                        "'https://finnhub.io/api/v1/quote?symbol=AAPL'",
+                        request=request,
+                        response=response,
+                    )
+                ),
             ),
+            pytest.raises(ProviderError) as exc_info,
         ):
-            with pytest.raises(ProviderError) as exc_info:
-                await provider.fetch("AAPL", "price")
+            await provider.fetch("AAPL", "price")
         message = str(exc_info.value)
         assert "HTTP 500" in message
         assert "finnhub.io" not in message
@@ -402,6 +421,7 @@ class TestFinnhubRateLimiter:
         """Second call within MIN_INTERVAL must trigger asyncio.sleep."""
         import asyncio
         import time
+
         from finrobot.engine.data.providers.finnhub_provider import _MIN_INTERVAL
 
         sleep_durations: list[float] = []

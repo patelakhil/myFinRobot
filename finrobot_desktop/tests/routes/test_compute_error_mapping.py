@@ -19,7 +19,8 @@ from finrobot.engine.compute.operators.monte_carlo import MonteCarloRequest
 from finrobot.engine.compute.operators.sniper import SniperRequest
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.models.financial import DCFInputs
-from finrobot.routes.compute import _compute_http_error, router as compute_router
+from finrobot.routes.compute import _compute_http_error
+from finrobot.routes.compute import router as compute_router
 
 
 def _client(*, with_deps: bool = False) -> TestClient:

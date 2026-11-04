@@ -1,13 +1,14 @@
 """Tests for valuation synthesis with confidence-weighted averaging."""
 
 import pytest
-from finrobot.engine.models.financial import ValuationMethod
+
 from finrobot.engine.compute.operators.valuation_synthesis import (
     _VERDICT_BANDS,
     resolve_canonical_thesis,
     synthesize_valuations,
     verdict_from_upside,
 )
+from finrobot.engine.models.financial import ValuationMethod
 
 
 class TestSynthesizeValuations:

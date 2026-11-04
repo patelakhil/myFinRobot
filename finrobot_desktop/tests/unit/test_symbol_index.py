@@ -8,10 +8,10 @@ universe, verified live 2026-06-16: NVDA/AAPL/MSFT … descending).
 
 from __future__ import annotations
 
-import pytest
-
 import asyncio
 import time
+
+import pytest
 
 from finrobot.engine.data import symbol_index as si
 from finrobot.engine.data.symbol_index import (

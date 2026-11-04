@@ -15,13 +15,13 @@ from finrobot.engine.compute.operators.multiples import (
 )
 from finrobot.engine.models.financial import (
     CatalystAnalysis,
+    DCFResult,
     DDMInputs,
     DDMResult,
     FinancialData,
     LBOInputs,
     LBOResult,
     PeerComps,
-    DCFResult,
     ThesisResult,
 )
 

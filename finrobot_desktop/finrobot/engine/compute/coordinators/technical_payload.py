@@ -23,7 +23,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from finrobot.engine.primitives.historical_valuation import HistoricalBand
 from finrobot.engine.compute.operators.monte_carlo import (
     MonteCarloResult,
     deterministic_seed,
@@ -44,6 +43,7 @@ from finrobot.engine.data.historical_loaders import (
 )
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.models.financial import DCFInputs
+from finrobot.engine.primitives.historical_valuation import HistoricalBand
 
 logger = logging.getLogger(__name__)
 

@@ -16,6 +16,7 @@ It may depend on the data layer (it is a 取数协调器, not a pure operator �
 
 from __future__ import annotations
 
+import itertools
 import logging
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
@@ -56,9 +57,9 @@ def _classify_trend(
     """
     mas = [m for m in (sma20, sma50, sma200) if m is not None]
     if len(mas) >= 2:
-        if all(a > b for a, b in zip(mas, mas[1:], strict=False)):
+        if all(a > b for a, b in itertools.pairwise(mas)):
             return "uptrend"
-        if all(a < b for a, b in zip(mas, mas[1:], strict=False)):
+        if all(a < b for a, b in itertools.pairwise(mas)):
             return "downtrend"
         return "sideways"
     ref = mas[0] if mas else current

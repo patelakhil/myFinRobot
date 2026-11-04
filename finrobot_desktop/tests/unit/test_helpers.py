@@ -5,7 +5,7 @@ ADR-0006 Step 4: execute_financial_data_step now calls fetch_canonical
 Mocks provide fetch_canonical and fetch_historical where needed.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -19,7 +19,6 @@ from finrobot.engine.pipelines._helpers import (
     fmt_market_cap,
     fmt_multiple,
 )
-
 
 # ---------------------------------------------------------------------------
 # Whitelist formatters (BUG-038) — must mirror the frontend SourcedNumber render.
@@ -74,7 +73,7 @@ def _financials_raw(warnings: list[str] | None = None) -> DataResult:
         provider="fmp",
         ticker="TEST",
         data_type="financials",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         warnings=warnings or [],
     )
 
@@ -89,7 +88,7 @@ def _price_raw() -> DataResult:
         provider="fmp",
         ticker="TEST",
         data_type="price",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -141,7 +140,7 @@ def _yearly_result(year: int, revenue: float = 1e9) -> DataResult:
         provider="fmp",
         ticker="TEST",
         data_type="financials",
-        timestamp=datetime(year, 6, 30, tzinfo=timezone.utc),
+        timestamp=datetime(year, 6, 30, tzinfo=UTC),
     )
 
 
@@ -251,7 +250,7 @@ async def test_session_change_amount_frozen_into_structured_context():
             provider="fmp",
             ticker="TEST",
             data_type="price",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
     )
     expected_change, expected_pct = norm_price.latest_session_change()
@@ -362,7 +361,7 @@ async def test_enrich_company_forward_populates_row(monkeypatch):
             fetch=AsyncMock(return_value=SimpleNamespace(data={})),
             # 638a8164: the enricher reads FORWARD_ESTIMATES via the canonical
             # gate and unwraps .payload() — the fake must speak that protocol.
-            fetch_canonical=AsyncMock(return_value=SimpleNamespace(payload=lambda: {})),
+            fetch_canonical=AsyncMock(return_value=SimpleNamespace(payload=dict)),
         )
     )
 
@@ -396,7 +395,7 @@ async def test_enrich_company_forward_swallows_typeerror(monkeypatch):
     deps = SimpleNamespace(
         data_layer=SimpleNamespace(
             fetch=AsyncMock(return_value=SimpleNamespace(data={})),
-            fetch_canonical=AsyncMock(return_value=SimpleNamespace(payload=lambda: {})),
+            fetch_canonical=AsyncMock(return_value=SimpleNamespace(payload=dict)),
         )
     )
     company = CompanyFinancials(ticker="TSLA", revenue=9.79e10, market_cap=1.49e12)

@@ -5,7 +5,7 @@ over-wide price window (17 months → trimmed), currency-tag pass-through,
 TTM lag exposure.
 """
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -21,7 +21,7 @@ from finrobot.engine.data.normalize.contracts import (
 from finrobot.engine.data.normalize.financials import normalize_financials
 from finrobot.engine.data.normalize.price import normalize_price
 
-FETCH = datetime(2026, 5, 28, 3, 21, tzinfo=timezone.utc)
+FETCH = datetime(2026, 5, 28, 3, 21, tzinfo=UTC)
 
 
 def _price_result(history, provider="fmp", timestamp=FETCH, **data) -> DataResult:
@@ -45,7 +45,7 @@ def test_price_ohlc_complete_keeps_intraday():
     ]
     # Both providers emit a quote timestamp; as_of binds to that real observation
     # instant (here the 16:00 ET close = 20:00 UTC), not the bar-date midnight.
-    quote_ts = int(datetime(2026, 5, 27, 20, 0, tzinfo=timezone.utc).timestamp())
+    quote_ts = int(datetime(2026, 5, 27, 20, 0, tzinfo=UTC).timestamp())
     p = normalize_price(
         _price_result(hist, provider="yfinance", current_price=440.36, quote_timestamp=quote_ts)
     )
@@ -56,7 +56,7 @@ def test_price_ohlc_complete_keeps_intraday():
     assert p.current_price == 440.36
     # as_of is the quote's observation instant, NOT the fetch wall-clock — drives
     # the freshness pill.
-    assert p.provenance.as_of == datetime(2026, 5, 27, 20, 0, tzinfo=timezone.utc)
+    assert p.provenance.as_of == datetime(2026, 5, 27, 20, 0, tzinfo=UTC)
     assert p.provenance.fetched_at == FETCH
 
 
@@ -104,9 +104,9 @@ def test_price_as_of_uses_quote_timestamp_not_bar_midnight():
     p = normalize_price(
         _price_result(hist, provider="fmp", current_price=391.0, quote_timestamp=quote_ts)
     )
-    assert p.provenance.as_of == datetime(2026, 6, 5, 20, 0, tzinfo=timezone.utc)
+    assert p.provenance.as_of == datetime(2026, 6, 5, 20, 0, tzinfo=UTC)
     assert DEGRADED_QUOTE_TS_MISSING not in p.provenance.degraded
-    now = datetime(2026, 6, 8, 8, 0, tzinfo=timezone.utc)  # Monday pre-market
+    now = datetime(2026, 6, 8, 8, 0, tzinfo=UTC)  # Monday pre-market
     age_h = (now - p.provenance.as_of).total_seconds() / 3600
     assert age_h == 60.0  # not 80.0 (the midnight-stamping bug)
 
@@ -118,11 +118,11 @@ def test_price_as_of_falls_back_to_session_close_not_midnight():
         {"date": "2026-06-04", "close": 415.0, "high": 420.0, "low": 410.0},
         {"date": "2026-06-05", "close": 391.0, "high": 400.0, "low": 388.0},
     ]
-    monday = datetime(2026, 6, 8, 8, 0, tzinfo=timezone.utc)  # fetch after the bar
+    monday = datetime(2026, 6, 8, 8, 0, tzinfo=UTC)  # fetch after the bar
     p = normalize_price(
         _price_result(hist, provider="fmp", timestamp=monday, current_price=391.0)  # no ts
     )
-    assert p.provenance.as_of == datetime(2026, 6, 5, 20, 0, tzinfo=timezone.utc)
+    assert p.provenance.as_of == datetime(2026, 6, 5, 20, 0, tzinfo=UTC)
     assert DEGRADED_QUOTE_TS_MISSING in p.provenance.degraded
 
 
@@ -139,11 +139,7 @@ def test_price_as_of_mode_ab_symmetry():
     yf = normalize_price(
         _price_result(hist, provider="yfinance", current_price=391.0, quote_timestamp=quote_ts)
     )
-    assert (
-        fmp.provenance.as_of
-        == yf.provenance.as_of
-        == datetime(2026, 6, 5, 20, 0, tzinfo=timezone.utc)
-    )
+    assert fmp.provenance.as_of == yf.provenance.as_of == datetime(2026, 6, 5, 20, 0, tzinfo=UTC)
 
 
 def test_price_close_only_is_degraded():

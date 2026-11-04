@@ -288,9 +288,7 @@ async def test_l2_read_error_self_heals_and_falls_back_to_fetcher(
 
     cache = QuoteCache(db_path=tmp_path / "q.db", ttl_seconds=60)
     # Force the *next* L2 read to explode the way a dead aiosqlite conn does.
-    await cache._conn_ready()
-    broken_conn = cache._conn
-    assert broken_conn is not None
+    broken_conn = await cache._conn_ready()
 
     def boom(*_a: object, **_kw: object) -> object:
         raise sqlite3.OperationalError("database is locked")
@@ -304,7 +302,7 @@ async def test_l2_read_error_self_heals_and_falls_back_to_fetcher(
     assert result == {"AAPL": Quote(price=99.0)}  # served by fetcher, not 500
 
     # Wedged conn was dropped + replaced (in-flight L2 write rebuilds it).
-    assert cache._conn is not broken_conn
+    assert (await cache._conn_ready()) is not broken_conn
 
     # Next call works — fresh conn isn't carrying the booby trap.
     result2 = await cache.get_batch(["MSFT"], fetcher=fetcher)

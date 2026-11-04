@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from finrobot.engine.data.cache import DataCache, _INFLIGHT_LOCKS, cached_fetch
+from finrobot.engine.data.cache import _INFLIGHT_LOCKS, DataCache, cached_fetch
 from finrobot.engine.data.types import DataType
 
 

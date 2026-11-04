@@ -29,7 +29,6 @@ from pydantic import BaseModel, Field
 from finrobot.engine.data.normalize.session import SessionState
 from finrobot.engine.models.financial import MarketImpliedNature
 
-
 # ── Persistence ────────────────────────────────────────────────────────────
 
 

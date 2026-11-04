@@ -49,7 +49,7 @@ dev = [
     "pytest-cov>=6.0",       # coverage is opt-in: pytest tests/ --cov=finrobot --cov-report=term-missing
     "hypothesis>=6.100",     # property-based tests — see tests/unit/test_property_dcf.py
     "httpx>=0.27",
-    "ruff>=0.8",
+    "ruff>=0.17",  # default rule set + Markdown/notebook handling assumed by [tool.ruff]
     "mypy>=1.10",
     "rope>=1.14",  # deterministic static reference scan — see scripts/find_refs.py
 ]
@@ -114,6 +114,26 @@ exclude_also = [
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+# ruff >= 0.16 also lints/formats Python code embedded in Markdown and in
+# notebooks. skills/**/SKILL.md are agent prompts that must stay verbatim, and
+# tutorials/ are teaching notebooks — neither is project code.
+extend-exclude = ["*.md", "tutorials/"]
+
+[tool.ruff.lint]
+ignore = [
+    # Pipeline steps raise ValueError when a prior step's structured output is
+    # missing or of the wrong type — that is the pipeline *contract* error the
+    # runner / refresh_service catch to record a skipped artifact, and
+    # json.JSONDecodeError (a ValueError) shares that channel for corrupt
+    # on-disk state. Re-typing those to TypeError would split one failure mode
+    # across two handlers.
+    "TRY004",
+]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI declares query/body parameters via call-in-default (`x: int = Query(3)`);
+# these are descriptors evaluated once at import, not per-call mutable defaults.
+extend-immutable-calls = ["fastapi.Query", "fastapi.Depends", "fastapi.Body", "fastapi.Header", "fastapi.Path"]
 
 [tool.mypy]
 python_version = "3.11"

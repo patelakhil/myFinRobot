@@ -64,9 +64,9 @@ import re
 from collections.abc import Iterable
 from typing import Any, Final
 
-from finrobot.engine.primitives.industry import semiconductor_role
-
 from pydantic import BaseModel
+
+from finrobot.engine.primitives.industry import semiconductor_role
 
 PEER_SCREEN_TOP_N: Final[int] = 7
 """Slots to fill. 6-8 is the standard comp-sheet size; 7 keeps medians odd."""

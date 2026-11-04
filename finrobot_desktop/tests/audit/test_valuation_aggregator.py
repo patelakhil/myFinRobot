@@ -21,7 +21,7 @@ These tests pin three high-value contracts:
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -46,7 +46,6 @@ AGG_SRC = (
     / "operators"
     / "valuation_aggregator.py"
 )
-UTC = timezone.utc
 AS_OF = datetime(2026, 5, 21, tzinfo=UTC)
 
 
@@ -389,14 +388,14 @@ class TestAggregatorContract:
     def test_ev_ebitda_net_debt_lowers_target_by_exactly_net_debt_per_share(self) -> None:
         """A levered firm's per-share target is lower than the debt-free case by
         exactly net_debt / shares — the whole point of the bridge."""
-        kwargs = dict(
-            ticker="NVDA",
-            current_price=876.42,
-            shares_outstanding=2.4e9,
-            ttm_ebitda=40e9,
-            historical_ev_ebitda_band=(20.0, 30.0),
-            as_of=AS_OF,
-        )
+        kwargs = {
+            "ticker": "NVDA",
+            "current_price": 876.42,
+            "shares_outstanding": 2.4e9,
+            "ttm_ebitda": 40e9,
+            "historical_ev_ebitda_band": (20.0, 30.0),
+            "as_of": AS_OF,
+        }
         levered = aggregate_valuation(current_net_debt=30e9, **kwargs)  # type: ignore[arg-type]
         debt_free = aggregate_valuation(current_net_debt=0.0, **kwargs)  # type: ignore[arg-type]
         lev_row = next(m for m in levered.methods if m.method == "ev_ebitda")
@@ -408,14 +407,14 @@ class TestAggregatorContract:
     def test_ev_ebitda_net_cash_raises_target(self) -> None:
         """current_net_debt may be negative (net cash); the bridge adds it back,
         lifting the implied equity value above the zero-debt baseline."""
-        kwargs = dict(
-            ticker="AAPL",
-            current_price=200.0,
-            shares_outstanding=2.4e9,
-            ttm_ebitda=40e9,
-            historical_ev_ebitda_band=(20.0, 30.0),
-            as_of=AS_OF,
-        )
+        kwargs = {
+            "ticker": "AAPL",
+            "current_price": 200.0,
+            "shares_outstanding": 2.4e9,
+            "ttm_ebitda": 40e9,
+            "historical_ev_ebitda_band": (20.0, 30.0),
+            "as_of": AS_OF,
+        }
         net_cash = aggregate_valuation(current_net_debt=-10e9, **kwargs)  # type: ignore[arg-type]
         zero = aggregate_valuation(current_net_debt=0.0, **kwargs)  # type: ignore[arg-type]
         cash_row = next(m for m in net_cash.methods if m.method == "ev_ebitda")

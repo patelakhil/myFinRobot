@@ -155,10 +155,12 @@ def _confidence_dial(
             only.mid - band,
             only.mid + band,
             True,
-            f"single method {only.name} ${only.mid:.0f} is {ratio:.2g}x the market price, outside the "
-            f"[{1.0 / SINGLE_METHOD_DIVERGENCE_RATIO_K:.2g}x,"
-            f"{SINGLE_METHOD_DIVERGENCE_RATIO_K:.0f}x] single-method calibration band — point target withheld (avoid stamping "
-            f"false precision on a lone far-from-market method); the band still provides a fundamental floor, with direction taken from the market implied.",
+            (
+                f"single method {only.name} ${only.mid:.0f} is {ratio:.2g}x the market price, outside the "
+                f"[{1.0 / SINGLE_METHOD_DIVERGENCE_RATIO_K:.2g}x,"
+                f"{SINGLE_METHOD_DIVERGENCE_RATIO_K:.0f}x] single-method calibration band — point target withheld (avoid stamping "
+                f"false precision on a lone far-from-market method); the band still provides a fundamental floor, with direction taken from the market implied."
+            ),
         )
 
     # ≥2 methods: tier from inter-method agreement (NOT market distance).

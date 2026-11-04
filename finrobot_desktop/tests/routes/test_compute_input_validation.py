@@ -8,6 +8,8 @@ from finrobot.routes.compute import (
     DcfEquivalenceLineRequest,
     DcfSeedRequest,
     LboSeedRequest,
+)
+from finrobot.routes.compute import (
     router as compute_router,
 )
 

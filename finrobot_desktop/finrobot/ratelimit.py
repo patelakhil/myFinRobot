@@ -153,7 +153,7 @@ class RunRateLimiter:
         return self._live_data.try_consume(1.0, self._now())
 
 
-def enforce_live_data_limit(request: "Request") -> None:
+def enforce_live_data_limit(request: Request) -> None:
     """Shared 429 guard for read-only live-data GETs.
 
     One call at the top of every provider-backed GET route (/api/data/*,

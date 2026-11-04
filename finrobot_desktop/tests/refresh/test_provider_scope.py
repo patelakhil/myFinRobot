@@ -9,7 +9,7 @@ their calls (named like production: fmp / yfinance / edgar_tools).
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -38,7 +38,7 @@ def _yf_financials(revenue: float = 99_000_000_000) -> DataResult:
         provider="yfinance",
         ticker="AAPL",
         data_type=DataType.FINANCIALS,
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -100,7 +100,7 @@ async def test_in_scope_failure_keeps_existing_data_with_honest_note(env, tmp_pa
 
 
 async def test_scoped_out_providers_never_charge_the_breaker(env):
-    layer, p, _, _ = env
+    layer, _p, _, _ = env
     with provider_scope({"fmp"}, label="fmp"):
         for _ in range(10):
             await layer.fetch(DataType.FILINGS_10K, f"T{_}")
@@ -129,9 +129,11 @@ async def test_scoped_and_unscoped_flights_are_never_shared(env):
 
 async def test_scoped_quote_keeps_stale_semantics(env):
     layer, _, _, _ = env
-    with provider_scope({"edgar_tools"}, label="sec_edgar"):
-        with pytest.raises(RateLimitedProviderError):
-            await layer.fetch_quote("AAPL")
+    with (
+        provider_scope({"edgar_tools"}, label="sec_edgar"),
+        pytest.raises(RateLimitedProviderError),
+    ):
+        await layer.fetch_quote("AAPL")
 
 
 async def test_canonical_financials_without_in_scope_provider_serves_last_snapshot(env):

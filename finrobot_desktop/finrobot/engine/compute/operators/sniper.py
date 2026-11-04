@@ -11,8 +11,8 @@ Score range: prices in same currency as inputs.
 
 from __future__ import annotations
 
-import statistics
 import math
+import statistics
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -25,7 +25,7 @@ class SniperRequest(BaseModel):
     volatility_annual: float | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
-    def _prices_positive(self) -> "SniperRequest":
+    def _prices_positive(self) -> SniperRequest:
         for p in self.historical_prices:
             if not math.isfinite(p) or p <= 0:
                 raise ValueError("All historical prices must be finite and positive")
@@ -342,7 +342,9 @@ def calculate_sniper_levels_only(req: SniperRequest) -> SniperPoints:
         sell_mode=False,
         direction="NEUTRAL",
         invariant_warnings=[
-            "方向性狙击位已隐去：点目标价已诚实暂缺（唯一可得的数会是编造的），"
-            "无可锚定的目标，仅保留支撑/阻力。"
+            (
+                "方向性狙击位已隐去：点目标价已诚实暂缺（唯一可得的数会是编造的），"
+                "无可锚定的目标，仅保留支撑/阻力。"
+            )
         ],
     )

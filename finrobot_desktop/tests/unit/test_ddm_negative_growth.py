@@ -16,17 +16,17 @@ from finrobot.engine.models.financial import DDMInputs
 
 
 def _inputs(**ov: object) -> DDMInputs:
-    d: dict[str, object] = dict(
-        dividend_per_share=3.0,
-        dividend_growth_rates=[0.05, 0.05, 0.05, 0.04, 0.03],
-        payout_ratio=0.5,
-        risk_free_rate=0.045,
-        beta=1.0,
-        equity_risk_premium=0.055,
-        terminal_growth_rate=0.025,
-        shares_outstanding=3_000_000_000,
-        current_price=150.0,
-    )
+    d: dict[str, object] = {
+        "dividend_per_share": 3.0,
+        "dividend_growth_rates": [0.05, 0.05, 0.05, 0.04, 0.03],
+        "payout_ratio": 0.5,
+        "risk_free_rate": 0.045,
+        "beta": 1.0,
+        "equity_risk_premium": 0.055,
+        "terminal_growth_rate": 0.025,
+        "shares_outstanding": 3_000_000_000,
+        "current_price": 150.0,
+    }
     d.update(ov)
     return DDMInputs(**d)  # type: ignore[arg-type]
 

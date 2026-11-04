@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -86,7 +86,7 @@ def _started(run_id: str, ticker: str) -> dict:
 async def test_prune_run_events_drops_old_terminal_events_keeps_runs(store: RunStore) -> None:
     """BUG-050: prune deletes the event log of long-finished runs but keeps the
     runs rows themselves, and never touches live/recent runs."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
 
     old = await store.create_run("dcf", "AAPL")
     await store.append_event(old.run_id, _started(old.run_id, "AAPL"))  # type: ignore[arg-type]
@@ -136,7 +136,7 @@ async def test_remove_artifact_links_drops_only_the_deleted_artifact(store: RunS
 
 async def test_prune_run_events_skips_failed_with_recent_completed_at(store: RunStore) -> None:
     """A failed run is terminal too, but only pruned once it's past retention."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     failed = await store.create_run("dcf", "TSLA")
     await store.append_event(failed.run_id, _started(failed.run_id, "TSLA"))  # type: ignore[arg-type]
     await store.update_run(failed.run_id, status="failed", error="boom")

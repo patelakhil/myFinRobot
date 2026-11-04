@@ -13,7 +13,7 @@ External benchmarks (probe 2026-06-06, FMP industry strings):
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.engine.compute.operators.audit.sector_sign import audit_sector_sign
 from finrobot.engine.models.financial import (
@@ -36,7 +36,7 @@ def _fd(
 ) -> FinancialData:
     return FinancialData(
         ticker=ticker,
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=revenue, net_income=net_income, operating_income=operating_income
         ),

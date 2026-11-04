@@ -9,17 +9,17 @@ DataCache fixture in conftest.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
 from zoneinfo import ZoneInfo
 
 import pytest
-from httpx import AsyncClient, ASGITransport
-from unittest.mock import patch, AsyncMock
+from httpx import ASGITransport, AsyncClient
 
 from finrobot.engine.data.cache import raw_slot_key
 from finrobot.engine.data.interface import DataResult
-from finrobot.engine.data.types import DataType
 from finrobot.engine.data.normalize.session import compute_session_state
+from finrobot.engine.data.types import DataType
 
 
 @pytest.mark.asyncio
@@ -98,7 +98,7 @@ async def test_price_endpoint_reuses_provider_price_cache_for_default_period(app
             provider="yfinance",
             ticker="NVDA",
             data_type=DataType.PRICE,
-            timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=UTC),
             warnings=[
                 "Price discrepancy: fmp 212.60 vs yfinance 200.00",
                 "FMP quote failed for url 'https://financialmodelingprep.com/api/v3/quote/NVDA?apikey=secret'\nFor more information check: https://developer.mozilla.org/",
@@ -150,7 +150,7 @@ async def test_price_endpoint_provider_cache_path_carries_full_technicals(app_wi
             provider="fmp",
             ticker="MSFT",
             data_type=DataType.PRICE,
-            timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=UTC),
         ),
     )
     with patch(
@@ -190,7 +190,7 @@ async def test_price_endpoint_enriches_cached_payload_from_financials_cache(app_
             provider="yfinance",
             ticker="AAPL:1y",
             data_type=DataType.PRICE,
-            timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=UTC),
         ),
     )
     await cache.set(
@@ -205,7 +205,7 @@ async def test_price_endpoint_enriches_cached_payload_from_financials_cache(app_
             provider="fmp",
             ticker="AAPL",
             data_type=DataType.FINANCIALS,
-            timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=UTC),
         ),
     )
 
@@ -250,7 +250,7 @@ async def test_price_market_cap_marked_to_live_not_grafted_stale(app_with_deps):
             provider="fmp",
             ticker="MU:1y",
             data_type=DataType.PRICE,
-            timestamp=datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 6, 9, 12, 0, tzinfo=UTC),
         ),
     )
     # Canonical financials (flat NormalizedFinancials shape): cap priced at the
@@ -269,7 +269,7 @@ async def test_price_market_cap_marked_to_live_not_grafted_stale(app_with_deps):
             provider="fmp",
             ticker="MU",
             data_type=DataType.FINANCIALS,
-            timestamp=datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 6, 9, 12, 0, tzinfo=UTC),
         ),
     )
 
@@ -314,7 +314,7 @@ async def test_price_endpoint_surfaces_pre_market_session_from_market_state(app_
             provider="yfinance",
             ticker="AAPL:1y",
             data_type=DataType.PRICE,
-            timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=UTC),
         ),
     )
 
@@ -353,7 +353,7 @@ async def test_price_endpoint_returns_stale_provider_cache_when_yfinance_is_rate
             provider="yfinance",
             ticker="NVDA",
             data_type=DataType.PRICE,
-            timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=UTC),
         ),
     )
 

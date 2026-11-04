@@ -19,18 +19,17 @@ import asyncio
 import json
 import sqlite3
 import sys
-from pathlib import Path
 
 from finrobot.config import get_settings
 from finrobot.engine.compute.coordinators.technical_payload import build_technical_analysis
 from finrobot.engine.data.factory import build_data_layer
 from finrobot.engine.models.financial import DCFInputs
-from finrobot.paths import SETTINGS_JSON
+from finrobot.paths import SETTINGS_JSON, USER_DB
 from finrobot.routes.settings import load_non_secret_settings
 from finrobot.secret_store import create_secret_store
 from finrobot.server import hydrate_settings_from_secrets
 
-ARTIFACTS_DB = Path.home() / ".finrobot" / "artifacts.db"
+ARTIFACTS_DB = USER_DB  # the artifacts table lives in the consolidated user db
 TICKER = sys.argv[1] if len(sys.argv) > 1 else "AAPL"
 
 

@@ -111,12 +111,16 @@ def format_coverage_snapshot(overview: CoverageOverview, *, change_threshold: fl
         return None
 
     lines: list[str] = [
-        f"User's watchlist ({overview.group_name}) — system-supplied context this "
-        "turn, deterministically computed, NOT from a tool call:",
-        "Caliber: 1d = 1-day % move. upside = (target − live price) / live price "
-        "(LIVE-price denominator; this is NOT the report's entry-based upside — "
-        "never mix the two). [stale] = last-known cached price, not live; quote a "
-        "live price before citing it as the current price.",
+        (
+            f"User's watchlist ({overview.group_name}) — system-supplied context this "
+            "turn, deterministically computed, NOT from a tool call:"
+        ),
+        (
+            "Caliber: 1d = 1-day % move. upside = (target − live price) / live price "
+            "(LIVE-price denominator; this is NOT the report's entry-based upside — "
+            "never mix the two). [stale] = last-known cached price, not live; quote a "
+            "live price before citing it as the current price."
+        ),
     ]
 
     for row in rows[:_SNAPSHOT_MAX_ROWS]:
@@ -156,8 +160,10 @@ def format_coverage_for_tool(overview: CoverageOverview) -> str:
         return "The user's watchlist is empty — no Studied Tickers yet."
     freshness = "last-known cache" if overview.cache_only else "live"
     lines: list[str] = [
-        f"Watchlist ({overview.group_name}), {len(rows)} name(s), {freshness} snapshot. "
-        "upside = (target − live price) / live price (live denominator, ≠ report entry upside)."
+        (
+            f"Watchlist ({overview.group_name}), {len(rows)} name(s), {freshness} snapshot. "
+            "upside = (target − live price) / live price (live denominator, ≠ report entry upside)."
+        )
     ]
     lines.extend(_format_row(row) for row in rows)
     below = _below_target(rows)

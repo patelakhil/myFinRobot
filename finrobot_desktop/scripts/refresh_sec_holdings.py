@@ -45,6 +45,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import math
 import os
 from datetime import date
 from typing import Any
@@ -68,7 +69,7 @@ def _opt_number(value: Any) -> float | None:
         num = float(str(value).replace(",", "").strip())
     except (TypeError, ValueError):
         return None
-    if num != num:  # NaN (NaN is the only value not equal to itself)
+    if math.isnan(num):
         return None
     return num
 
@@ -173,6 +174,7 @@ async def _refresh_quarter(period_end: date, *, max_filings: int | None = None) 
     bootstrap or rate-limit-sensitive dev runs). None = process all.
     """
     from edgar import get_filings  # local import: scripts shouldn't fail to load
+
     from finrobot.engine.data.sec_holdings_cache import (
         bulk_upsert_holdings,
         cache_status,
@@ -248,8 +250,8 @@ async def _refresh_quarter(period_end: date, *, max_filings: int | None = None) 
                     filings_processed,
                     rows_inserted,
                 )
-        except (OSError, RuntimeError, ValueError, TypeError, AttributeError, KeyError) as e:
-            logger.exception("13F %s failed: %s", getattr(f, "accession_no", "?"), e)
+        except (OSError, RuntimeError, ValueError, TypeError, AttributeError, KeyError):
+            logger.exception("13F %s failed", getattr(f, "accession_no", "?"))
 
     if filings_skipped_schema:
         logger.warning(

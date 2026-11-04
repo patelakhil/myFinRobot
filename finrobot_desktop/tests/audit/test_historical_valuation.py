@@ -347,9 +347,6 @@ class TestDegenerateInputs:
 class TestDownsample:
     def test_long_timeline_is_capped_below_max_points(self) -> None:
         yearly = [_yearly(2024)]
-        prices = [
-            _price(date(2025, 1, 1) if i == 0 else date(2025, 1, 1), 100 + i) for i in range(500)
-        ]
         # Use distinct dates so dedup doesn't collapse
         prices = []
         from datetime import timedelta

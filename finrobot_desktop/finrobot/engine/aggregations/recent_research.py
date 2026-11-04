@@ -21,7 +21,7 @@ current_price for the latest run.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.engine.compute.operators.signal import Signal, compute_signal
 
@@ -84,7 +84,7 @@ def assemble_recent_tickers(
     """
     if limit <= 0:
         return []
-    clock = now if now is not None else datetime.now(tz=timezone.utc)
+    clock = now if now is not None else datetime.now(tz=UTC)
 
     by_ticker: dict[str, list[RecentResearchInput]] = {}
     for inp in inputs:
@@ -162,10 +162,10 @@ def format_age_label(created_at: datetime, now: datetime) -> str:
     days = hours // 24
     if days < 30:
         return f"{days}d ago"
-    return created_at.astimezone(timezone.utc).strftime("%Y-%m-%d")
+    return created_at.astimezone(UTC).strftime("%Y-%m-%d")
 
 
 def _ensure_tz(dt: datetime) -> datetime:
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=UTC)
     return dt

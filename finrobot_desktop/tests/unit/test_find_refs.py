@@ -1,6 +1,6 @@
 import subprocess
 
-import scripts.find_refs as find_refs
+from scripts import find_refs
 
 
 def test_find_def_site_escapes_regex_metacharacters(monkeypatch) -> None:

@@ -21,7 +21,6 @@ from finrobot.engine.compute.operators.ownership import (
     compute_ownership_governance,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures — raw proxy dicts with filing metadata required by the function
 # ---------------------------------------------------------------------------

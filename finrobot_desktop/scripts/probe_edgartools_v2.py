@@ -17,7 +17,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -219,7 +219,7 @@ def main() -> int:
             "recommended_catch": "DataObjectException, CompanyNotFoundError",
             "edgartools_version": getattr(edgar, "__version__", "unknown"),
             "python_version": ".".join(str(x) for x in sys.version_info[:3]),
-            "probe_run_at": datetime.now(tz=timezone.utc).isoformat(),
+            "probe_run_at": datetime.now(tz=UTC).isoformat(),
         },
     )
 

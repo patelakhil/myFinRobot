@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import asdict, dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -93,7 +93,7 @@ async def start_refresh(
         if not _is_valid_identity(settings.sec_user_agent) or header_identity is None:
             _STATE.status = "error"
             _STATE.error = "identity_missing"
-            _STATE.finished_at = datetime.now(tz=timezone.utc).isoformat()
+            _STATE.finished_at = datetime.now(tz=UTC).isoformat()
             logger.info("SEC 13F holdings refresh skipped: SEC identity not configured")
             return asdict(_STATE)
 
@@ -136,7 +136,7 @@ async def start_refresh(
         # and bails at the guard above instead of starting a second parse.
         _STATE.status = "running"
         _STATE.period_end = period.isoformat()
-        _STATE.started_at = datetime.now(tz=timezone.utc).isoformat()
+        _STATE.started_at = datetime.now(tz=UTC).isoformat()
         _STATE.finished_at = None
         _STATE.error = None
         _STATE.summary = None
@@ -180,4 +180,4 @@ async def _run(period: date, header_identity: str) -> None:
         _STATE.error = str(exc)
         logger.exception("SEC 13F holdings refresh failed — non-fatal")
     finally:
-        _STATE.finished_at = datetime.now(tz=timezone.utc).isoformat()
+        _STATE.finished_at = datetime.now(tz=UTC).isoformat()

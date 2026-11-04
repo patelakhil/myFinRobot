@@ -11,11 +11,13 @@ Endpoints:
 
 from __future__ import annotations
 
+import contextlib
+
 from fastapi import APIRouter, HTTPException, Query
 from starlette.requests import Request
 
-from finrobot.artifact.semantic_diff import SemanticDelta, build_semantic_delta
 from finrobot.artifact.models import Artifact, ArtifactSummary, ArtifactType
+from finrobot.artifact.semantic_diff import SemanticDelta, build_semantic_delta
 from finrobot.artifact.store import ArtifactStore
 from finrobot.engine.data.layer import DataLayer
 from finrobot.routes._artifact_signal import attach_signals
@@ -168,16 +170,20 @@ async def delete_artifact(artifact_id: str, request: Request) -> dict[str, str]:
         404: If the artifact is not found.
     """
     store = _store(request)
-    deleted = await store.delete(artifact_id)
+    # The canonical artifact and its run_artifacts link rows go together, or
+    # GET /api/runs/{run_id} keeps listing a ghost whose open-report path 404s
+    # forever. Both stores live in the consolidated user database, so this is
+    # one transaction; a run_store over a different database (router mounted
+    # bare in tests) degrades to two sequential writes. Absent run_store just
+    # means there are no links to clean.
+    run_store = getattr(request.app.state, "run_store", None)
+    shared = run_store is not None and getattr(run_store, "database", None) is store.database
+    async with store.database.transaction() if shared else contextlib.nullcontext():
+        deleted = await store.delete(artifact_id)
+        if deleted and run_store is not None:
+            await run_store.remove_artifact_links(artifact_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_id}")
-    # The canonical artifact is gone — drop the run_artifacts link rows in
-    # runs.db too, or GET /api/runs/{run_id} keeps listing a ghost whose
-    # open-report path 404s forever. Absent run_store (router mounted bare in
-    # tests) just means there are no links to clean.
-    run_store = getattr(request.app.state, "run_store", None)
-    if run_store is not None:
-        await run_store.remove_artifact_links(artifact_id)
     # Removing an artifact changes the landing hit-rate buckets and may drop a
     # ticker card off the recent-research strip — bust the dashboard TTL caches
     # so it reflects the deletion immediately (BUG-20260602-030). Local import

@@ -17,7 +17,7 @@ interpret a forward row — normalize/ must not re-derive FY1 or growth here.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -30,7 +30,7 @@ from finrobot.engine.data.normalize import (
 )
 from finrobot.engine.data.types import DataType
 
-NOW = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 6, 10, 12, 0, tzinfo=UTC)
 
 _ROWS = [
     {"date": "2025-09-27", "revenueAvg": 400e9},

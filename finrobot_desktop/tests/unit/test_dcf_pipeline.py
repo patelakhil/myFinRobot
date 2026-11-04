@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
@@ -14,7 +14,6 @@ from finrobot.engine.data.normalize.contracts import (
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.pipelines.dcf import create_dcf_pipeline
-
 
 # ---------------------------------------------------------------------------
 # Fakes
@@ -46,13 +45,13 @@ class FakeDataLayer:
             provider="fake",
             ticker=ticker,
             data_type=data_type,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def fetch_canonical(
         self, data_type: DataType | str, ticker: str, **kwargs
     ) -> NormalizedFinancials | NormalizedPrice:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         provenance = Provenance(provider="fake", as_of=now, fetched_at=now)
         if DataType(data_type) == DataType.PRICE:
             return NormalizedPrice(
@@ -218,7 +217,7 @@ async def test_dcf_calc_degrades_for_financial_sector_issuer():
         ),
         valuation=ValuationMetrics(),
         data_source="test",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
     out = await _execute_dcf_calc(MagicMock(), MagicMock(), "", {"historical_data": bank_fd}, "JPM")
@@ -236,9 +235,10 @@ async def test_dcf_calc_degrades_for_financial_sector_issuer():
 
 
 def test_dcf_pipeline_historical_data_has_custom_executor():
-    from finrobot.engine.pipelines.dcf import create_dcf_pipeline
-    from finrobot.engine.pipelines.base import DefaultAgentExecutor, StructuredValidator
     from unittest.mock import MagicMock
+
+    from finrobot.engine.pipelines.base import DefaultAgentExecutor, StructuredValidator
+    from finrobot.engine.pipelines.dcf import create_dcf_pipeline
 
     agents = {k: MagicMock() for k in ["data", "modeling", "report"]}
     pipeline = create_dcf_pipeline(agents)
@@ -248,9 +248,10 @@ def test_dcf_pipeline_historical_data_has_custom_executor():
 
 
 def test_dcf_pipeline_dcf_calc_step_has_custom_executor():
-    from finrobot.engine.pipelines.dcf import create_dcf_pipeline
-    from finrobot.engine.pipelines.base import DefaultAgentExecutor, StructuredValidator
     from unittest.mock import MagicMock
+
+    from finrobot.engine.pipelines.base import DefaultAgentExecutor, StructuredValidator
+    from finrobot.engine.pipelines.dcf import create_dcf_pipeline
 
     agents = {k: MagicMock() for k in ["data", "modeling", "report"]}
     pipeline = create_dcf_pipeline(agents)

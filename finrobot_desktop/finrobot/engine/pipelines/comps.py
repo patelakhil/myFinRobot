@@ -5,21 +5,21 @@ import logging
 from pydantic_ai import Agent
 
 from finrobot.engine.data.types import DataType
+from finrobot.engine.pipelines._helpers import (
+    execute_financial_data_step,
+    execute_peer_analysis,
+)
 from finrobot.engine.pipelines.base import (
     Pipeline,
     PipelineStep,
     StructuredValidator,
     TextValidator,
 )
-from finrobot.engine.pipelines._helpers import (
-    execute_financial_data_step,
-    execute_peer_analysis,
-)
 from finrobot.engine.pipelines.validators import (
+    validate_financial_data,
+    validate_has_comps_table,
     validate_has_fields,
     validate_is_non_empty,
-    validate_has_comps_table,
-    validate_financial_data,
     validate_peer_comps,
 )
 

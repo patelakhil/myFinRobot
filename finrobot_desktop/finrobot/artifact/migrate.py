@@ -9,14 +9,13 @@ Legacy layout (pre-2026-05-23):
 
 After migration the JSON files stay on disk as a backup until the user
 deletes them manually. We never destroy data without an explicit user
-action — the new SQLite db at ~/.finrobot/artifacts.db has its own copy.
+action — the SQLite ``artifacts`` table (consolidated user db) has its own copy.
 """
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-
 from typing import Any
 
 from finrobot.artifact.models import Artifact

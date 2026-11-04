@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 Signal = Literal["hit", "watching", "failed"]
@@ -120,7 +120,7 @@ def compute_signal(
             "reject at artifact creation, not in signal compute"
         )
 
-    now = now if now is not None else datetime.now(tz=timezone.utc)
+    now = now if now is not None else datetime.now(tz=UTC)
     entry_date = _ensure_tz(entry_date)
     target_date = _ensure_tz(target_date) if target_date is not None else None
     now = _ensure_tz(now)
@@ -153,9 +153,12 @@ def compute_signal(
     days_since_entry = (now - entry_date).total_seconds() / 86_400.0
 
     # Rule 3a: hard reverse move after the 7-day grace window → failed
-    if days_since_entry >= _WATCH_GRACE_DAYS:
-        if actual_move < 0 and abs(actual_move) / entry_price > _FAIL_REVERSE:
-            return "failed"
+    if (
+        days_since_entry >= _WATCH_GRACE_DAYS
+        and actual_move < 0
+        and abs(actual_move) / entry_price > _FAIL_REVERSE
+    ):
+        return "failed"
 
     # Rule 3b: past target_date without hitting → failed
     if target_date is not None and now > target_date:
@@ -215,5 +218,5 @@ def compute_hit_rate(
 def _ensure_tz(dt: datetime) -> datetime:
     """Treat naive datetimes as UTC — JSON round-tripped values may drop tz."""
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=UTC)
     return dt

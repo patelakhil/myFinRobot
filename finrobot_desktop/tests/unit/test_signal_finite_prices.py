@@ -10,13 +10,12 @@ from garbage.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from finrobot.engine.compute.operators.signal import compute_signal
 
-UTC = timezone.utc
 ENTRY = datetime(2026, 1, 1, tzinfo=UTC)
 
 
@@ -30,13 +29,13 @@ ENTRY = datetime(2026, 1, 1, tzinfo=UTC)
     ],
 )
 def test_compute_signal_rejects_nonfinite_prices(override: dict[str, float]) -> None:
-    base = dict(
-        target_price=110.0,
-        entry_price=100.0,
-        current_price=105.0,
-        entry_date=ENTRY,
-        now=ENTRY.replace(day=4),
-    )
+    base = {
+        "target_price": 110.0,
+        "entry_price": 100.0,
+        "current_price": 105.0,
+        "entry_date": ENTRY,
+        "now": ENTRY.replace(day=4),
+    }
     base.update(override)
     with pytest.raises(ValueError):
         compute_signal(**base)  # type: ignore[arg-type]

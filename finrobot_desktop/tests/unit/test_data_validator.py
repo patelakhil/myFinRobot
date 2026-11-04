@@ -4,7 +4,7 @@ The validator is a deterministic numeric comparator. Tests assert concrete
 warning strings and thresholds rather than just "non-empty list".
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.validator import (
@@ -20,7 +20,7 @@ def _result(provider: str, data: dict) -> DataResult:
         provider=provider,
         ticker="TEST",
         data_type="financials",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -146,14 +146,14 @@ def test_cross_validate_empty_secondary_warns():
         data={"revenue": 100_000, "ebitda": 50_000},
         ticker="TEST",
         data_type="financials",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     secondary = DataResult(
         provider="p2",
         data={},
         ticker="TEST",
         data_type="financials",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     warnings = cross_validate(primary, secondary)
     assert len(warnings) == 1

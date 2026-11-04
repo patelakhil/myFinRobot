@@ -224,9 +224,7 @@ def is_commodity_cyclical(
         text = description.lower()
         if any(kw in text for kw in _MEMORY_STORAGE_KEYWORDS):
             return True
-    if ticker and ticker.strip().upper() in _MEMORY_STORAGE_TICKERS:
-        return True
-    return False
+    return bool(ticker and ticker.strip().upper() in _MEMORY_STORAGE_TICKERS)
 
 
 def commodity_cyclical_basis(industry: str | None) -> str:
@@ -410,19 +408,17 @@ def is_bank(
     """
     if industry and _norm_industry(industry) in _BANK_INDUSTRIES_NORM:
         return True
-    if (
+    return bool(
         sector
         and _norm_industry(sector) in _FINANCIAL_SECTOR_NAMES_NORM
         and industry
         and "bank" in industry.lower()
-    ):
-        return True
-    return False
+    )
 
 
 def is_balance_sheet_financial(
     industry: str | None = None,
-    sector: str | None = None,  # noqa: ARG001 — accepted for caller symmetry with is_bank; the call is industry-driven (FMP tags every financial sector="Financial Services", so sector has no discriminating power — probe 2026-06-06)
+    sector: str | None = None,
 ) -> bool:
     """True for issuers whose ENTIRE industry bucket is balance-sheet-funded —
     deposit-taking banks AND risk-carrying (non-broker) insurers — where deposits /
@@ -457,14 +453,12 @@ def is_balance_sheet_financial(
     low = industry.lower()
     if "bank" in low:
         return True
-    if "insurance" in low and "broker" not in low:
-        return True
-    return False
+    return bool("insurance" in low and "broker" not in low)
 
 
 def is_non_life_insurer(
     industry: str | None = None,
-    sector: str | None = None,  # noqa: ARG001 — caller symmetry; industry-driven like is_balance_sheet_financial
+    sector: str | None = None,
 ) -> bool:
     """True for a property-casualty / diversified / reinsurance / specialty insurer —
     a risk-carrying insurer that is NOT a life insurer — whose standalone DDM is

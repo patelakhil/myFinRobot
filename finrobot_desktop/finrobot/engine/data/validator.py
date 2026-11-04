@@ -102,8 +102,10 @@ def cross_validate(primary: DataResult, secondary: DataResult) -> list[str]:
     # D5: empty secondary data → warn instead of silently passing all checks
     if not s:
         return [
-            f"Secondary provider {secondary.provider} returned empty data "
-            f"— cross-validation skipped"
+            (
+                f"Secondary provider {secondary.provider} returned empty data "
+                f"— cross-validation skipped"
+            )
         ]
 
     for field, tolerance in _RELATIVE_FIELDS.items():
@@ -218,10 +220,12 @@ def cross_validate_price(primary: DataResult, secondary: DataResult) -> list[str
     if rel_diff <= _PRICE_REL_TOLERANCE:
         return []
     return [
-        f"Price discrepancy: current price differs by {rel_diff:.0%} "
-        f"({primary.provider}: {pv:,.2f} vs {secondary.provider}: {sv:,.2f}). "
-        f"Threshold: {_PRICE_REL_TOLERANCE:.0%}. Possible stale or split-unadjusted "
-        f"price, wrong ticker, or a delayed feed on a volatile session — verify."
+        (
+            f"Price discrepancy: current price differs by {rel_diff:.0%} "
+            f"({primary.provider}: {pv:,.2f} vs {secondary.provider}: {sv:,.2f}). "
+            f"Threshold: {_PRICE_REL_TOLERANCE:.0%}. Possible stale or split-unadjusted "
+            f"price, wrong ticker, or a delayed feed on a volatile session — verify."
+        )
     ]
 
 
@@ -313,8 +317,10 @@ def market_cap_consistency(primary: DataResult, secondary: DataResult) -> list[s
         )
 
     return [
-        f"Market-cap consistency: implied shares (market_cap/price = {implied:,.0f}) "
-        f"vs reported shares ({source}: {reported:,.0f}) → ratio {ratio:.2f}. {label}; verify."
+        (
+            f"Market-cap consistency: implied shares (market_cap/price = {implied:,.0f}) "
+            f"vs reported shares ({source}: {reported:,.0f}) → ratio {ratio:.2f}. {label}; verify."
+        )
     ]
 
 

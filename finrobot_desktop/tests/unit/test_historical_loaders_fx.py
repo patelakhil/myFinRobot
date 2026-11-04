@@ -13,7 +13,7 @@ the same-currency (US issuer) path is left untouched.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -50,7 +50,7 @@ class _FXStubLayer:
                 provider="stub",
                 ticker=ticker,
                 data_type=data_type,
-                timestamp=datetime.now(tz=timezone.utc),
+                timestamp=datetime.now(tz=UTC),
             )
         ]
 

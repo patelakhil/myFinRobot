@@ -40,7 +40,7 @@ def _validate_ticker_arg(raw: str) -> str:
         raise click.ClickException(str(e)) from e
 
 
-def _build_deps(model: str | None = None) -> "FinRobotDeps":
+def _build_deps(model: str | None = None) -> FinRobotDeps:
     """Build deps only. No agent creation.
     Used by pipeline commands that create their own sub-agents."""
     from finrobot.obs import setup_logging
@@ -71,7 +71,7 @@ def _build_deps(model: str | None = None) -> "FinRobotDeps":
     return deps
 
 
-def _build_runtime(model: str | None = None) -> tuple[Any, "FinRobotDeps"]:
+def _build_runtime(model: str | None = None) -> tuple[Any, FinRobotDeps]:
     """Build lead agent + deps. Used by `run` command (Mode A)."""
     from finrobot.engine.orchestrator import create_lead_agent
 
@@ -80,7 +80,7 @@ def _build_runtime(model: str | None = None) -> tuple[Any, "FinRobotDeps"]:
     return agent, deps
 
 
-def _build_pipeline(key: str, deps: "FinRobotDeps") -> "Pipeline":
+def _build_pipeline(key: str, deps: FinRobotDeps) -> Pipeline:
     """Build the pipeline registered under ``key`` for a CLI subcommand.
 
     Looks the factory up in the pipeline registry (the single source of truth)
@@ -96,7 +96,7 @@ def _build_pipeline(key: str, deps: "FinRobotDeps") -> "Pipeline":
     return pipeline
 
 
-async def _should_use_ddm(deps: "FinRobotDeps", ticker: str) -> bool:
+async def _should_use_ddm(deps: FinRobotDeps, ticker: str) -> bool:
     """Check if ticker is a bank/financial that should use DDM.
 
     Fetches financials to get industry/sector, then uses the industry
@@ -109,8 +109,8 @@ async def _should_use_ddm(deps: "FinRobotDeps", ticker: str) -> bool:
     bound to the destroyed loop → the interpreter hung forever joining the
     orphan thread at shutdown. Keeping everything on one loop avoids that.
     """
-    from finrobot.engine.primitives.industry import is_bank
     from finrobot.engine.data.types import DataType
+    from finrobot.engine.primitives.industry import is_bank
 
     try:
         result = await deps.data_layer.fetch(DataType.FINANCIALS, ticker)
@@ -506,8 +506,8 @@ def backtest(
     """
     ticker = _validate_ticker_arg(ticker)
 
-    from finrobot.engine.data.factory import build_data_layer
     from finrobot.engine.backtest.engine import BacktestConfig, BacktestResult
+    from finrobot.engine.data.factory import build_data_layer
 
     if auto:
         from finrobot.engine.backtest.strategy_agent import run_strategy_selection

@@ -14,8 +14,10 @@ formula itself (which would be self-derivation).
 """
 
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from finrobot.engine.compute.operators.dcf import calculate_dcf, margin_swing
+from finrobot.engine.compute.operators.dcf_seed import dcf_current_actuals, seed_dcf_inputs
 from finrobot.engine.models.financial import (
     BalanceSheet,
     DCFInputs,
@@ -24,28 +26,26 @@ from finrobot.engine.models.financial import (
     IncomeStatement,
     MarketData,
 )
-from finrobot.engine.compute.operators.dcf import calculate_dcf, margin_swing
-from finrobot.engine.compute.operators.dcf_seed import dcf_current_actuals, seed_dcf_inputs
 
 
 def _make_inputs(**overrides) -> DCFInputs:
-    defaults = dict(
-        revenue_base=100_000_000_000,
-        revenue_growth_rates=[0.05] * 5,
-        ebitda_margin=0.35,
-        capex_pct_revenue=0.05,
-        nwc_pct_revenue=0.02,
-        da_pct_revenue=0.03,
-        tax_rate=0.21,
-        risk_free_rate=0.04,
-        beta=1.2,
-        equity_risk_premium=0.05,
-        cost_of_debt=0.04,
-        debt_ratio=0.1,
-        terminal_growth_rate=0.025,
-        shares_outstanding=1_000_000_000,
-        net_debt=10_000_000_000,
-    )
+    defaults = {
+        "revenue_base": 100_000_000_000,
+        "revenue_growth_rates": [0.05] * 5,
+        "ebitda_margin": 0.35,
+        "capex_pct_revenue": 0.05,
+        "nwc_pct_revenue": 0.02,
+        "da_pct_revenue": 0.03,
+        "tax_rate": 0.21,
+        "risk_free_rate": 0.04,
+        "beta": 1.2,
+        "equity_risk_premium": 0.05,
+        "cost_of_debt": 0.04,
+        "debt_ratio": 0.1,
+        "terminal_growth_rate": 0.025,
+        "shares_outstanding": 1_000_000_000,
+        "net_debt": 10_000_000_000,
+    }
     defaults.update(overrides)
     return DCFInputs(**defaults)
 
@@ -55,29 +55,29 @@ def _hist(**overrides) -> HistoricalMetrics:
     (revenue, revenue_growth_yoy, ebitda_margin, capital_expenditure,
     change_in_working_capital) carry meaningful values; the rest are placeholders."""
     years = [2022, 2023, 2024]
-    defaults = dict(
-        years=years,
-        revenue=[80.0, 90.0, 100.0],
-        revenue_growth_yoy=[None, 0.125, 0.1111],
-        cogs=[None, None, None],
-        gross_profit=[None, None, None],
-        gross_margin=[None, None, None],
-        sga=[0.0, 0.0, 0.0],
-        sga_ratio=[None, None, None],
-        ebitda=[40.0, 48.0, 55.0],
-        ebitda_margin=[0.50, 0.533, 0.55],
-        operating_income=[35.0, 42.0, 48.0],
-        operating_margin=[None, None, None],
-        net_income=[20.0, 24.0, 28.0],
-        eps=[2.0, 2.4, 2.8],
-        pe_ratio=[None, None, None],
-        cagr_revenue=0.118,
-        ticker="TEST",
+    defaults = {
+        "years": years,
+        "revenue": [80.0, 90.0, 100.0],
+        "revenue_growth_yoy": [None, 0.125, 0.1111],
+        "cogs": [None, None, None],
+        "gross_profit": [None, None, None],
+        "gross_margin": [None, None, None],
+        "sga": [0.0, 0.0, 0.0],
+        "sga_ratio": [None, None, None],
+        "ebitda": [40.0, 48.0, 55.0],
+        "ebitda_margin": [0.50, 0.533, 0.55],
+        "operating_income": [35.0, 42.0, 48.0],
+        "operating_margin": [None, None, None],
+        "net_income": [20.0, 24.0, 28.0],
+        "eps": [2.0, 2.4, 2.8],
+        "pe_ratio": [None, None, None],
+        "cagr_revenue": 0.118,
+        "ticker": "TEST",
         # FMP change_in_working_capital carries the CASH-FLOW sign (negative = NWC
         # grew = cash absorbed). dcf_current_actuals negates it, matching the seed.
-        capital_expenditure=[16.0, 18.0, 30.0],
-        change_in_working_capital=[-1.0, -2.0, -1.9],
-    )
+        "capital_expenditure": [16.0, 18.0, 30.0],
+        "change_in_working_capital": [-1.0, -2.0, -1.9],
+    }
     defaults.update(overrides)
     return HistoricalMetrics(**defaults)
 
@@ -240,7 +240,7 @@ def _fd(
     return FinancialData(
         ticker="TEST",
         company_name="Test Co",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=100_000_000_000,
             ebitda=ebitda,

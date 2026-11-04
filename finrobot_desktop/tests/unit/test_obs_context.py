@@ -1,4 +1,4 @@
-from finrobot.obs.context import bind_run, bind_session, bind_request, current_trace
+from finrobot.obs.context import bind_request, bind_run, bind_session, current_trace
 
 
 def test_trace_empty_by_default() -> None:

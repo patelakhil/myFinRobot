@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 from finrobot.engine.models.sec import (
@@ -131,7 +131,9 @@ def _money_from_text(text: str) -> float | None:
     """Extract a dollar amount from proxy prose/table text."""
     if not text:
         return None
-    match = re.search(r"\$\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*(million|billion|bn)?\b", text, re.I)
+    match = re.search(
+        r"\$\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*(million|billion|bn)?\b", text, re.IGNORECASE
+    )
     if not match:
         return None
     value = float(match.group(1).replace(",", ""))
@@ -175,7 +177,7 @@ def _summary_table_ceo_comp_from_text(text: str) -> tuple[str | None, float | No
         r"(?P<incentive>[0-9][0-9,]*)\s+"
         r"(?P<other>[0-9][0-9,]*)(?:\s*\([^)]*\))*\s+"
         r"(?P<total>[0-9][0-9,]*)",
-        re.I,
+        re.IGNORECASE,
     )
 
     # Layout B — name + year + figures on one line, title on the NEXT line
@@ -191,7 +193,7 @@ def _summary_table_ceo_comp_from_text(text: str) -> tuple[str | None, float | No
         r"(?P<figures>(?:[0-9][0-9,]*(?:\s*\([^)]*\))*\s+){2,7})"
         r"(?P<total>[0-9]{1,3}(?:,[0-9]{3})+)"
         r"(?P<after>.{0,160}?(?:Chief Executive Officer|President and CEO|\bCEO\b))",
-        re.I,
+        re.IGNORECASE,
     )
 
     # NOTE: a looser "year-stacked rows" pattern (name once, one row per year,
@@ -201,10 +203,10 @@ def _summary_table_ceo_comp_from_text(text: str) -> tuple[str | None, float | No
     # TSLA's own CEO. A wrong CEO-comp figure is worse than a blank, so we only
     # trust role-anchored table rows + the labeled pay-ratio prose disclosure.
     for heading in re.finditer(
-        r"(?:Summary Compensation Table|Name and Principal Position)", compact, re.I
+        r"(?:Summary Compensation Table|Name and Principal Position)", compact, re.IGNORECASE
     ):
         window = compact[heading.start() : heading.start() + 12_000]
-        header = re.search(r"Name and Principal Position.*?(?:Total|Fiscal)", window, re.I)
+        header = re.search(r"Name and Principal Position.*?(?:Total|Fiscal)", window, re.IGNORECASE)
         search_window = window[header.end() :] if header else window
         for pattern in (row_pattern_role_first, row_pattern_role_after):
             for match in pattern.finditer(search_window):
@@ -230,11 +232,11 @@ def _ceo_comp_from_text(text: str) -> float | None:
     """
     anchor_pattern = re.compile(
         r"CEO\s+(?:total\s+)?(?:compensation|pay)",
-        re.I,
+        re.IGNORECASE,
     )
     for match in anchor_pattern.finditer(text):
         context = text[max(0, match.start() - 80) : match.start() + 200]
-        if re.search(r"\btarget\b", context, re.I):
+        if re.search(r"\btarget\b", context, re.IGNORECASE):
             continue
         return _money_from_text(context)
     return None
@@ -265,7 +267,7 @@ def _ceo_comp_and_ratio_from_disclosure(text: str) -> tuple[float | None, int | 
         r"(?:annual\s+)?(?:fiscal\s+\d{4}\s+)?total\s+compensation\s+"
         r"(?:was|of|is|equal to|:)?\s*\$?\s*([0-9][0-9,]+)",
         compact,
-        re.I,
+        re.IGNORECASE,
     )
     if m is None:
         # Reverse phrasing: "annual total compensation of our CEO ... $X"
@@ -273,7 +275,7 @@ def _ceo_comp_and_ratio_from_disclosure(text: str) -> tuple[float | None, int | 
             r"total\s+compensation\s+of\s+our\s+(?:CEO|chief executive officer)"
             r"[^$\n]{0,80}\$\s*([0-9][0-9,]+)",
             compact,
-            re.I,
+            re.IGNORECASE,
         )
     comp_match_end: int | None = None
     if m is not None:
@@ -296,8 +298,10 @@ def _ceo_comp_and_ratio_from_disclosure(text: str) -> tuple[float | None, int | 
     # fiscal 2025 ... 312 to 1.") that does not belong to this comp. If no
     # paired ratio follows the comp, fall back to a document-wide first match.
     ratio_patterns = (
-        r"pay\s+ratio\s+(?:of\s+)?(?:was|is|equal to|:)?\s*(?:approximately\s+)?"
-        r"([0-9][0-9,]*)\s*(?:to|:)\s*1\b",
+        (
+            r"pay\s+ratio\s+(?:of\s+)?(?:was|is|equal to|:)?\s*(?:approximately\s+)?"
+            r"([0-9][0-9,]*)\s*(?:to|:)\s*1\b"
+        ),
         r"ratio\s+of\s+(?:approximately\s+)?([0-9][0-9,]*)\s*(?:to|:)\s*1\b",
     )
     if comp_match_end is not None:
@@ -311,7 +315,7 @@ def _ceo_comp_and_ratio_from_disclosure(text: str) -> tuple[float | None, int | 
 def _first_ratio_match(patterns: tuple[str, ...], text: str, start: int) -> int | None:
     """Return the first pay-ratio integer matched at or after ``start``."""
     for pattern in patterns:
-        match = re.compile(pattern, re.I).search(text, start)
+        match = re.compile(pattern, re.IGNORECASE).search(text, start)
         if match is not None:
             return int(match.group(1).replace(",", ""))
     return None
@@ -485,11 +489,13 @@ def _extract_ceo_pay_ratio(text: str) -> int | None:
     match = re.search(
         r"CEO\s+pay\s+ratio[^0-9]{0,80}([0-9][0-9,]*)\s*(?:to|:)\s*1",
         text,
-        re.I,
+        re.IGNORECASE,
     )
     if match:
         return int(match.group(1).replace(",", ""))
-    match = re.search(r"([0-9][0-9,]*)\s*(?:to|:)\s*1[^.\n]{0,80}CEO\s+pay\s+ratio", text, re.I)
+    match = re.search(
+        r"([0-9][0-9,]*)\s*(?:to|:)\s*1[^.\n]{0,80}CEO\s+pay\s+ratio", text, re.IGNORECASE
+    )
     if match:
         return int(match.group(1).replace(",", ""))
     match = re.search(
@@ -497,7 +503,7 @@ def _extract_ceo_pay_ratio(text: str) -> int | None:
         r".{0,500}?ratio\s+of\s+these\s+amounts\s+is\s+"
         r"([0-9][0-9,]*)\s*(?:to|:)\s*1",
         _normalise_proxy_text(text),
-        re.I,
+        re.IGNORECASE,
     )
     if match:
         return int(match.group(1).replace(",", ""))
@@ -598,9 +604,7 @@ def _is_blacklisted_name(candidate: str) -> bool:
     if any(t.lower().strip(".,") in _NON_PERSON_TOKENS for t in tokens):
         return True
     # A possessive token ("Micron's") is issuer prose, never a name part.
-    if any(t.lower().rstrip(".,").endswith(("'s", "’s")) for t in tokens):
-        return True
-    return False
+    return bool(any(t.lower().rstrip(".,").endswith(("'s", "’s")) for t in tokens))
 
 
 # "<Name>, [our] [Chairman/President and] Chief Executive Officer" — the name
@@ -744,7 +748,7 @@ def _extract_ceo_name(text: str) -> str | None:
         return appositive
 
     ceo_positions = [
-        m.start() for m in re.finditer(r"(?:Chief Executive Officer|CEO)\b", text, re.I)
+        m.start() for m in re.finditer(r"(?:Chief Executive Officer|CEO)\b", text, re.IGNORECASE)
     ]
 
     # Strategy 2: "Mr./Ms./Dr. <Name>" near a CEO anchor — but ONLY when exactly
@@ -762,9 +766,10 @@ def _extract_ceo_name(text: str) -> str | None:
         candidate = m.group(1).strip()
         if _is_blacklisted_name(candidate):
             continue
-        if any(abs(m.start() - pos) <= 300 for pos in ceo_positions):
-            if candidate not in honorific_hits:
-                honorific_hits.append(candidate)
+        if candidate not in honorific_hits and any(
+            abs(m.start() - pos) <= 300 for pos in ceo_positions
+        ):
+            honorific_hits.append(candidate)
     if len(honorific_hits) == 1:
         return honorific_hits[0]
     if len(honorific_hits) > 1:
@@ -779,7 +784,9 @@ def _extract_ceo_name(text: str) -> str | None:
     # when exactly one survives. "Mr. <successor> will serve as Chief Executive
     # Officer" plus the named CEO's own mention would otherwise both qualify.
     post_hits: list[str] = []
-    for ceo_match in re.finditer(r"(?:Chief Executive Officer|CEO)\b[^\n]{0,120}", text, re.I):
+    for ceo_match in re.finditer(
+        r"(?:Chief Executive Officer|CEO)\b[^\n]{0,120}", text, re.IGNORECASE
+    ):
         window = ceo_match.group(0)
         for candidate_match in re.finditer(
             r"\b([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,3})\b",
@@ -1068,7 +1075,7 @@ def build_schedule13_alerts(raw_schedule13: dict[str, Any]) -> list[ScheduleThir
 # identity than scraping a name out of DEF 14A prose, which grabbed director
 # "T. Mark Liu" off another company's "Former Chief Executive Officer of Intel"
 # bio for MU (2026-06) while the Form-4s carried the real CEO "Sanjay Mehrotra".
-_CEO_TITLE_RE = re.compile(r"chief executive officer|\bceo\b", re.I)
+_CEO_TITLE_RE = re.compile(r"chief executive officer|\bceo\b", re.IGNORECASE)
 
 
 # Divisional / regional / subsidiary "CEO" — NOT the parent-company CEO. Ford's
@@ -1090,15 +1097,15 @@ def _is_divisional_ceo_title(position: str) -> bool:
         return False
     tail = position[m.end() :].lstrip(" \t,-")
     # Strip a leading "of [the] " so "CEO of the Company" still reads as parent.
-    of_stripped = re.sub(r"^of\s+(?:the\s+)?", "", tail, flags=re.I)
+    of_stripped = re.sub(r"^of\s+(?:the\s+)?", "", tail, flags=re.IGNORECASE)
     if not of_stripped:
         return False
     # A connector to ANOTHER parent-level title ("and Chairman") is the issuer
     # CEO; only a proper-noun/number unit name (region/brand/segment) is
     # divisional. "Company"/"Issuer" right after "of the" is the parent.
-    if re.match(r"(?:company|issuer)\b", of_stripped, re.I):
+    if re.match(r"(?:company|issuer)\b", of_stripped, re.IGNORECASE):
         return False
-    if re.match(r"and\b", of_stripped, re.I):
+    if re.match(r"and\b", of_stripped, re.IGNORECASE):
         return False
     # Remaining capitalized/numeric token = a named unit ("Ford China&IMG",
     # "EMEA", "Americas") → divisional.
@@ -1240,7 +1247,7 @@ def compute_ownership_governance(
         institutional_holdings=institutions,
         proxy_compensation=proxy,
         schedule13_alerts=schedule13_alerts,
-        generated_at=datetime.now(tz=timezone.utc),
+        generated_at=datetime.now(tz=UTC),
         degraded_sections=degraded_sections,
         warnings=warnings,
     )

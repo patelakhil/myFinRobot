@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 _DEFAULT_TARGET_HORIZON = timedelta(days=365)
 
 
-def extract_entry_price(artifact: "Artifact") -> float | None:
+def extract_entry_price(artifact: Artifact) -> float | None:
     """Quote at the time the pipeline fetched data (best available proxy)."""
     market = artifact.inputs.raw_data.get("market")
     if isinstance(market, dict):
@@ -40,7 +40,7 @@ def extract_entry_price(artifact: "Artifact") -> float | None:
     return None
 
 
-def extract_target_price(artifact: "Artifact") -> float | None:
+def extract_target_price(artifact: Artifact) -> float | None:
     """AI-given target price from whichever structured slot the pipeline used."""
     structured = artifact.outputs.structured
 
@@ -83,7 +83,7 @@ def extract_target_price(artifact: "Artifact") -> float | None:
 _WITHHELD_VERDICT_DISPLAY = "WITHHELD"
 
 
-def extract_verdict(artifact: "Artifact") -> str | None:
+def extract_verdict(artifact: Artifact) -> str | None:
     """Pull the directional BUY / HOLD / SELL recommendation from a synthesis
     thesis.
 
@@ -112,7 +112,7 @@ def extract_verdict(artifact: "Artifact") -> str | None:
     return None
 
 
-def extract_fairly_valued(artifact: "Artifact") -> bool:
+def extract_fairly_valued(artifact: Artifact) -> bool:
     """In-band point-target withhold = "fairly valued" (a confident HOLD).
 
     True when the valuation point was withheld BECAUSE the live price sits
@@ -136,7 +136,7 @@ def extract_fairly_valued(artifact: "Artifact") -> bool:
     return isinstance(basis, str) and basis.lstrip().upper().startswith("FAIRLY VALUED")
 
 
-def extract_tagline(artifact: "Artifact") -> str | None:
+def extract_tagline(artifact: Artifact) -> str | None:
     """Pull the narrative `tagline` — a ≤60-char shareable conclusion
     written by the synthesis_agent. Surfaced on the workspace AI zone's
     hot-state card so analysts see the actual LLM call instead of the
@@ -158,7 +158,7 @@ def extract_tagline(artifact: "Artifact") -> str | None:
     return stripped or None
 
 
-def extract_llm_narrative(artifact: "Artifact") -> dict[str, Any]:
+def extract_llm_narrative(artifact: Artifact) -> dict[str, Any]:
     """Best-effort mirror of ``structured.thesis`` for legacy artifacts."""
     thesis = artifact.outputs.structured.get("thesis")
     if not isinstance(thesis, dict):
@@ -177,7 +177,7 @@ def extract_llm_narrative(artifact: "Artifact") -> dict[str, Any]:
     return {key: thesis[key] for key in keys if key in thesis}
 
 
-def extract_target_date(artifact: "Artifact", target_price: float | None) -> datetime | None:
+def extract_target_date(artifact: Artifact, target_price: float | None) -> datetime | None:
     """target_date defaults to created_at + 365d once a target exists."""
     if target_price is None:
         return None
@@ -188,7 +188,7 @@ def extract_target_date(artifact: "Artifact", target_price: float | None) -> dat
             return raw
         if isinstance(raw, str):
             try:
-                return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                return datetime.fromisoformat(raw)
             except ValueError:
                 pass
     return artifact.meta.created_at + _DEFAULT_TARGET_HORIZON
@@ -204,7 +204,7 @@ def _coerce_positive_float(value: Any) -> float | None:
     return f if f > 0 else None
 
 
-def extract_primary_provider(artifact: "Artifact") -> str | None:
+def extract_primary_provider(artifact: Artifact) -> str | None:
     """The data provider that fed this artifact (``inputs.data_source``).
 
     Mirrored into the ``primary_provider`` summary column (门四溯源半) so the

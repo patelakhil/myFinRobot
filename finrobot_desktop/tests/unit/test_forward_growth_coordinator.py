@@ -11,7 +11,7 @@ slot every seed entry shares — never raw ``fetch()``.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from finrobot.engine.compute.coordinators.dcf_seed import fetch_forward_growth
@@ -21,7 +21,7 @@ from finrobot.engine.data.normalize import NormalizedForwardEstimates
 from finrobot.engine.data.normalize.contracts import Provenance
 from finrobot.engine.data.types import DataType
 
-NOW = datetime.now(tz=timezone.utc)
+NOW = datetime.now(tz=UTC)
 
 
 def _forward_rows() -> dict[str, list[dict[str, object]]]:

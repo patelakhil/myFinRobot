@@ -124,15 +124,14 @@ def probe(ticker: str) -> list[dict]:
     shares = market.get("shares_outstanding")
 
     # ── INV-MC-CROSS:/price 与 /financials 的 market_cap 必须全等 ──
-    if _finite(p_mc) and _finite(f_mc):
-        if _rel(p_mc, f_mc) > TOL_TIGHT:
-            viol(
-                "MC-CROSS",
-                "/price.market_cap != /financials.market.market_cap",
-                price_mc=p_mc,
-                fin_mc=f_mc,
-                rel=round(_rel(p_mc, f_mc), 4),
-            )
+    if _finite(p_mc) and _finite(f_mc) and _rel(p_mc, f_mc) > TOL_TIGHT:
+        viol(
+            "MC-CROSS",
+            "/price.market_cap != /financials.market.market_cap",
+            price_mc=p_mc,
+            fin_mc=f_mc,
+            rel=round(_rel(p_mc, f_mc), 4),
+        )
 
     # ── INV-MC-IDENTITY:market_cap == shares × current_price ──
     if _finite(f_mc) and _finite(shares) and _finite(f_px) and shares > 0:
@@ -223,16 +222,15 @@ def probe(ticker: str) -> list[dict]:
     # ── INV-EVEBITDA-CALIBER:/financials.ev_ebitda 与 historical-bands.current 同口径 ──
     if bands and not bands.get("__error__") and bands.get("metric") == "ev_ebitda":
         b_current = bands.get("current")
-        if _finite(ev_ebitda) and _finite(b_current):
-            if _rel(ev_ebitda, b_current) > TOL_CALIBER:
-                viol(
-                    "EVEBITDA-CALIBER",
-                    "同名 current EV/EBITDA 跨端点口径不一致(/financials TTM vs bands)",
-                    fin_ev_ebitda=round(ev_ebitda, 3),
-                    bands_current=round(b_current, 3),
-                    rel=round(_rel(ev_ebitda, b_current), 4),
-                    bands_classification=bands.get("classification"),
-                )
+        if _finite(ev_ebitda) and _finite(b_current) and _rel(ev_ebitda, b_current) > TOL_CALIBER:
+            viol(
+                "EVEBITDA-CALIBER",
+                "同名 current EV/EBITDA 跨端点口径不一致(/financials TTM vs bands)",
+                fin_ev_ebitda=round(ev_ebitda, 3),
+                bands_current=round(b_current, 3),
+                rel=round(_rel(ev_ebitda, b_current), 4),
+                bands_classification=bands.get("classification"),
+            )
 
     return out
 

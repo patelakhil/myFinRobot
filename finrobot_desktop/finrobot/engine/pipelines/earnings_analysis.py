@@ -20,6 +20,7 @@ from typing import Any
 from pydantic_ai import Agent
 
 from finrobot.engine.compute.operators.earnings import calculate_earnings_surprises
+from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import EarningsResult, StepOutput
@@ -34,7 +35,6 @@ from finrobot.engine.pipelines.validators import (
     validate_has_fields,
     validate_is_non_empty,
 )
-from finrobot.engine.data.interface import ProviderError
 
 logger = logging.getLogger(__name__)
 

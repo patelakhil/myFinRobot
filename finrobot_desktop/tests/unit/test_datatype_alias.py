@@ -16,7 +16,7 @@ Why this exists:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -77,7 +77,7 @@ class TestDataTypeAliasCacheRoundTrip:
             provider="test",
             ticker="AAPL",
             data_type=DataType.FILINGS,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             warnings=[],
         )
         await cache.set(DataType.FILINGS, "AAPL", envelope)
@@ -95,7 +95,7 @@ class TestDataTypeAliasCacheRoundTrip:
             provider="test",
             ticker="AAPL",
             data_type=DataType.FILINGS_10K,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             warnings=[],
         )
         await cache.set(DataType.FILINGS_10K, "AAPL", envelope2)

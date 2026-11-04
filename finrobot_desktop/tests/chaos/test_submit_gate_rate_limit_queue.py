@@ -459,7 +459,7 @@ async def test_probe_model_detailed_extracts_retry_after_from_exception_chain(mo
     async def fake_model_request(*_a: Any, **_k: Any) -> None:
         raise exc
 
-    import pydantic_ai.direct as direct
+    from pydantic_ai import direct
 
     monkeypatch.setattr(direct, "model_request", fake_model_request)
     settings = MagicMock()
@@ -469,7 +469,7 @@ async def test_probe_model_detailed_extracts_retry_after_from_exception_chain(mo
     assert result.code == "rate_limited"
     assert result.retry_after_s == pytest.approx(5400, abs=1)
     # Legacy 3-tuple unpacking still works for the Settings route.
-    ok, code, detail = result
+    ok, code, _detail = result
     assert (ok, code) == (False, "rate_limited")
 
 

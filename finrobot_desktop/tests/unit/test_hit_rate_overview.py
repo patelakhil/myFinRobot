@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -11,7 +11,7 @@ from finrobot.engine.aggregations.hit_rate_overview import (
     compute_hit_rate_overview,
 )
 
-NOW = datetime(2026, 5, 22, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 5, 22, 12, 0, 0, tzinfo=UTC)
 
 
 def _input(

@@ -8,8 +8,9 @@ Verifies:
 - Validation constraints are preserved.
 """
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, timezone
 from pydantic import ValidationError
 
 from finrobot.engine.models.financial import (
@@ -24,23 +25,23 @@ from finrobot.engine.models.financial import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-_NOW = datetime.now(tz=timezone.utc)
+_NOW = datetime.now(tz=UTC)
 
 
 def _base_income(**overrides) -> dict:
-    defaults = dict(
-        revenue=1e9,
-        ebitda=2e8,
-        net_income=1e8,
-        gross_margin=0.4,
-        operating_margin=0.15,
-    )
+    defaults = {
+        "revenue": 1e9,
+        "ebitda": 2e8,
+        "net_income": 1e8,
+        "gross_margin": 0.4,
+        "operating_margin": 0.15,
+    }
     defaults.update(overrides)
     return defaults
 
 
 def _base_market(**overrides) -> dict:
-    defaults = dict(market_cap=5e9, shares_outstanding=1e8, current_price=50.0)
+    defaults = {"market_cap": 5e9, "shares_outstanding": 1e8, "current_price": 50.0}
     defaults.update(overrides)
     return defaults
 

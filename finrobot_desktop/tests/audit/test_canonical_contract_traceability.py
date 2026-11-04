@@ -9,7 +9,7 @@ deterministic. Real cross-provider fetches live in tests/integration.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize import (
@@ -21,7 +21,6 @@ from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CLOSE_ONLY,
 )
 
-UTC = timezone.utc
 FETCHED_AT = datetime(2026, 5, 30, 12, 0, tzinfo=UTC)
 
 

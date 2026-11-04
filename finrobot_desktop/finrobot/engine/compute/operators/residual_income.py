@@ -32,6 +32,8 @@ corroborating methods).
 
 from __future__ import annotations
 
+import math
+
 from finrobot.engine.models.financial import DDMInputs, RIResult
 from finrobot.engine.models.valuation_thresholds import MIN_GORDON_SPREAD
 
@@ -98,7 +100,7 @@ def calculate_residual_income(inputs: DDMInputs, *, forward_roe: float | None = 
     forward_value: float | None = None
     if forward_roe is not None:
         fv = _ri_value(bvps, forward_roe, cost_of_equity, g)
-        forward_value = fv if fv == fv else None  # drop a degenerate (NaN) forward end
+        forward_value = None if math.isnan(fv) else fv  # drop a degenerate (NaN) forward end
 
     return RIResult(
         cost_of_equity=cost_of_equity,

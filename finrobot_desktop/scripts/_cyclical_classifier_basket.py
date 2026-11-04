@@ -141,9 +141,7 @@ async def main() -> int:
         got = is_commodity_cyclical(industry=ind, sector=sec, ticker=t)
         ok = got == expected
         all_ok = all_ok and ok
-        print(
-            f"{t:>7} {ind:>26} {str(got):>12} {str(expected):>9} {'✅' if ok else '❌FAIL':>4}  {note}"
-        )
+        print(f"{t:>7} {ind:>26} {got!s:>12} {expected!s:>9} {'✅' if ok else '❌FAIL':>4}  {note}")
     print(
         f"\n  PRODUCTION CLASSIFIER {'ALL MATCH ✅' if all_ok else 'HAS A MISMATCH ❌'} "
         "(autos cyclical by §2.2 white-list; AMD/NVDA/KO/MSFT/JNJ untouched)"

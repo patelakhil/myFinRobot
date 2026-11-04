@@ -6,18 +6,18 @@ with ``normalize_financials`` / ``normalize_price`` (the same path a
 ``DataLayer.fetch_canonical`` consumer would take).
 """
 
-import pytest
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
+import pytest
+
+from finrobot.engine.compute.coordinators.extractor import (
+    extract_company_financials,
+    extract_financial_data,
+    extract_price_history,
+)
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.financials import normalize_financials
 from finrobot.engine.data.normalize.price import normalize_price
-from finrobot.engine.compute.coordinators.extractor import (
-    extract_financial_data,
-    extract_company_financials,
-    extract_price_history,
-)
-
 
 # ---------------------------------------------------------------------------
 # Fixture helpers
@@ -26,26 +26,26 @@ from finrobot.engine.compute.coordinators.extractor import (
 
 def _make_fin(**overrides):
     """Build a NormalizedFinancials from a representative raw dict."""
-    data = dict(
-        revenue=100e9,
-        ebitda=35e9,
-        net_income=20e9,
-        gross_margin=0.47,
-        operating_margin=0.28,
-        pe_ratio=28.5,
-        market_cap=3e12,
-        shares_outstanding=15e9,
-        current_price=200.0,
-        total_debt=50e9,
-        total_cash=20e9,
-    )
+    data = {
+        "revenue": 100e9,
+        "ebitda": 35e9,
+        "net_income": 20e9,
+        "gross_margin": 0.47,
+        "operating_margin": 0.28,
+        "pe_ratio": 28.5,
+        "market_cap": 3e12,
+        "shares_outstanding": 15e9,
+        "current_price": 200.0,
+        "total_debt": 50e9,
+        "total_cash": 20e9,
+    }
     data.update(overrides)
     raw = DataResult(
         data=data,
         provider="yfinance",
         ticker="AAPL",
         data_type="financials",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     return normalize_financials(raw)
 
@@ -62,7 +62,7 @@ def _make_price():
         provider="yfinance",
         ticker="AAPL",
         data_type="price",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     return normalize_price(raw)
 
@@ -74,7 +74,7 @@ def _make_price_from(bars: list[dict]):
         provider="fmp",
         ticker="TSLA",
         data_type="price",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     return normalize_price(raw)
 
@@ -546,7 +546,7 @@ class TestExtractCompanyFinancialsCurrencyTags:
             provider="yfinance",
             ticker=ticker,
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         return normalize_financials(raw)
 

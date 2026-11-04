@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -73,9 +73,10 @@ class TestCompsPipelineStructure:
 
 
 def test_comps_pipeline_has_structured_validator_on_target_data():
-    from finrobot.engine.pipelines.comps import create_comps_pipeline
-    from finrobot.engine.pipelines.base import DefaultAgentExecutor, StructuredValidator
     from unittest.mock import MagicMock
+
+    from finrobot.engine.pipelines.base import DefaultAgentExecutor, StructuredValidator
+    from finrobot.engine.pipelines.comps import create_comps_pipeline
 
     agents = {k: MagicMock() for k in ["data", "analysis", "modeling", "report"]}
     pipeline = create_comps_pipeline(agents)
@@ -199,7 +200,7 @@ class TestStickyPeerSelection:
         )
 
     def test_reuses_parent_artifact_peer_set(self):
-        art = self._artifact(datetime.now(tz=timezone.utc))
+        art = self._artifact(datetime.now(tz=UTC))
 
         class Store:
             async def get(self, artifact_id):
@@ -217,7 +218,7 @@ class TestStickyPeerSelection:
         assert "Reused prior-version peer set" in selection.rationale
 
     def test_parent_artifact_peer_set_expires(self):
-        art = self._artifact(datetime.now(tz=timezone.utc) - timedelta(days=8))
+        art = self._artifact(datetime.now(tz=UTC) - timedelta(days=8))
 
         class Store:
             async def get(self, artifact_id):
@@ -233,7 +234,7 @@ class TestStickyPeerSelection:
         assert selection is None
 
     def test_zero_sticky_age_disables_reuse(self):
-        art = self._artifact(datetime.now(tz=timezone.utc))
+        art = self._artifact(datetime.now(tz=UTC))
 
         class Store:
             async def get(self, artifact_id):
@@ -269,7 +270,7 @@ def _canned_company(ticker: str):
 
 
 def _target_financial_data():
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from finrobot.engine.models.financial import (
         BalanceSheet,
@@ -288,7 +289,7 @@ def _target_financial_data():
         market=MarketData(current_price=10.0, shares_outstanding=10.0, market_cap=100.0),
         valuation=ValuationMetrics(enterprise_value=125.0),
         data_source="test",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -300,12 +301,12 @@ class TestPeerAnalysisDegradesInsteadOfCrashing:
     that crashed the run when the wording drifted."""
 
     def test_two_survivors_returns_thin_comps_with_warning(self, monkeypatch):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from finrobot.engine.data.normalize.contracts import NormalizedFinancials, Provenance
         from finrobot.engine.models.financial import PeerComps, StepOutput
 
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         good = NormalizedFinancials(
             ticker="X",
             revenue=100.0,
@@ -376,7 +377,7 @@ class TestPeerAnalysisDegradesInsteadOfCrashing:
         # so survivors carry distinct identities and the trimmed one is nameable.
         # payload() is the FORWARD_ESTIMATES shape (empty → no forward, no crash).
         async def _fetch_canonical(_dt, ticker):
-            return SimpleNamespace(ticker=ticker, payload=lambda: {})
+            return SimpleNamespace(ticker=ticker, payload=dict)
 
         async def _fetch(_dt, _ticker):
             return SimpleNamespace(data={})
@@ -418,7 +419,7 @@ class TestPeerAnalysisDegradesInsteadOfCrashing:
 
 def _financial_sector_target_data():
     """A bank target FinancialData (industry triggers is_balance_sheet_financial)."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from finrobot.engine.models.financial import (
         BalanceSheet,
@@ -441,7 +442,7 @@ def _financial_sector_target_data():
         ),
         valuation=ValuationMetrics(),
         data_source="test",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 

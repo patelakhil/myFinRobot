@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import finrobot.engine.orchestrator as orchestrator
+from finrobot.engine import orchestrator
 
 _RAW = (Path(orchestrator.__file__).parent / "instructions.md").read_text(encoding="utf-8")
 # Collapse markdown line-wrapping so guards check semantic content, not where a

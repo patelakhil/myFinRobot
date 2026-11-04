@@ -14,9 +14,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 import statistics
 from dataclasses import asdict, dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -89,7 +90,7 @@ def _num(value: Any) -> float | None:
         out = float(value)
     except (TypeError, ValueError):
         return None
-    if out != out:
+    if math.isnan(out):
         return None
     return out
 
@@ -118,9 +119,9 @@ def _dt_text(value: datetime | date | None) -> str | None:
 def _days_since(value: datetime | None) -> int | None:
     if value is None:
         return None
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
+        value = value.replace(tzinfo=UTC)
     return max(0, (now.date() - value.date()).days)
 
 
@@ -312,7 +313,7 @@ def _distribution(values: list[float]) -> dict[str, float | int | None]:
     if not values:
         return {"n": 0, "median": None, "p90": None, "max": None}
     ordered = sorted(values)
-    p90_index = min(len(ordered) - 1, int(round((len(ordered) - 1) * 0.9)))
+    p90_index = min(len(ordered) - 1, round((len(ordered) - 1) * 0.9))
     return {
         "n": len(values),
         "median": statistics.median(ordered),
@@ -331,7 +332,7 @@ def summarize(probes: list[TickerProbe]) -> dict[str, Any]:
                 continue
             by_field.setdefault(diff.field, []).append(diff.rel_diff)
     return {
-        "generated_at": datetime.now(tz=timezone.utc).isoformat(),
+        "generated_at": datetime.now(tz=UTC).isoformat(),
         "basket": [p.ticker for p in probes],
         "relative_diff_distribution": {
             field: _distribution(values) for field, values in sorted(by_field.items())

@@ -14,7 +14,7 @@ For EVERY combination:
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from hypothesis import HealthCheck, given, settings
@@ -63,7 +63,7 @@ async def _scenario(tmp_dir, integrations, cache_plan, fmp_fails, entries) -> No
                     provider=owner.name,
                     ticker="AAPL",
                     data_type=data_type,
-                    timestamp=datetime.now(tz=timezone.utc),
+                    timestamp=datetime.now(tz=UTC),
                 ),
             )
         if any(state == "aged" for _, state in cache_plan):

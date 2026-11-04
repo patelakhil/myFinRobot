@@ -11,32 +11,31 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import ValidationError
 from starlette.requests import Request
 
-from finrobot.routes._ready import ensure_engine_ready
-
+from finrobot.engine.compute.coordinators.extractor import extract_financial_data
+from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
+from finrobot.engine.compute.coordinators.market import technical_payload
+from finrobot.engine.compute.coordinators.news import fetch_news
 from finrobot.engine.compute.operators.catalyst import (
     cluster_near_duplicates,
     extract_catalysts_from_news,
     rank_catalysts,
 )
-from finrobot.engine.compute.coordinators.extractor import extract_financial_data
-from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
-from finrobot.engine.compute.coordinators.market import technical_payload
-from finrobot.engine.compute.coordinators.news import fetch_news
 from finrobot.engine.data.cache import cached_fetch
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.normalize.session import compute_session_state, derive_price_as_of
 from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.data.types import DataType
-from finrobot.engine.primitives.market_cap import market_cap_on_live_price
 from finrobot.engine.models.earnings_call import EarningsCallList, EarningsCallTranscript
 from finrobot.engine.models.financial import (
     CatalystEvent,
     FinancialData,
     HistoricalMetrics,
 )
+from finrobot.engine.primitives.market_cap import market_cap_on_live_price
 from finrobot.engine.services.market_data import fetch_price_history
 from finrobot.ratelimit import enforce_live_data_limit
+from finrobot.routes._ready import ensure_engine_ready
 from finrobot.warning_text import humanize_warnings, safe_error_text
 
 logger = logging.getLogger(__name__)
@@ -113,9 +112,8 @@ def _with_fmp_degradation_note(request: Request, payload: dict[str, Any]) -> dic
         request, raw_source if isinstance(raw_source, str) else None
     )
     warnings = _warning_list(payload.get("warnings"))
-    if degraded:
-        if degraded not in warnings:
-            warnings.append(degraded)
+    if degraded and degraded not in warnings:
+        warnings.append(degraded)
     if warnings or "warnings" in payload:
         payload["warnings"] = _dedupe(humanize_warnings(warnings))
     return payload
@@ -398,7 +396,7 @@ async def get_earnings_calls(
         parsed_date = None
         if date_str:
             try:
-                parsed_date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                parsed_date = datetime.fromisoformat(date_str)
             except (ValueError, TypeError):
                 pass
         # Construct per-item inside try/except: FMP serves annual/special calls

@@ -19,6 +19,7 @@ siblings (a quarterly filer with one quarter missing) still flags.
 
 from __future__ import annotations
 
+import itertools
 from datetime import date
 
 from finrobot.engine.models.financial import FinancialData
@@ -66,13 +67,13 @@ def audit_ttm_period(fin: FinancialData) -> list[Finding]:
     ordered = sorted(ends, reverse=True)
     findings: list[Finding] = []
 
-    gaps = [(newer - older).days for newer, older in zip(ordered, ordered[1:])]
+    gaps = [(newer - older).days for newer, older in itertools.pairwise(ordered)]
     cadence = _classify_cadence([g for g in gaps if g >= _MIN_QUARTER_GAP_DAYS])
     period_word = "half-year" if cadence == "semiannual" else "quarter"
     expected = _EXPECTED_SEMIANNUAL_PERIODS if cadence == "semiannual" else _EXPECTED_QUARTERS
     legit_max = _MAX_SEMIANNUAL_GAP_DAYS if cadence == "semiannual" else _MAX_QUARTER_GAP_DAYS
 
-    for newer, older in zip(ordered, ordered[1:]):
+    for newer, older in itertools.pairwise(ordered):
         gap = (newer - older).days
         if gap < _MIN_QUARTER_GAP_DAYS:
             findings.append(

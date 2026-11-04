@@ -28,7 +28,6 @@ from finrobot.engine.models.financial import (
     ValuationSynthesis,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers — build minimal structured_context that mimics pipeline output
 # ---------------------------------------------------------------------------

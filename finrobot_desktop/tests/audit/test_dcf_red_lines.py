@@ -23,7 +23,7 @@ production code.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -161,7 +161,7 @@ def _minimal_financials() -> FinancialData:
     return FinancialData(
         ticker="TEST",
         company_name="Test Co",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=1e10,
             ebitda=2e9,

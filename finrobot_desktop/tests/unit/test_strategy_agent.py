@@ -10,7 +10,6 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from pydantic_ai.exceptions import ModelHTTPError
 
 from finrobot.config import FinRobotSettings

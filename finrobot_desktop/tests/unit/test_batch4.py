@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 
-from finrobot.engine.analysis.prompts import ANALYSIS_TYPES, _PROMPTS
+from finrobot.engine.analysis.prompts import _PROMPTS, ANALYSIS_TYPES
 
 
 class TestRegistryImportable:
@@ -69,5 +69,5 @@ class TestAutoBacktestSDK:
 
         assert hasattr(FinRobot, "auto_backtest")
         assert hasattr(FinRobot, "aauto_backtest")
-        assert callable(getattr(FinRobot, "auto_backtest"))
-        assert asyncio.iscoroutinefunction(getattr(FinRobot, "aauto_backtest"))
+        assert callable(FinRobot.auto_backtest)
+        assert asyncio.iscoroutinefunction(FinRobot.aauto_backtest)

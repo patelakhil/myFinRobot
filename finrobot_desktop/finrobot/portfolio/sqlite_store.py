@@ -1,19 +1,18 @@
 """SQLite-backed PortfolioStore — persistence for portfolios + purchase lots.
 
-Single db at ``~/.finrobot/portfolio.db`` (own slot per the per-module
-convention). Pure persistence: depends only on :mod:`finrobot.portfolio.models`
-and :mod:`finrobot.paths` — never imports ``engine`` or ``routes``. Pricing /
-P&L assembly lives in :mod:`finrobot.portfolio.service`.
+Tables live in the consolidated user database (``~/.finrobot/finrobot.db``,
+see :mod:`finrobot.storage.user_db`); ``db_path`` opens a standalone file for
+tests / tools. Pure persistence: depends only on
+:mod:`finrobot.portfolio.models` and :mod:`finrobot.storage` — never imports
+``engine`` or ``routes``. Pricing / P&L assembly lives in
+:mod:`finrobot.portfolio.service`.
 
-Concurrency model is the one every store here uses (``CoverageStore``,
-``RunStore``, ``SqliteArtifactStore``): one lazily opened aiosqlite connection
-guarded by an ``asyncio.Lock``, WAL + ``synchronous=NORMAL``, idempotent
-``CREATE TABLE IF NOT EXISTS``.
+Connection lifecycle, PRAGMAs, schema versioning and transactions come from
+:class:`finrobot.storage.sqlite.SqliteDatabase`.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import uuid
 from datetime import UTC, date, datetime
@@ -22,13 +21,13 @@ from typing import Any
 
 import aiosqlite
 
-from finrobot import paths as _paths
 from finrobot.portfolio.models import (
     Lot,
     Portfolio,
     PortfolioDetail,
     PortfolioSummary,
 )
+from finrobot.storage.sqlite import Migration, SqliteDatabase, add_missing_columns
 
 logger = logging.getLogger(__name__)
 
@@ -122,46 +121,47 @@ def _row_to_lot(row: tuple[Any, ...]) -> Lot:
     )
 
 
-async def _apply_migrations(conn: aiosqlite.Connection) -> None:
+async def _baseline(conn: aiosqlite.Connection) -> None:
+    """v1: portfolios + portfolio_lots, column catch-ups, indexes (idempotent)."""
+    await conn.execute(_CREATE_PORTFOLIOS)
+    await conn.execute(_CREATE_LOTS)
     for table, column, decl in _MIGRATIONS:
-        async with conn.execute(f"PRAGMA table_info({table})") as cur:
-            existing = {str(r[1]) for r in await cur.fetchall()}
-        if column not in existing:
-            await conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
-            logger.info("portfolio.db: added %s.%s", table, column)
+        await add_missing_columns(conn, table, [(column, decl)])
+    for stmt in _CREATE_INDEXES:
+        await conn.execute(stmt)
+
+
+MIGRATIONS: tuple[Migration, ...] = (Migration(1, "portfolio: baseline", _baseline),)
 
 
 class PortfolioStore:
     """SQLite-backed store for portfolios and their trade lots (buys + sells)."""
 
-    def __init__(self, db_path: str | Path | None = None) -> None:
-        if db_path is None:
-            _paths.ensure_home()
-            db_path = _paths.PORTFOLIO_DB
-        self._db_path = str(db_path)
-        self._conn: aiosqlite.Connection | None = None
-        self._conn_lock = asyncio.Lock()
+    def __init__(
+        self,
+        db_path: str | Path | None = None,
+        *,
+        database: SqliteDatabase | None = None,
+    ) -> None:
+        if database is not None:
+            self._db = database
+            self._owns_db = False
+        elif db_path is not None:
+            self._db = SqliteDatabase(db_path, migrations=MIGRATIONS)
+            self._owns_db = True
+        else:
+            from finrobot.storage.user_db import user_database
+
+            self._db = user_database()
+            self._owns_db = True
+        self._db_path = str(self._db.path)
+
+    @property
+    def database(self) -> SqliteDatabase:
+        return self._db
 
     async def _conn_ready(self) -> aiosqlite.Connection:
-        if self._conn is not None:
-            return self._conn
-        async with self._conn_lock:
-            if self._conn is None:
-                Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
-                conn = await aiosqlite.connect(self._db_path)
-                try:
-                    await _paths.configure_connection(conn)
-                    await conn.execute(_CREATE_PORTFOLIOS)
-                    await conn.execute(_CREATE_LOTS)
-                    await _apply_migrations(conn)
-                    for stmt in _CREATE_INDEXES:
-                        await conn.execute(stmt)
-                    await conn.commit()
-                except BaseException:
-                    await conn.close()
-                    raise
-                self._conn = conn
-        return self._conn
+        return await self._db.connection()
 
     # ── Portfolios ───────────────────────────────────────────────────────────
 
@@ -173,14 +173,13 @@ class PortfolioStore:
         base_currency: str = "USD",
         cost_method: str = "fifo",
     ) -> PortfolioDetail:
-        conn = await self._conn_ready()
         pid = f"pf_{uuid.uuid4().hex[:12]}"
         now = _iso(_now())
-        await conn.execute(
-            f"INSERT INTO portfolios ({_PORTFOLIO_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (pid, name.strip(), description, base_currency.upper(), cost_method, now, now),
-        )
-        await conn.commit()
+        async with self._db.transaction() as conn:
+            await conn.execute(
+                f"INSERT INTO portfolios ({_PORTFOLIO_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (pid, name.strip(), description, base_currency.upper(), cost_method, now, now),
+            )
         detail = await self.get_portfolio(pid)
         if detail is None:  # pragma: no cover — the row was just inserted
             raise RuntimeError(f"portfolio {pid} vanished after insert")
@@ -239,7 +238,6 @@ class PortfolioStore:
         """Patch name / description / base currency / cost method. ``None``
         leaves a field alone; pass ``clear_description=True`` to null the
         description."""
-        conn = await self._conn_ready()
         sets: list[str] = []
         args: list[Any] = []
         if name is not None:
@@ -261,19 +259,18 @@ class PortfolioStore:
         sets.append("updated_at = ?")
         args.append(_iso(_now()))
         args.append(portfolio_id)
-        cur = await conn.execute(f"UPDATE portfolios SET {', '.join(sets)} WHERE id = ?", args)
-        await conn.commit()
-        if cur.rowcount == 0:
-            return None
+        async with self._db.transaction() as conn:
+            cur = await conn.execute(f"UPDATE portfolios SET {', '.join(sets)} WHERE id = ?", args)
+            if cur.rowcount == 0:
+                return None
         return await self.get_portfolio(portfolio_id)
 
     async def delete_portfolio(self, portfolio_id: str) -> bool:
         """Delete a portfolio and all its lots. Returns False if absent."""
-        conn = await self._conn_ready()
-        await conn.execute("DELETE FROM portfolio_lots WHERE portfolio_id = ?", (portfolio_id,))
-        cur = await conn.execute("DELETE FROM portfolios WHERE id = ?", (portfolio_id,))
-        await conn.commit()
-        return cur.rowcount > 0
+        async with self._db.transaction() as conn:
+            await conn.execute("DELETE FROM portfolio_lots WHERE portfolio_id = ?", (portfolio_id,))
+            cur = await conn.execute("DELETE FROM portfolios WHERE id = ?", (portfolio_id,))
+            return cur.rowcount > 0
 
     # ── Lots ─────────────────────────────────────────────────────────────────
 
@@ -312,37 +309,40 @@ class PortfolioStore:
         order, or ``None`` if the portfolio doesn't exist. An empty list is a
         no-op that still returns ``[]``.
         """
-        conn = await self._conn_ready()
-        async with conn.execute("SELECT 1 FROM portfolios WHERE id = ?", (portfolio_id,)) as cur:
-            if await cur.fetchone() is None:
-                return None
-        if not lots:
-            return []
         now = _iso(_now())
         created: list[str] = []
-        for lot in lots:
-            lot_id = f"lot_{uuid.uuid4().hex[:12]}"
-            pdate = lot["purchase_date"]
+        async with self._db.transaction() as conn:
+            async with conn.execute(
+                "SELECT 1 FROM portfolios WHERE id = ?", (portfolio_id,)
+            ) as cur:
+                if await cur.fetchone() is None:
+                    return None
+            if not lots:
+                return []
+            for lot in lots:
+                lot_id = f"lot_{uuid.uuid4().hex[:12]}"
+                pdate = lot["purchase_date"]
+                await conn.execute(
+                    f"INSERT INTO portfolio_lots ({_LOT_COLS}, portfolio_id) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        lot_id,
+                        lot["ticker"],
+                        (lot.get("side") or "buy"),
+                        float(lot["units"]),
+                        float(lot["cost_per_unit"]),
+                        pdate.isoformat() if isinstance(pdate, date) else str(pdate),
+                        (lot.get("currency") or "USD").upper(),
+                        lot.get("note"),
+                        now,
+                        now,
+                        portfolio_id,
+                    ),
+                )
+                created.append(lot_id)
             await conn.execute(
-                f"INSERT INTO portfolio_lots ({_LOT_COLS}, portfolio_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    lot_id,
-                    lot["ticker"],
-                    (lot.get("side") or "buy"),
-                    float(lot["units"]),
-                    float(lot["cost_per_unit"]),
-                    pdate.isoformat() if isinstance(pdate, date) else str(pdate),
-                    (lot.get("currency") or "USD").upper(),
-                    lot.get("note"),
-                    now,
-                    now,
-                    portfolio_id,
-                ),
+                "UPDATE portfolios SET updated_at = ? WHERE id = ?", (now, portfolio_id)
             )
-            created.append(lot_id)
-        await conn.execute("UPDATE portfolios SET updated_at = ? WHERE id = ?", (now, portfolio_id))
-        await conn.commit()
         by_id = {lot.id: lot for lot in await self.list_lots(portfolio_id)}
         return [by_id[i] for i in created]
 
@@ -360,7 +360,6 @@ class PortfolioStore:
         note: str | None = None,
         clear_note: bool = False,
     ) -> Lot | None:
-        conn = await self._conn_ready()
         sets: list[str] = []
         args: list[Any] = []
         if ticker is not None:
@@ -391,45 +390,47 @@ class PortfolioStore:
         now = _iso(_now())
         sets.append("updated_at = ?")
         args.extend([now, portfolio_id, lot_id])
-        cur = await conn.execute(
-            f"UPDATE portfolio_lots SET {', '.join(sets)} WHERE portfolio_id = ? AND id = ?",
-            args,
-        )
-        if cur.rowcount == 0:
-            await conn.commit()
-            return None
-        await conn.execute("UPDATE portfolios SET updated_at = ? WHERE id = ?", (now, portfolio_id))
-        await conn.commit()
+        async with self._db.transaction() as conn:
+            cur = await conn.execute(
+                f"UPDATE portfolio_lots SET {', '.join(sets)} WHERE portfolio_id = ? AND id = ?",
+                args,
+            )
+            if cur.rowcount == 0:
+                return None
+            await conn.execute(
+                "UPDATE portfolios SET updated_at = ? WHERE id = ?", (now, portfolio_id)
+            )
         return await self.get_lot(portfolio_id, lot_id)
 
     async def delete_lot(self, portfolio_id: str, lot_id: str) -> bool:
-        conn = await self._conn_ready()
-        cur = await conn.execute(
-            "DELETE FROM portfolio_lots WHERE portfolio_id = ? AND id = ?", (portfolio_id, lot_id)
-        )
-        if cur.rowcount > 0:
-            await conn.execute(
-                "UPDATE portfolios SET updated_at = ? WHERE id = ?", (_iso(_now()), portfolio_id)
+        async with self._db.transaction() as conn:
+            cur = await conn.execute(
+                "DELETE FROM portfolio_lots WHERE portfolio_id = ? AND id = ?",
+                (portfolio_id, lot_id),
             )
-        await conn.commit()
-        return cur.rowcount > 0
+            if cur.rowcount > 0:
+                await conn.execute(
+                    "UPDATE portfolios SET updated_at = ? WHERE id = ?",
+                    (_iso(_now()), portfolio_id),
+                )
+            return cur.rowcount > 0
 
     async def delete_lots_for_ticker(self, portfolio_id: str, ticker: str) -> int:
         """Remove every lot of ``ticker`` (close the whole position). Returns
         the number of lots deleted."""
-        conn = await self._conn_ready()
-        cur = await conn.execute(
-            "DELETE FROM portfolio_lots WHERE portfolio_id = ? AND ticker = ?",
-            (portfolio_id, ticker.upper()),
-        )
-        if cur.rowcount > 0:
-            await conn.execute(
-                "UPDATE portfolios SET updated_at = ? WHERE id = ?", (_iso(_now()), portfolio_id)
+        async with self._db.transaction() as conn:
+            cur = await conn.execute(
+                "DELETE FROM portfolio_lots WHERE portfolio_id = ? AND ticker = ?",
+                (portfolio_id, ticker.upper()),
             )
-        await conn.commit()
-        return cur.rowcount
+            if cur.rowcount > 0:
+                await conn.execute(
+                    "UPDATE portfolios SET updated_at = ? WHERE id = ?",
+                    (_iso(_now()), portfolio_id),
+                )
+            return cur.rowcount
 
     async def close(self) -> None:
-        if self._conn is not None:
-            await self._conn.close()
-            self._conn = None
+        """Close only when this store owns its database (see RunStore.close)."""
+        if self._owns_db:
+            await self._db.close()

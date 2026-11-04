@@ -23,7 +23,7 @@ quotes.
 from __future__ import annotations
 
 import copy
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -38,7 +38,6 @@ from finrobot.artifact.models import (
 )
 from finrobot.artifact.summary_extractor import extract_target_price
 
-UTC = timezone.utc
 CREATED = datetime(2026, 6, 8, tzinfo=UTC)
 
 

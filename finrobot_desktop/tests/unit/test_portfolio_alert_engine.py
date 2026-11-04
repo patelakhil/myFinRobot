@@ -14,18 +14,20 @@ from finrobot.portfolio.alert_engine import ResearchNotifier, evaluate_alerts
 from finrobot.portfolio.alert_store import AlertStore
 from finrobot.portfolio.sqlite_store import PortfolioStore
 from finrobot.run_store import RunRecord
+from finrobot.storage.user_db import user_database
 
 NOW = datetime(2026, 5, 1, tzinfo=UTC)
 
 
 @pytest.fixture
 async def stores(tmp_path: Path):
-    db = tmp_path / "portfolio.db"
-    pf = PortfolioStore(db_path=db)
-    al = AlertStore(db_path=db)
+    # One shared database, as in production: both stores' tables live in the
+    # consolidated user db and join the same connection / transaction scope.
+    db = user_database(tmp_path / "finrobot.db")
+    pf = PortfolioStore(database=db)
+    al = AlertStore(database=db)
     yield pf, al
-    await al.close()
-    await pf.close()
+    await db.close()
 
 
 def _price(ticker: str, closes: list[float], *, current: float | None = None, currency="USD"):

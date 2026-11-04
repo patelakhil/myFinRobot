@@ -11,6 +11,7 @@ the live reverse-derivation (PNC ~$275, CFG ~$47, JPM ~$310).
 from __future__ import annotations
 
 import pytest
+
 from finrobot.engine.compute.operators.residual_income import calculate_residual_income
 from finrobot.engine.models.financial import DDMInputs
 

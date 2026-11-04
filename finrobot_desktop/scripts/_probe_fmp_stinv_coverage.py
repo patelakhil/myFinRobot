@@ -23,6 +23,7 @@ Run:
 from __future__ import annotations
 
 import asyncio
+import math
 from typing import Any
 
 from edgar import Company, set_identity
@@ -122,7 +123,7 @@ def _num(value: Any) -> float | None:
         out = float(value)
     except (TypeError, ValueError):
         return None
-    if out != out:  # NaN
+    if math.isnan(out):
         return None
     return out
 
@@ -132,7 +133,7 @@ def _latest_sec_value(facts: Any, concepts: tuple[str, ...]) -> tuple[float | No
     for concept in concepts:
         try:
             fact = facts.get_fact(f"us-gaap:{concept}")
-        except Exception:
+        except Exception:  # noqa: BLE001 — edgartools raises assorted types for absent concepts
             fact = None
         if fact is None:
             continue

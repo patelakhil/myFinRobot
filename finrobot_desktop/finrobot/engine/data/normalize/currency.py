@@ -20,6 +20,8 @@ analyst's eye, never rewrite a number on a guess.
 
 from __future__ import annotations
 
+import math
+
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials
 from finrobot.engine.primitives.dividend import reconcile_per_share_dividend_to_quote_unit
 
@@ -67,7 +69,7 @@ def normalize_canonical_financials_currency(
     """
     if financials.reporting_currency.upper() == financials.quote_currency.upper():
         return financials
-    if reporting_to_quote_rate <= 0 or reporting_to_quote_rate != reporting_to_quote_rate:
+    if reporting_to_quote_rate <= 0 or math.isnan(reporting_to_quote_rate):
         raise ValueError(
             f"reporting_to_quote_rate must be positive and finite, got "
             f"{reporting_to_quote_rate!r} for {financials.ticker} "

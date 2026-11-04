@@ -9,7 +9,7 @@ Pins three contracts broken by Bug A + Bug B:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -24,6 +24,7 @@ from finrobot.engine.compute.operators.valuation_synthesis import (
     synthesize_valuations,
 )
 from finrobot.engine.models.financial import (
+    BalanceSheet,
     CompanyFinancials,
     DCFInputs,
     DCFResult,
@@ -31,7 +32,6 @@ from finrobot.engine.models.financial import (
     DDMResult,
     FinancialData,
     IncomeStatement,
-    BalanceSheet,
     LBOResult,
     LBOYear,
     MarketData,
@@ -39,7 +39,6 @@ from finrobot.engine.models.financial import (
     ValuationMethod,
 )
 from finrobot.engine.pipelines._helpers import build_valuation_synthesis
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -481,7 +480,7 @@ def _financial_data(
     """Minimal single-currency FinancialData with a real net-debt bridge."""
     return FinancialData(
         ticker="AAPL",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(revenue=390e9, ebitda=120e9, net_income=95e9),
         balance=BalanceSheet(total_debt=110e9, total_cash=62e9),
         market=MarketData(

@@ -64,6 +64,7 @@ def _find_def_site(symbol: str) -> str:
     out = subprocess.run(
         ["grep", "-rlE", rf"^\s*(def|class)\s+{literal}\b", "--include=*.py", *GREP_ROOTS],
         cwd=ROOT,
+        check=False,  # grep exits 1 on "no match", which is a valid answer here
         capture_output=True,
         text=True,
     ).stdout.split()
@@ -97,6 +98,7 @@ def _grep_hits(symbol: str) -> set[tuple[str, int]]:
     out = subprocess.run(
         ["grep", "-rwnF", symbol, *includes, *excludes, *GREP_ROOTS],
         cwd=ROOT,
+        check=False,  # grep exits 1 on "no match", which is a valid answer here
         capture_output=True,
         text=True,
     ).stdout.splitlines()

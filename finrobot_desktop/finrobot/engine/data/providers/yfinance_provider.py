@@ -4,7 +4,7 @@ import math
 import os
 import tempfile
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, cast
 
 import pandas as pd
@@ -370,7 +370,7 @@ class YFinanceProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.QUOTE,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     def _fetch_financials(self, ticker: str, info: dict[str, Any]) -> DataResult:
@@ -446,7 +446,7 @@ class YFinanceProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.FINANCIALS,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def _fetch_historical_financials(
@@ -479,7 +479,7 @@ class YFinanceProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.FINANCIALS,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def _fetch_price(self, ticker: str, t: yf.Ticker, info: dict[str, Any]) -> DataResult:
@@ -549,7 +549,7 @@ class YFinanceProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.PRICE,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def _fetch_price_range(
@@ -625,7 +625,7 @@ class YFinanceProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.PRICE_RANGE,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def _fetch_news(self, ticker: str, t: yf.Ticker) -> DataResult:
@@ -668,5 +668,5 @@ class YFinanceProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.NEWS,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )

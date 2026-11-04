@@ -29,6 +29,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from starlette.requests import Request
 
+from finrobot.engine.data.integrations import refreshed_data_types
 from finrobot.engine.pipelines.refresh_service import (
     ARTIFACT_TYPE_TO_PIPELINE,
     MAX_REPORTS_PER_REQUEST,
@@ -40,7 +41,6 @@ from finrobot.engine.pipelines.refresh_service import (
     step_plans,
     validate_integrations,
 )
-from finrobot.engine.data.integrations import refreshed_data_types
 
 logger = logging.getLogger(__name__)
 

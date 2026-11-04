@@ -11,7 +11,7 @@ age instead of overstating it by the hours from midnight to the close (~20h).
 from __future__ import annotations
 
 import math
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 from typing import Any
 
 from finrobot.engine.data.interface import DataResult
@@ -47,7 +47,7 @@ def _date_to_dt(d: date) -> datetime:
     period_end (a calendar boundary, not a clock instant) — reused by
     ``normalize_financials``. Price ``as_of`` does NOT use this: a quote belongs
     to its trade instant / session close, not midnight (see ``derive_price_as_of``)."""
-    return datetime.combine(d, time.min, tzinfo=timezone.utc)
+    return datetime.combine(d, time.min, tzinfo=UTC)
 
 
 def normalize_price(result: DataResult) -> NormalizedPrice:

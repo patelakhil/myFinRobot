@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
 from pydantic_ai.ui.vercel_ai._event_stream import VercelAIEventStream
 from pydantic_ai.ui.vercel_ai.response_types import (
     DoneChunk,
@@ -39,7 +38,6 @@ from pydantic_ai.ui.vercel_ai.response_types import (
 
 from finrobot.audit.transcript import TranscriptWriter
 from finrobot.server import _stream_with_fallback
-
 
 # --------------------------------------------------------------------------- #
 # Fakes                                                                        #
@@ -107,7 +105,7 @@ def writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TranscriptWriter:
 def _read_assistant_texts(writer: TranscriptWriter) -> list[str]:
     import json
 
-    path = writer._path  # noqa: SLF001 — test reads the writer's resolved JSONL path
+    path = writer._path
     if not Path(path).exists():
         return []
     texts: list[str] = []

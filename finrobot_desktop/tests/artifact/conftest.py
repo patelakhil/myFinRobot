@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -16,8 +16,6 @@ from finrobot.artifact.models import (
     ArtifactOutputs,
 )
 
-
-UTC = timezone.utc
 _TS = datetime(2026, 5, 13, 10, 0, 0, tzinfo=UTC)
 
 

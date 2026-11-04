@@ -27,9 +27,11 @@ import type { RunState } from '../../stores/runStreamStore'
 import { artifactTypeLabel } from './artifactLabels'
 import { SETTINGS_ALLOWED } from '../../config/deployment'
 
-// Inline union (1-line) per the codebase's VersionDiffBanner precedent — avoids
-// a circular import back to AIZone, which owns the canonical preflight machinery.
-export type PreflightReason = 'offline' | 'needsModel' | 'config' | 'providers' | null
+// The canonical preflight machinery lives in ./ai-zone/preflight (pure, no
+// component imports, so this is not a cycle); re-exported for existing callers.
+import type { PreflightReason } from './ai-zone/preflight'
+
+export type { PreflightReason }
 
 /**
  * What a blocked run CTA should say.

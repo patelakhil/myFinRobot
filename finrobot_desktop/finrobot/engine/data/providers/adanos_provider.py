@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from statistics import mean
 from typing import Any, Literal
 
@@ -98,7 +98,7 @@ class AdanosProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.SENTIMENT,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             warnings=data.pop("_warnings", []),
         )
 

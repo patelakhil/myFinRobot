@@ -43,8 +43,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from finrobot.engine.pipelines.base import Pipeline, PipelineStep, TextValidator
-from finrobot.llm_probe import LlmProbeGate
 from finrobot.engine.pipelines.validators import validate_is_non_empty
+from finrobot.llm_probe import LlmProbeGate
 from finrobot.routes import runs as runs_mod
 from finrobot.routes.runs import _RATE_LIMIT_MAX_REQUEUES
 from finrobot.run_store import RunStore

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -212,11 +212,7 @@ async def hit_rate(
     )
 
     window_days = _WINDOW_DAYS[window]  # type: ignore[index]
-    cutoff = (
-        datetime.now(tz=timezone.utc) - timedelta(days=window_days)
-        if window_days is not None
-        else None
-    )
+    cutoff = datetime.now(tz=UTC) - timedelta(days=window_days) if window_days is not None else None
     scoped_windowed_count = await store.count(
         include_archived=False, tickers=ticker_set, created_after=cutoff
     )
@@ -294,7 +290,7 @@ async def recent_research(
             items=[],
             total_in_store=0,
             distinct_ticker_count=0,
-            generated_at=datetime.now(tz=timezone.utc),
+            generated_at=datetime.now(tz=UTC),
         )
         _RECENT_CACHE[cache_key] = (now_ts, empty)
         return empty
@@ -397,7 +393,7 @@ async def recent_research(
         items=items,
         total_in_store=total_in_store,
         distinct_ticker_count=distinct_ticker_count,
-        generated_at=datetime.now(tz=timezone.utc),
+        generated_at=datetime.now(tz=UTC),
     )
     _RECENT_CACHE[cache_key] = (now_ts, response)
     return response

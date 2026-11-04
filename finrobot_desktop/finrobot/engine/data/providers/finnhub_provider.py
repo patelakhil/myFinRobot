@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -109,7 +109,7 @@ class FinnhubProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=data_type,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def _fetch_price(self, ticker: str) -> dict[str, Any]:
@@ -167,7 +167,7 @@ class FinnhubProvider(DataProvider):
         Finnhub candle bodies are parallel arrays under keys s/t/o/h/l/c/v
         (``t`` = unix seconds). Reassemble into the canonical per-bar dict.
         """
-        today = datetime.now(tz=timezone.utc)
+        today = datetime.now(tz=UTC)
         start = today - timedelta(days=_PRICE_HISTORY_DAYS)
         try:
             candle = (
@@ -204,7 +204,7 @@ class FinnhubProvider(DataProvider):
                 continue
             bars.append(
                 {
-                    "date": datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat(),
+                    "date": datetime.fromtimestamp(ts, tz=UTC).date().isoformat(),
                     "open": opens[i] if i < len(opens) else None,
                     "high": highs[i] if i < len(highs) else None,
                     "low": lows[i] if i < len(lows) else None,
@@ -218,7 +218,7 @@ class FinnhubProvider(DataProvider):
 
     async def _fetch_news(self, ticker: str) -> DataResult:
         """Fetch recent company news from Finnhub /company-news (last 90 days)."""
-        today = datetime.now(tz=timezone.utc).date()
+        today = datetime.now(tz=UTC).date()
         from_date = (today - timedelta(days=90)).isoformat()
         to_date = today.isoformat()
         raw: list[dict[str, Any]] = (
@@ -231,7 +231,7 @@ class FinnhubProvider(DataProvider):
             {
                 "title": item.get("headline", ""),
                 "source": item.get("source", ""),
-                "published": datetime.fromtimestamp(item["datetime"], tz=timezone.utc).isoformat()
+                "published": datetime.fromtimestamp(item["datetime"], tz=UTC).isoformat()
                 if item.get("datetime")
                 else "",
                 "url": item.get("url", ""),
@@ -243,7 +243,7 @@ class FinnhubProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.NEWS,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def _get(self, path: str, params: dict[str, Any] | None = None) -> httpx.Response:

@@ -34,7 +34,7 @@ import logging
 import os
 import sys
 import traceback
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -86,9 +86,7 @@ def _is_valid_identity(s: str | None) -> bool:
     edgar_provider.py 并由这里 import。"""
     if not s or "@" not in s or " " not in s.strip():
         return False
-    if s.strip() == "FinRobot admin@example.com":
-        return False
-    return True
+    return s.strip() != "FinRobot admin@example.com"
 
 
 def probe_local_identity_gate() -> dict[str, Any]:
@@ -152,17 +150,17 @@ def probe_server_can_start_without_identity() -> dict[str, Any]:
 def probe_edgartools_real_calls(identity: str) -> dict[str, Any]:
     """对 spec §4 门 1 列的每个 API 做真实调用，存 fixture，记结果。"""
     logger.info("[probe] real SEC calls with identity %r", identity)
-    from edgar import Company, set_identity, get_filings  # noqa: PLC0415
+    from edgar import Company, get_filings, set_identity
 
     # spec §5 注释要求确认顶层异常名 — 实测后记录
     edgar_top_error_name = "Exception"  # fallback
     try:
-        from edgar.core import EdgarError  # type: ignore[import-untyped]  # noqa: PLC0415
+        from edgar.core import EdgarError  # type: ignore[import-untyped]
 
         edgar_top_error_name = EdgarError.__name__
     except ImportError:
         try:
-            from edgar import EdgarError  # type: ignore[attr-defined]  # noqa: PLC0415
+            from edgar import EdgarError  # type: ignore[attr-defined]
 
             edgar_top_error_name = EdgarError.__name__
         except ImportError:
@@ -284,7 +282,7 @@ def probe_edgartools_real_calls(identity: str) -> dict[str, Any]:
             csv_path = FIXTURES_DIR / f"xbrl_revenue_{tkr}.csv"
             df.to_csv(csv_path, index=False)
             summary["xbrl_revenue"][tkr] = {
-                "rows": int(len(df)),
+                "rows": len(df),
                 "columns": list(df.columns),
                 "first_row": _json_safe(df.iloc[0].to_dict()) if len(df) > 0 else None,
             }
@@ -581,7 +579,7 @@ def emit_probe_summary(
         blockers.append("13f_both_paths_blocked")
 
     summary = {
-        "probe_run_at": datetime.now(tz=timezone.utc).isoformat(),
+        "probe_run_at": datetime.now(tz=UTC).isoformat(),
         "edgartools_version": edgartools_version,
         "python_version": py_version,
         "identity_used_was_valid": _is_valid_identity(identity_used),

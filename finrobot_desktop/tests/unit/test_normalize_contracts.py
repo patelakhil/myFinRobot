@@ -1,6 +1,6 @@
 """Contract-model helper tests (ADR-0004 step 1)."""
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -15,22 +15,22 @@ from finrobot.engine.data.normalize.contracts import (
 
 
 def _prov(**kw) -> Provenance:
-    base = dict(
-        provider="fmp",
-        as_of=datetime(2026, 5, 27, tzinfo=timezone.utc),
-        fetched_at=datetime(2026, 5, 28, tzinfo=timezone.utc),
-    )
+    base = {
+        "provider": "fmp",
+        "as_of": datetime(2026, 5, 27, tzinfo=UTC),
+        "fetched_at": datetime(2026, 5, 28, tzinfo=UTC),
+    }
     base.update(kw)
     return Provenance(**base)
 
 
 def _price(bars: list[PriceBar], **kw) -> NormalizedPrice:
-    base = dict(
-        ticker="TSLA",
-        bars=bars,
-        current_price=bars[-1].close if bars else 0.0,
-        provenance=_prov(),
-    )
+    base = {
+        "ticker": "TSLA",
+        "bars": bars,
+        "current_price": bars[-1].close if bars else 0.0,
+        "provenance": _prov(),
+    }
     base.update(kw)
     return NormalizedPrice(**base)
 
@@ -121,15 +121,15 @@ def test_to_prompt_summary_safe_on_empty_bars():
 
 
 def _fin(**kw) -> NormalizedFinancials:
-    base = dict(
-        ticker="AAPL",
-        current_price=287.98,
-        market_cap=4.230e12,
-        pe_ratio=34.51,
-        shares_outstanding=4.230e12 / 287.98,
-        as_of=datetime(2026, 6, 30, 16, 14, tzinfo=timezone.utc),
-        provenance=_prov(),
-    )
+    base = {
+        "ticker": "AAPL",
+        "current_price": 287.98,
+        "market_cap": 4.230e12,
+        "pe_ratio": 34.51,
+        "shares_outstanding": 4.230e12 / 287.98,
+        "as_of": datetime(2026, 6, 30, 16, 14, tzinfo=UTC),
+        "provenance": _prov(),
+    }
     base.update(kw)
     return NormalizedFinancials(**base)
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -36,7 +36,7 @@ def _financial_data() -> FinancialData:
         # passthrough off this, so the fixture must populate it like real data.
         valuation=ValuationMetrics(enterprise_value=100.0 + 30.0 - 5.0),
         data_source="test",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 

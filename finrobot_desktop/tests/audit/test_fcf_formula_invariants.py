@@ -18,23 +18,23 @@ from finrobot.engine.models.financial import DCFInputs, DCFResult
 
 def _base_inputs(**overrides) -> DCFInputs:
     """A reasonable baseline DCFInputs — every monotonicity test perturbs from here."""
-    defaults = dict(
-        revenue_base=100e9,
-        revenue_growth_rates=[0.08] * 5,
-        ebitda_margin=0.30,
-        capex_pct_revenue=0.05,
-        nwc_pct_revenue=0.02,
-        da_pct_revenue=0.04,
-        tax_rate=0.21,
-        risk_free_rate=0.04,
-        beta=1.1,
-        equity_risk_premium=0.05,
-        cost_of_debt=0.04,
-        debt_ratio=0.2,
-        terminal_growth_rate=0.025,
-        shares_outstanding=1e9,
-        net_debt=10e9,
-    )
+    defaults = {
+        "revenue_base": 100e9,
+        "revenue_growth_rates": [0.08] * 5,
+        "ebitda_margin": 0.30,
+        "capex_pct_revenue": 0.05,
+        "nwc_pct_revenue": 0.02,
+        "da_pct_revenue": 0.04,
+        "tax_rate": 0.21,
+        "risk_free_rate": 0.04,
+        "beta": 1.1,
+        "equity_risk_premium": 0.05,
+        "cost_of_debt": 0.04,
+        "debt_ratio": 0.2,
+        "terminal_growth_rate": 0.025,
+        "shares_outstanding": 1e9,
+        "net_debt": 10e9,
+    }
     defaults.update(overrides)
     return DCFInputs(**defaults)
 

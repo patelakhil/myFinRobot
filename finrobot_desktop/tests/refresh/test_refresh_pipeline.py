@@ -15,7 +15,7 @@ report version must:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
@@ -89,12 +89,12 @@ def _build_pipeline(counters: Counters) -> Pipeline:
     def builder(result, ticker, deps) -> Artifact:
         own = result.structured_data.get("ownership_governance_analysis")
         return Artifact(
-            id=f"art_{datetime.now(tz=timezone.utc).isoformat()}_{ticker}_equity_research",
+            id=f"art_{datetime.now(tz=UTC).isoformat()}_{ticker}_equity_research",
             ticker=ticker,
             type="equity_research",
             inputs=ArtifactInputs(
                 data_source=str(result.structured_data.get("fin_provider")),
-                data_fetched_at=datetime.now(tz=timezone.utc),
+                data_fetched_at=datetime.now(tz=UTC),
                 raw_data={"revenue": result.structured_data.get("revenue")},
             ),
             assumptions=ArtifactAssumptions(parameters={}),
@@ -106,7 +106,7 @@ def _build_pipeline(counters: Counters) -> Pipeline:
                 },
                 warnings=result.collect_warnings(),
             ),
-            meta=ArtifactMeta(created_at=datetime.now(tz=timezone.utc), source="test"),
+            meta=ArtifactMeta(created_at=datetime.now(tz=UTC), source="test"),
         )
 
     return Pipeline(

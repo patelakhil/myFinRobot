@@ -17,33 +17,34 @@ Year 1: Rev=525, EBITDA=105, DA=21, EBIT=84
 """
 
 import pytest
-from finrobot.engine.models.financial import LBOInputs
+
 from finrobot.engine.compute.operators.lbo import (
+    _compute_irr,
     calculate_lbo,
     calculate_lbo_sensitivity,
-    _compute_irr,
 )
+from finrobot.engine.models.financial import LBOInputs
 
 
 def _base_inputs(**overrides) -> LBOInputs:
-    defaults = dict(
-        ticker="TEST",
-        ltm_ebitda=100.0,
-        entry_ev_ebitda=8.0,
-        exit_ev_ebitda=10.0,
-        holding_period_years=5,
-        revenue_base=500.0,
-        revenue_growth_rate=0.05,
-        ebitda_margin=0.20,
-        da_pct_revenue=0.04,
-        capex_pct_revenue=0.04,
-        nwc_change_pct_revenue=0.01,
-        leverage_multiple=5.0,
-        interest_rate=0.07,
-        mandatory_amort_pct=0.01,
-        cash_sweep=True,
-        tax_rate=0.25,
-    )
+    defaults = {
+        "ticker": "TEST",
+        "ltm_ebitda": 100.0,
+        "entry_ev_ebitda": 8.0,
+        "exit_ev_ebitda": 10.0,
+        "holding_period_years": 5,
+        "revenue_base": 500.0,
+        "revenue_growth_rate": 0.05,
+        "ebitda_margin": 0.20,
+        "da_pct_revenue": 0.04,
+        "capex_pct_revenue": 0.04,
+        "nwc_change_pct_revenue": 0.01,
+        "leverage_multiple": 5.0,
+        "interest_rate": 0.07,
+        "mandatory_amort_pct": 0.01,
+        "cash_sweep": True,
+        "tax_rate": 0.25,
+    }
     defaults.update(overrides)
     return LBOInputs(**defaults)
 

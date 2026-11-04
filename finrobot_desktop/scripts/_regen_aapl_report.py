@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from pathlib import Path
 
 from finrobot.artifact.store import ArtifactStore
 from finrobot.config import get_settings
@@ -26,7 +27,6 @@ from finrobot.paths import SETTINGS_JSON, ensure_home
 from finrobot.routes.settings import load_non_secret_settings
 from finrobot.secret_store import create_secret_store
 from finrobot.server import hydrate_settings_from_secrets
-from pathlib import Path
 
 TICKER = sys.argv[1] if len(sys.argv) > 1 else "AAPL"
 LANG = sys.argv[2] if len(sys.argv) > 2 else None

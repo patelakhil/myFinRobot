@@ -12,26 +12,28 @@ receive raw ``DataResult`` slices from ``fetch_historical`` wrap them with
 ``normalize_financials / normalize_price`` at the call site before passing here.
 """
 
-from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
-from finrobot.engine.models.financial import (
-    FIELD_WARN_EV_MISSING_NET_DEBT,
-    FIELD_WARN_SHARES_DERIVED,
-    DataProvenance,
-    FinancialData,
-    IncomeStatement,
-    BalanceSheet,
-    MarketData,
-    ValuationMetrics,
-    PriceHistory,
-    CompanyFinancials,
-)
 from finrobot.engine.compute.operators.fx_normalize import (
     normalize_company_to_usd,
     normalize_financialdata_to_usd,
 )
 from finrobot.engine.compute.operators.multiples import calculate_ev
+from finrobot.engine.data.normalize.contracts import NormalizedFinancials, NormalizedPrice
+from finrobot.engine.models.financial import (
+    FIELD_WARN_EV_MISSING_NET_DEBT,
+    FIELD_WARN_SHARES_DERIVED,
+    BalanceSheet,
+    CompanyFinancials,
+    DataProvenance,
+    FinancialData,
+    IncomeStatement,
+    MarketData,
+    PriceHistory,
+    ValuationMetrics,
+)
 from finrobot.engine.primitives.book_value import (
     SHARES_PRICE_CONSISTENCY_TOL as _SHARES_PRICE_CONSISTENCY_TOL,
+)
+from finrobot.engine.primitives.book_value import (
     reconcile_book_value_to_price_basis,
 )
 from finrobot.engine.primitives.ebitda import (

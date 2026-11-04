@@ -11,7 +11,7 @@ provenance keys here rather than dropping a field silently.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -39,7 +39,7 @@ def _financials() -> FinancialData:
     return FinancialData(
         ticker="JPM",
         company_name="JPMorgan Chase & Co.",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=1.6e11,
             ebitda=1.0e11,
@@ -61,7 +61,7 @@ def _financials() -> FinancialData:
 
 
 def _normalized() -> NormalizedFinancials:
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     return NormalizedFinancials(
         ticker="JPM",
         revenue=1.6e11,

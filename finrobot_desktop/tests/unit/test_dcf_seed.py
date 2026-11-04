@@ -15,27 +15,28 @@ What these tests verify beyond "code runs":
 
 from __future__ import annotations
 
+import itertools
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from finrobot.engine.compute.operators.dcf import calculate_dcf, solve_for_implied_growth
 from finrobot.engine.compute.operators.dcf_seed import (
+    _BETA_BAND_CEILING,
+    _BETA_BAND_FLOOR,
+    _BETA_OUT_OF_BAND_REASON,
     COST_OF_DEBT_CAP,
     COST_OF_DEBT_FLOOR,
     DCF_TAX_RATE_CAP,
     TAX_RATE_OUTLIER_CAP,
-    _BETA_BAND_CEILING,
-    _BETA_BAND_FLOOR,
-    _BETA_OUT_OF_BAND_REASON,
     _cost_of_debt,
     _decay_growth_schedule,
     _effective_tax_rate,
     _median_ratio,
+    _median_recent,
     _pick_with_provenance,
     _terminal_nwc_pct,
-    _median_recent,
     _weighted_ratio,
     seed_dcf_inputs,
 )
@@ -49,7 +50,6 @@ from finrobot.engine.models.financial import (
     ValuationMetrics,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers — module-level fixtures simulating AAPL FY24 data
 # ---------------------------------------------------------------------------
@@ -60,7 +60,7 @@ def _aapl_financials() -> FinancialData:
     return FinancialData(
         ticker="AAPL",
         company_name="Apple Inc.",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=391_035_000_000,
             ebitda=131_900_000_000,
@@ -185,7 +185,7 @@ class TestDecayGrowthSchedule:
 
     def test_monotone_decreasing(self):
         sched = _decay_growth_schedule(0.20, 0.025, years=5)
-        for a, b in zip(sched, sched[1:]):
+        for a, b in itertools.pairwise(sched):
             assert a >= b, f"non-monotone at {sched}"
 
     def test_single_year_returns_base(self):
@@ -307,7 +307,7 @@ class TestSeedDcfInputsAapl:
         # AAPL fixture has CAGR=2.2% < terminal 2.5% → flat schedule. Real
         # AAPL 5y CAGR is closer to 8% so this is a fixture-specific edge.
         # Either way, schedule must be monotone non-increasing.
-        for a, b in zip(sched, sched[1:]):
+        for a, b in itertools.pairwise(sched):
             assert a >= b
 
     def test_provenance_covers_all_critical_fields(self):
@@ -766,7 +766,7 @@ class TestForwardGrowthSeed:
         assert sched[-1] == pytest.approx(inputs.terminal_growth_rate)
         # monotone-decreasing tail after the explicit consensus years
         tail = sched[2:]
-        assert all(a >= b - 1e-9 for a, b in zip(tail, tail[1:]))
+        assert all(a >= b - 1e-9 for a, b in itertools.pairwise(tail))
 
     def test_forward_growth_respects_40pct_cap(self):
         inputs = seed_dcf_inputs(
@@ -1202,7 +1202,7 @@ def _mu_financials() -> FinancialData:
     return FinancialData(
         ticker="MU",
         company_name="Micron Technology, Inc.",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=58_120_000_000,
             ebitda=29_000_000_000,

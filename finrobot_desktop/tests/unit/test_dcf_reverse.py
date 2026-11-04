@@ -18,22 +18,22 @@ from finrobot.engine.models.financial import DCFInputs
 
 
 def _make_inputs(**overrides):
-    defaults = dict(
-        revenue_base=100_000_000_000,
-        revenue_growth_rates=[0.05] * 5,
-        ebitda_margin=0.35,
-        capex_pct_revenue=0.05,
-        nwc_pct_revenue=0.02,
-        tax_rate=0.21,
-        risk_free_rate=0.04,
-        beta=1.2,
-        equity_risk_premium=0.05,
-        cost_of_debt=0.04,
-        debt_ratio=0.1,
-        terminal_growth_rate=0.025,
-        shares_outstanding=1_000_000_000,
-        net_debt=10_000_000_000,
-    )
+    defaults = {
+        "revenue_base": 100_000_000_000,
+        "revenue_growth_rates": [0.05] * 5,
+        "ebitda_margin": 0.35,
+        "capex_pct_revenue": 0.05,
+        "nwc_pct_revenue": 0.02,
+        "tax_rate": 0.21,
+        "risk_free_rate": 0.04,
+        "beta": 1.2,
+        "equity_risk_premium": 0.05,
+        "cost_of_debt": 0.04,
+        "debt_ratio": 0.1,
+        "terminal_growth_rate": 0.025,
+        "shares_outstanding": 1_000_000_000,
+        "net_debt": 10_000_000_000,
+    }
     defaults.update(overrides)
     return DCFInputs(**defaults)
 
@@ -264,7 +264,7 @@ def test_equivalence_line_holds_wacc_fixed_and_descends_with_growth():
     inputs = _make_inputs()
     # A target reachable across the mid/high growth range.
     target = _price_for(inputs, 0.30, 0.10, inputs.terminal_growth_rate, 8, False)
-    wacc, tg, points = build_equivalence_line(
+    wacc, _tg, points = build_equivalence_line(
         inputs, target, wacc_override=0.10, growth_lo=0.20, growth_hi=0.50, steps=7
     )
     assert wacc == 0.10  # fixed for the whole line

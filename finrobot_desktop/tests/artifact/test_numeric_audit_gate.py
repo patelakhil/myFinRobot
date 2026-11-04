@@ -8,7 +8,7 @@ report renders byte-identically.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -35,8 +35,6 @@ from finrobot.engine.models.financial import (
     ValuationMetrics,
 )
 from finrobot.engine.pipelines.base import PipelineResult
-
-UTC = timezone.utc
 
 
 def _fd(

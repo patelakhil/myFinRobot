@@ -48,7 +48,7 @@ class ProbeResult:
         return iter(self.as_tuple())
 
     @classmethod
-    def coerce(cls, value: object) -> "ProbeResult":
+    def coerce(cls, value: object) -> ProbeResult:
         """Accept either a ProbeResult or a legacy ``(ok, code, detail)`` tuple
         (test doubles monkeypatch ``probe_model`` with the tuple form)."""
         if isinstance(value, cls):

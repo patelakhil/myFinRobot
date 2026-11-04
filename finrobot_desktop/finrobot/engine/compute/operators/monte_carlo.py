@@ -15,7 +15,7 @@ completes in ~10ms vs ~2s for the scalar loop it replaced.
 from __future__ import annotations
 
 import zlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -91,7 +91,7 @@ def deterministic_seed(ticker: str, as_of: str | None = None) -> int:
     The day boundary is UTC because every other as-of stamp in the engine is;
     pass ``as_of`` (ISO date) explicitly when the caller already carries one.
     """
-    day = as_of or datetime.now(tz=timezone.utc).date().isoformat()
+    day = as_of or datetime.now(tz=UTC).date().isoformat()
     return zlib.crc32(f"{ticker}:{day}".encode())
 
 

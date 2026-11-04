@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -29,16 +28,16 @@ from .test_refresh_pipeline import Counters, _build_pipeline
 
 
 def _settings(**overrides):
-    base = dict(
-        is_model_configured=True,
-        model_name="test:stub",  # probe gate short-circuits: no LLM call
-        fmp_api_key="fmp-key",
-        finnhub_api_key="",
-        adanos_api_key="",
-        alpha_vantage_api_key="",
-        sec_user_agent="Jane Analyst jane@example.com",
-        language="en",
-    )
+    base = {
+        "is_model_configured": True,
+        "model_name": "test:stub",  # probe gate short-circuits: no LLM call
+        "fmp_api_key": "fmp-key",
+        "finnhub_api_key": "",
+        "adanos_api_key": "",
+        "alpha_vantage_api_key": "",
+        "sec_user_agent": "Jane Analyst jane@example.com",
+        "language": "en",
+    }
     base.update(overrides)
     return SimpleNamespace(**base)
 

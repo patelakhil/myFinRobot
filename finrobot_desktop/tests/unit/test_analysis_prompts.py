@@ -11,7 +11,7 @@ Also tests data validation, EV/EBITDA computation, and D&A approximation warning
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -19,16 +19,15 @@ import pytest
 
 from finrobot.engine.analysis.prompts import (
     ANALYSIS_TYPES,
-    build_analysis_prompt,
     _build_financials_table,
     _fetch_peer_table,
-    _validate_analysis_data,
     _fmt_num,
     _fmt_pct,
+    _validate_analysis_data,
+    build_analysis_prompt,
 )
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.financials import normalize_financials
-
 
 # ------------------------------------------------------------------ #
 # Fixture helpers                                                     #
@@ -54,7 +53,7 @@ def _make_fin(**overrides: object):
         provider="yfinance",
         ticker="AAPL",
         data_type="financials",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     return normalize_financials(raw)
 
@@ -164,7 +163,7 @@ def _make_peer_candidates(ticker: str = "AAPL") -> DataResult:
         provider="fmp",
         ticker=ticker,
         data_type="peer_candidates",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -190,7 +189,7 @@ class TestPeerTableFxNormalization:
             provider="fmp",
             ticker="TSM",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         foreign_fin = normalize_financials(foreign)
         # Sanity-check the fixture really is a foreign-ccy collapse case.
@@ -262,7 +261,7 @@ class TestPeerTableDeterministicSelection:
                     provider="fmp",
                     ticker=ticker,
                     data_type="peer_candidates",
-                    timestamp=datetime.now(tz=timezone.utc),
+                    timestamp=datetime.now(tz=UTC),
                 )
 
             async def fetch_canonical(self, data_type: object, ticker: str) -> object:
@@ -308,7 +307,7 @@ class TestValidateAnalysisData:
             provider="fmp",
             ticker="MSFT",
             data_type="financials",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         fin = normalize_financials(raw)
         with pytest.raises(ValueError, match="MSFT"):

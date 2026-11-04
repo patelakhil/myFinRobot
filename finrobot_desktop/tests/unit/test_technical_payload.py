@@ -6,7 +6,7 @@ their graceful degradation when individual data sources are missing.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -57,14 +57,14 @@ class _StubDataLayer:
                 provider="stub",
                 ticker=ticker,
                 data_type="price",
-                timestamp=datetime.now(tz=timezone.utc),
+                timestamp=datetime.now(tz=UTC),
             )
         return DataResult(
             data={},
             provider="stub",
             ticker=ticker,
             data_type=data_type,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def fetch_canonical(self, data_type: DataType | str, ticker: str) -> NormalizedPrice:
@@ -123,7 +123,7 @@ class _StubDataLayer:
                     provider="stub",
                     ticker=ticker,
                     data_type=data_type,
-                    timestamp=datetime.now(tz=timezone.utc),
+                    timestamp=datetime.now(tz=UTC),
                 )
             )
         return rows

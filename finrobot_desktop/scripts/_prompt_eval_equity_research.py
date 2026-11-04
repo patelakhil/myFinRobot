@@ -22,7 +22,6 @@ import httpx
 from finrobot.engine.skills.pipeline_methodology import _PIPELINE_SAFE_METHODOLOGY
 from finrobot.secret_store import create_secret_store
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -82,7 +81,7 @@ def _read_skill(*parts: str) -> str:
 
 def _extract_markdown_guidance(raw: str, *, max_chars: int = 5000) -> str:
     """Keep enough raw skill text for the raw-skill arm without huge prompts."""
-    body = re.sub(r"^---.*?---\s*", "", raw, flags=re.S)
+    body = re.sub(r"^---.*?---\s*", "", raw, flags=re.DOTALL)
     return body[:max_chars]
 
 

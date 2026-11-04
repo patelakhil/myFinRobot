@@ -7,7 +7,8 @@ Uses a FakeDeps / FakeDataLayer to avoid real network calls.
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import ClassVar
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -25,13 +26,13 @@ from finrobot.engine.data.normalize.contracts import (
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import StepOutput
 from finrobot.engine.pipelines.base import (
+    _PROMPT_MAX_STEP_DATA_CHARS,
     Pipeline,
     PipelineResult,
     PipelineStep,
     PipelineStepError,
     StructuredValidator,
     TextValidator,
-    _PROMPT_MAX_STEP_DATA_CHARS,
     _is_recoverable_exception,
 )
 from finrobot.engine.pipelines.runner import (
@@ -46,7 +47,6 @@ from finrobot.engine.pipelines.runner import (
 )
 from finrobot.engine.pipelines.validators import ValidationResult, validate_is_non_empty
 
-
 # ---------------------------------------------------------------------------
 # Fakes
 # ---------------------------------------------------------------------------
@@ -59,11 +59,11 @@ class FakeDataLayer:
             provider="fake",
             ticker=ticker,
             data_type=data_type,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def fetch_canonical(self, data_type: str | DataType, ticker: str, **kwargs):
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         provenance = Provenance(provider="fake", as_of=now, fetched_at=now)
         if DataType(data_type) == DataType.PRICE:
             return NormalizedPrice(
@@ -401,7 +401,7 @@ class TestPipelineResult:
         """Warnings from structured data appear in Data Source Notes section."""
 
         class FakeModel:
-            warnings = [
+            warnings: ClassVar[list[str]] = [
                 "Data discrepancy: revenue differs by 33% (fmp: 100 vs yfinance: 75).",
                 "total_debt not available — defaulted to 0",
                 "FMP request failed for url 'https://financialmodelingprep.com/api/v3/income-statement/AAPL?apikey=secret'\nFor more information check: https://developer.mozilla.org/",
@@ -425,7 +425,7 @@ class TestPipelineResult:
         """Artifact/runs warning collection must not surface provider endpoints."""
 
         class FakeModel:
-            warnings = [
+            warnings: ClassVar[list[str]] = [
                 "Provider failed for url https://financialmodelingprep.com/api/v3/quote/MSFT?apikey=secret"
             ]
 
@@ -456,7 +456,7 @@ class TestPipelineResult:
         """No Data Source Notes section when there are no warnings."""
 
         class CleanModel:
-            warnings: list[str] = []
+            warnings: ClassVar[list[str]] = []
 
         result = PipelineResult(
             steps={"step_a": "output"},
@@ -481,7 +481,7 @@ def _minimal_artifact():
         ArtifactOutputs,
     )
 
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     return Artifact(
         id="art_test_AAPL_eq",
         ticker="AAPL",
@@ -504,7 +504,7 @@ class TestArtifactLanguageStamping:
         # Legacy artifacts (written before this field existed) were all generated
         # in Chinese; the default MUST be 'zh' so old JSON deserializes with
         # correct provenance. Deliberately the opposite of settings.language ('en').
-        meta = ArtifactMeta(created_at=datetime.now(tz=timezone.utc), source="cli")
+        meta = ArtifactMeta(created_at=datetime.now(tz=UTC), source="cli")
         assert meta.language == "zh"
 
     @pytest.mark.asyncio
@@ -1238,7 +1238,7 @@ async def test_step_data_is_truncated_to_cap():
                 provider="fake",
                 ticker=ticker,
                 data_type=data_type,
-                timestamp=datetime.now(tz=timezone.utc),
+                timestamp=datetime.now(tz=UTC),
             )
 
     captured: list[str] = []
@@ -1273,7 +1273,7 @@ async def test_step_data_is_truncated_to_cap():
 
 
 def _full_financials() -> NormalizedFinancials:
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     return NormalizedFinancials(
         ticker="AAPL",
         company_name="Apple Inc.",

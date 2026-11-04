@@ -23,7 +23,6 @@ from httpx import ASGITransport, AsyncClient
 from finrobot.ratelimit import RunRateLimiter
 from finrobot.run_store import RunRecord
 
-
 # ── Unit: the token bucket itself ────────────────────────────────────────────
 
 
@@ -108,7 +107,7 @@ async def runs_client(monkeypatch: pytest.MonkeyPatch):
 
     _counter = {"n": 0}
 
-    async def _fake_spawn(request, pipeline_type, ticker, **kwargs):  # noqa: ANN001, ANN003
+    async def _fake_spawn(request, pipeline_type, ticker, **kwargs):
         _counter["n"] += 1
         return RunRecord(
             run_id=f"run_{_counter['n']}",
@@ -171,7 +170,7 @@ async def coverage_client(monkeypatch: pytest.MonkeyPatch, tmp_path):
 
     _counter = {"n": 0}
 
-    async def _fake_spawn(request, pipeline_type, ticker, **kwargs):  # noqa: ANN001, ANN003
+    async def _fake_spawn(request, pipeline_type, ticker, **kwargs):
         _counter["n"] += 1
         return RunRecord(
             run_id=f"run_{_counter['n']}",

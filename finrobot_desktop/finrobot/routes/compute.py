@@ -8,8 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 from starlette.requests import Request
 
-from finrobot.routes._ready import ensure_engine_ready
-
 from finrobot.engine.compute.operators.dcf import (
     ReverseSolveReason,
     calculate_dcf,
@@ -39,6 +37,7 @@ from finrobot.engine.models.financial import (
     LBOInputs,
     LBOResult,
 )
+from finrobot.routes._ready import ensure_engine_ready
 from finrobot.warning_text import safe_error_text
 
 if TYPE_CHECKING:
@@ -156,9 +155,9 @@ class DcfSeedResponse(BaseModel):
     inputs: DCFInputs
     result: DCFResult
     current_price: float | None = None
-    reverse_growth: "DcfReverseResult | None" = None
-    reverse_wacc: "DcfReverseResult | None" = None
-    reverse_horizon: "DcfReverseResult | None" = None
+    reverse_growth: DcfReverseResult | None = None
+    reverse_wacc: DcfReverseResult | None = None
+    reverse_horizon: DcfReverseResult | None = None
 
 
 class DcfReverseResult(BaseModel):

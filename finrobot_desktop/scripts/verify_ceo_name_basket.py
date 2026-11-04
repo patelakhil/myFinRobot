@@ -64,7 +64,7 @@ async def main() -> None:
         )
         resolved = analysis.proxy_compensation.ceo_name if analysis.proxy_compensation else None
         path = "Form-4" if form4_ceo else ("prose" if prose_only else "none")
-        print(f"{ticker:<7}{str(resolved):<24}{path:<10}{str(prose_only):<22}")
+        print(f"{ticker:<7}{resolved!s:<24}{path:<10}{prose_only!s:<22}")
 
 
 if __name__ == "__main__":

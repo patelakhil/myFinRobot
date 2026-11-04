@@ -187,9 +187,7 @@ def _sentiment_failure_reason(
     is still an honest retry state — never a fabricated 5xx.
     """
     sentiment_providers = {
-        p.name
-        for p in data_layer._providers  # noqa: SLF001 — only sane way to introspect caps
-        if DataType.SENTIMENT in p.capabilities()
+        p.name for p in data_layer._providers if DataType.SENTIMENT in p.capabilities()
     }
     for name, _available, state in data_layer.provider_status():
         if name in sentiment_providers and state.last_rate_limited:
@@ -219,7 +217,7 @@ def _data_layer(request: Request) -> DataLayer | None:
 
 def _has_sentiment_provider(data_layer: DataLayer) -> bool:
     """Adanos isn't always loaded — only when the API key is configured."""
-    for provider in data_layer._providers:  # noqa: SLF001 — only sane way to introspect
+    for provider in data_layer._providers:
         if DataType.SENTIMENT in provider.capabilities():
             return True
     return False

@@ -1,7 +1,7 @@
 import math
-from statistics import median, mean
-from finrobot.engine.models.financial import CompanyFinancials, FinancialData, PeerComps
+from statistics import mean, median
 
+from finrobot.engine.models.financial import CompanyFinancials, FinancialData, PeerComps
 
 # Sanity bounds for peer multiples — a garbage filter, not a "meaningfulness"
 # filter. The lower bounds catch currency-unit-mismatch artifacts (yfinance

@@ -17,20 +17,29 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 
+from finrobot.artifact.migrate import migrate_filesystem_to_sqlite
+from finrobot.artifact.store import ArtifactStore
+from finrobot.audit.transcript import TranscriptWriter, is_valid_session_id
 from finrobot.auth import CapabilityAuthMiddleware
 from finrobot.config import DATA_PROVIDER_SECRET_FIELDS, get_capability_token, get_settings
-from finrobot.llm_probe import LlmProbeGate
-from finrobot.obs import bind_session, setup_logging
-from finrobot.obs.middleware import RequestTraceMiddleware
+from finrobot.coverage.prompt import format_coverage_snapshot
+from finrobot.coverage.service import build_overview
+from finrobot.coverage.sqlite_store import CoverageStore
 from finrobot.engine.data.cache import DataCache
 from finrobot.engine.data.factory import build_provider_chain
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.skills.registry import SkillRegistry
-from finrobot.artifact.migrate import migrate_filesystem_to_sqlite
-from finrobot.artifact.store import ArtifactStore
+from finrobot.llm_probe import LlmProbeGate
+from finrobot.obs import bind_session, setup_logging
+from finrobot.obs.middleware import RequestTraceMiddleware
 from finrobot.paths import SETTINGS_JSON, ensure_home
-from finrobot.audit.transcript import TranscriptWriter, is_valid_session_id
+from finrobot.portfolio.alert_engine import ResearchNotifier, alert_loop
+from finrobot.portfolio.alert_store import AlertStore
+from finrobot.portfolio.prompt import format_portfolio_snapshot
+from finrobot.portfolio.service import build_all_overviews
+from finrobot.portfolio.sqlite_store import PortfolioStore
+from finrobot.ratelimit import RunRateLimiter
 from finrobot.routes.artifacts import router as artifacts_router
 from finrobot.routes.chat_sessions import router as chat_sessions_router
 from finrobot.routes.compute import router as compute_router
@@ -43,21 +52,13 @@ from finrobot.routes.refresh import router as refresh_router
 from finrobot.routes.runs import router as runs_router
 from finrobot.routes.search import router as search_router
 from finrobot.routes.sec_holdings import router as sec_holdings_router
+from finrobot.routes.sentiment import router as sentiment_router
 from finrobot.routes.settings import load_non_secret_settings_with_error
 from finrobot.routes.settings import router as settings_router
-from finrobot.routes.sentiment import router as sentiment_router
 from finrobot.routes.valuation import router as valuation_router
-from finrobot.coverage.prompt import format_coverage_snapshot
-from finrobot.coverage.service import build_overview
-from finrobot.coverage.sqlite_store import CoverageStore
-from finrobot.portfolio.prompt import format_portfolio_snapshot
-from finrobot.portfolio.service import build_all_overviews
-from finrobot.portfolio.alert_engine import ResearchNotifier, alert_loop
-from finrobot.portfolio.alert_store import AlertStore
-from finrobot.portfolio.sqlite_store import PortfolioStore
-from finrobot.ratelimit import RunRateLimiter
 from finrobot.run_store import RunStore
 from finrobot.secret_store import SecretStore, create_secret_store
+from finrobot.storage.user_db import user_database
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +159,7 @@ async def warm_quote_cache(
                 timeout=budget_seconds,
             )
             logger.info("Quote cache warmed for %d studied tickers", len(tickers))
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "Quote cache warmup exceeded %.1fs budget for %d tickers — "
                 "lazy fetch will fill the gap",
@@ -247,13 +248,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # touch the chain and serve at once — the whole point of the split.
     data_layer = DataLayer(providers=[], cache=DataCache(settings.cache_db_path))
 
+    # ONE user-state database (~/.finrobot/finrobot.db) shared by the run,
+    # artifact, coverage, portfolio and alert stores — a single connection and
+    # a single transaction scope, so a run's terminal status and the artifact
+    # it produced commit together (routes/runs.py). Opening it also imports the
+    # pre-consolidation per-store files on an upgrading install
+    # (finrobot.storage.user_db). Closed once, below, after every store.
+    user_db = user_database()
+
     # Artifact store: SQLite-backed (since 2026-05-23). The ``ArtifactStore``
-    # name is a shim that delegates to ``SqliteArtifactStore`` — the old
-    # ~/.finrobot-desktop/artifacts/<ticker>/<id>.json filesystem layout is
-    # gone; data lives in ~/.finrobot/artifacts.db with secondary indexes on
-    # (ticker, created_at), verdict, archived. Eliminates the N+1 reads
-    # that dominated landing cold-start.
-    artifact_store = ArtifactStore()
+    # name is a shim that delegates to ``SqliteArtifactStore``; rows carry
+    # secondary indexes on (ticker, created_at), verdict, archived, which
+    # eliminated the N+1 reads that dominated landing cold-start.
+    artifact_store = ArtifactStore(database=user_db)
 
     # Sub-agents are shared between the LLM-side (lead agent's @agent.tool
     # closures) and the REST-side (runs.py reaches into app.state.sub_agents).
@@ -284,20 +291,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     run_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_RUNS)
 
     # Coverage Desk store — the user's research coverage universe (groups +
-    # members). Own aiosqlite db at ~/.finrobot/coverage.db; the overview
+    # members). Its tables live in the shared user db; the overview
     # orchestration above it reuses artifact_store + data_layer (ADR-0012).
     # Built BEFORE deps and carried on FinRobotDeps so the chat orchestrator's
     # query_coverage_universe tool reaches the SAME instance the REST coverage
     # routes use (app.state.coverage_store below is this exact object — never a
     # second connection to the same db file).
-    coverage_store = CoverageStore()
+    coverage_store = CoverageStore(database=user_db)
 
     # Portfolio Desk store — the user's actual holdings (portfolios + trade
     # lots). Built BEFORE deps for the same reason as coverage_store: carried on
     # FinRobotDeps so the chat orchestrator's query_portfolio_holdings tool (and
     # the per-turn portfolio snapshot block) reach the SAME instance the REST
-    # portfolio routes use — never a second connection to portfolio.db.
-    portfolio_store = PortfolioStore()
+    # portfolio routes use — one store instance over the shared user db.
+    portfolio_store = PortfolioStore(database=user_db)
 
     deps = FinRobotDeps(
         data_layer=data_layer,
@@ -323,7 +330,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.secret_store = secret_store
     app.state.secret_storage_mode = secret_storage_mode
     app.state.settings_path = settings_path
-    app.state.run_store = RunStore()
+    app.state.run_store = RunStore(database=user_db)
     app.state.run_tasks = {}
     # Let the chat orchestrator start BACKGROUND runs (partial refresh of
     # existing reports) through the very same spawn path as POST /api/runs —
@@ -420,11 +427,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.exception("run_events prune on startup failed")
     app.state.artifact_store = artifact_store
     # Reuse the SAME CoverageStore built above (carried on deps) — a second
-    # CoverageStore() here would open a duplicate connection to coverage.db and
+    # CoverageStore() here would open a second connection to the user db and
     # leave the chat tool reading a different handle than the REST routes.
     app.state.coverage_store = coverage_store
     # Reuse the SAME PortfolioStore built above (carried on deps) — own aiosqlite
-    # db at ~/.finrobot/portfolio.db. Local-SQLite reads, so it never waits on
+    # tables in the shared user db. Local-SQLite reads, so it never waits on
     # engine_ready.
     app.state.portfolio_store = portfolio_store
     # Alerts + the notification feed (bell). Same db file, own tables/class.
@@ -432,7 +439,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # HELD ticker → "research completed / verdict changed / run failed" in the
     # feed. The periodic alert_loop (background task below) evaluates the user's
     # price / 52-week / moving-average / P&L rules and the research signals.
-    app.state.alert_store = AlertStore()
+    app.state.alert_store = AlertStore(database=user_db)
     app.state.run_finished_hook = ResearchNotifier(
         alert_store=app.state.alert_store,
         portfolio_store=app.state.portfolio_store,
@@ -664,27 +671,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # we tear down shared resources (data_layer, run_store).
     await asyncio.gather(*app.state.run_tasks.values(), return_exceptions=True)
     await data_layer.close()
-    await app.state.run_store.close()
-    # Close every aiosqlite-backed store explicitly so the WAL gets
-    # checkpointed before the asyncio loop tears down. Without this the
-    # connection worker thread races the loop close and produces noisy
-    # "Event loop is closed" warnings on every Tauri shutdown / pytest run.
+    # Close the shared user database explicitly so the WAL gets checkpointed
+    # before the asyncio loop tears down. Without this the connection worker
+    # thread races the loop close and produces noisy "Event loop is closed"
+    # warnings on every Tauri shutdown / pytest run. (The stores themselves
+    # don't own it — see RunStore.close — so this is the one close.)
     try:
-        await artifact_store.close()
+        await user_db.close()
     except (OSError, RuntimeError):
-        logger.exception("ArtifactStore shutdown error")
-    try:
-        await app.state.coverage_store.close()
-    except (OSError, RuntimeError):
-        logger.exception("CoverageStore shutdown error")
-    try:
-        await app.state.portfolio_store.close()
-    except (OSError, RuntimeError):
-        logger.exception("PortfolioStore shutdown error")
-    try:
-        await app.state.alert_store.close()
-    except (OSError, RuntimeError):
-        logger.exception("AlertStore shutdown error")
+        logger.exception("User database shutdown error")
     from finrobot.engine.data.quote_batch import close_quote_cache_singleton
 
     try:

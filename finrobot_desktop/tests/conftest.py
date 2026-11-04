@@ -5,12 +5,11 @@ import faulthandler
 import os
 import sys
 import weakref
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import aiosqlite
-import pytest
 
 # Imported here, during conftest loading, on purpose. pydantic_ai pulls in
 # fastmcp, whose __init__ runs `warnings.simplefilter("default",
@@ -23,9 +22,9 @@ import pytest
 # paying the import here means fastmcp's tweak is discarded with that context
 # and the project's pytest configuration stays authoritative.
 import pydantic_ai  # noqa: F401
+import pytest
 
 from finrobot.engine.data.cache import DataCache
-
 
 _PYTEST_SESSION_TIMEOUT_SECONDS = int(os.environ.get("FINROBOT_PYTEST_TIMEOUT_SECONDS", "600"))
 _AIOSQLITE_CLOSE_TIMEOUT_SECONDS = 2.0
@@ -65,7 +64,7 @@ async def _close_leaked_aiosqlite_connections(monkeypatch):
     drain the still-open ones here — inside the test's own (still-live) loop —
     so each worker thread exits cleanly against a loop that is still running.
     """
-    opened: "weakref.WeakSet[aiosqlite.Connection]" = weakref.WeakSet()
+    opened: weakref.WeakSet[aiosqlite.Connection] = weakref.WeakSet()
     real_connect = aiosqlite.connect
 
     def _tracking_connect(*args, **kwargs):
@@ -91,7 +90,7 @@ async def _close_leaked_aiosqlite_connections(monkeypatch):
             # ``close()`` runs its own ``finally`` on cancellation; ``stop()`` is a
             # final best-effort nudge for a connection whose worker did not drain.
             conn.stop()
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 — teardown must never fail the test
             # A test may have already closed it, or the underlying handle is
             # gone — nothing left to leak in either case.
             pass
@@ -200,7 +199,7 @@ def sample_price_data_dict():
 @pytest.fixture
 def now():
     """Deterministic timestamp for tests."""
-    return datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+    return datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
 
 
 @pytest.fixture

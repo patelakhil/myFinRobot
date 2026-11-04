@@ -342,7 +342,7 @@ class FinRobotSettings(BaseSettings):
     # Example: FINROBOT_BACKTEST_STRATEGY_MODULE_PREFIXES="mystrats,team.alpha"
     backtest_strategy_module_prefixes: str = ""
 
-    def model_post_init(self, __context: Any) -> None:
+    def model_post_init(self, context: Any, /) -> None:
         """Resolve infrastructure knobs that depend on the runtime, not the user.
 
         ``cache_db_path`` / ``skills_dir`` default to "" so the resolved value

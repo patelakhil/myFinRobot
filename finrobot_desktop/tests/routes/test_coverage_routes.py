@@ -13,7 +13,7 @@ further members straight through the store.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -30,7 +30,6 @@ from finrobot.engine.data.types import DataType
 from finrobot.routes.coverage import _OVERVIEW_CACHE, router
 from finrobot.run_store import RunRecord, RunStore
 
-UTC = timezone.utc
 NOW = datetime(2026, 5, 1, tzinfo=UTC)
 ENTRY = NOW - timedelta(days=30)
 
@@ -56,19 +55,19 @@ def _summary(ticker: str, *, artifact_id: str = "art_1") -> ArtifactSummary:
 def _fin(ticker: str):
     return normalize_financials(
         DataResult(
-            data=dict(
-                revenue=100e9,
-                ebitda=35e9,
-                net_income=20e9,
-                gross_margin=0.47,
-                operating_margin=0.28,
-                pe_ratio=28.5,
-                market_cap=3e12,
-                shares_outstanding=15e9,
-                current_price=200.0,
-                total_debt=50e9,
-                total_cash=20e9,
-            ),
+            data={
+                "revenue": 100e9,
+                "ebitda": 35e9,
+                "net_income": 20e9,
+                "gross_margin": 0.47,
+                "operating_margin": 0.28,
+                "pe_ratio": 28.5,
+                "market_cap": 3e12,
+                "shares_outstanding": 15e9,
+                "current_price": 200.0,
+                "total_debt": 50e9,
+                "total_cash": 20e9,
+            },
             provider="yfinance",
             ticker=ticker,
             data_type="financials",
@@ -99,7 +98,7 @@ class _StubArtifactStore:
     def __init__(self, by_ticker: dict[str, list[ArtifactSummary]] | None = None) -> None:
         self._by_ticker = {k.upper(): v for k, v in (by_ticker or {}).items()}
 
-    async def list_by_ticker(self, ticker=None, type=None, include_archived=False, limit=100):  # noqa: A002
+    async def list_by_ticker(self, ticker=None, type=None, include_archived=False, limit=100):
         if ticker is None:
             flat = [s for lst in self._by_ticker.values() for s in lst]
         else:

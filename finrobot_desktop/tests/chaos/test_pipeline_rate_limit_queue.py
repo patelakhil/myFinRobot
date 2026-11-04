@@ -216,9 +216,8 @@ async def test_bonus_attempts_are_bounded_not_infinite():
     pipeline = Pipeline(steps=[step], max_retries=3)
 
     sleeps, sleep_patch = _sleep_spy()
-    with sleep_patch:
-        with pytest.raises(PipelineStepError) as excinfo:
-            await asyncio.wait_for(pipeline.execute(FakeDeps(), "AAPL"), timeout=10.0)
+    with sleep_patch, pytest.raises(PipelineStepError) as excinfo:
+        await asyncio.wait_for(pipeline.execute(FakeDeps(), "AAPL"), timeout=10.0)
 
     # 1 initial + 3 standard + _RATE_LIMIT_MAX_BONUS_ATTEMPTS bonus — NOT
     # unbounded.
@@ -258,9 +257,8 @@ async def test_daily_quota_429_fails_fast_with_informative_message():
     pipeline = Pipeline(steps=[step], max_retries=3)
 
     sleeps, sleep_patch = _sleep_spy()
-    with sleep_patch:
-        with pytest.raises(PipelineStepError) as excinfo:
-            await asyncio.wait_for(pipeline.execute(FakeDeps(), "AAPL"), timeout=10.0)
+    with sleep_patch, pytest.raises(PipelineStepError) as excinfo:
+        await asyncio.wait_for(pipeline.execute(FakeDeps(), "AAPL"), timeout=10.0)
 
     # Never actually waits anywhere near the 18h the provider asked for.
     assert sum(sleeps) < _RATE_LIMIT_MAX_TOTAL_QUEUE_S
@@ -294,9 +292,8 @@ async def test_message_text_hours_hint_also_fails_fast():
     pipeline = Pipeline(steps=[step], max_retries=3)
 
     sleeps, sleep_patch = _sleep_spy()
-    with sleep_patch:
-        with pytest.raises(PipelineStepError):
-            await asyncio.wait_for(pipeline.execute(FakeDeps(), "AAPL"), timeout=10.0)
+    with sleep_patch, pytest.raises(PipelineStepError):
+        await asyncio.wait_for(pipeline.execute(FakeDeps(), "AAPL"), timeout=10.0)
 
     assert sum(sleeps) < _RATE_LIMIT_MAX_TOTAL_QUEUE_S
 

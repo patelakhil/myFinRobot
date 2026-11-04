@@ -23,14 +23,14 @@ from typing import Any
 
 from pydantic_ai import Agent
 
-from finrobot.engine.compute.operators.dcf import calculate_dcf, calculate_sensitivity
-from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
+from finrobot.engine.compute.coordinators.dcf_seed import fetch_forward_growth
 from finrobot.engine.compute.coordinators.extractor import (
     extract_financial_data,
     normalize_financials_to_usd,
 )
-from finrobot.engine.compute.coordinators.dcf_seed import fetch_forward_growth
 from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
+from finrobot.engine.compute.operators.dcf import calculate_dcf, calculate_sensitivity
+from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
 from finrobot.engine.compute.operators.lbo import calculate_lbo
 from finrobot.engine.compute.operators.lbo_seed import seed_lbo_inputs
 from finrobot.engine.data.types import DataType
@@ -41,17 +41,17 @@ from finrobot.engine.models.financial import (
     StepOutput,
 )
 from finrobot.engine.models.valuation_thresholds import SPONSOR_IRR_HURDLE
+from finrobot.engine.pipelines._helpers import build_sensitivity_ranges
 from finrobot.engine.pipelines.base import (
     Pipeline,
     PipelineStep,
     StructuredValidator,
     TextValidator,
 )
-from finrobot.engine.pipelines._helpers import build_sensitivity_ranges
 from finrobot.engine.pipelines.validators import (
     ValidationResult,
-    validate_is_non_empty,
     validate_has_fields,
+    validate_is_non_empty,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,10 +63,10 @@ _IRR_HURDLE = SPONSOR_IRR_HURDLE
 
 
 async def _execute_ic_financials(
-    agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
+    agent: Agent[Any, Any],
     deps: FinRobotDeps,
-    prompt: str,  # noqa: ARG001 — kept for executor signature; unused
-    structured_context: dict[str, object],  # noqa: ARG001 — unused after refactor
+    prompt: str,
+    structured_context: dict[str, object],
     ticker: str,
     **_kwargs: object,
 ) -> StepOutput:

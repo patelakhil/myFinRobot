@@ -6,6 +6,7 @@ B3 — create_run task-registration ordering
 
 from __future__ import annotations
 
+import contextlib
 import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -16,7 +17,6 @@ from httpx import ASGITransport, AsyncClient
 
 from finrobot.llm_probe import LlmProbeGate
 from finrobot.routes.runs import router as runs_router
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -378,6 +378,10 @@ async def test_run_completion_emits_artifact_id_and_type(monkeypatch: Any) -> No
 
     store = AsyncMock()
     store.get_run = AsyncMock(return_value=record)
+    # Finalisation runs inside store.database.transaction(); a stub store has
+    # no database, so give it a no-op transaction scope.
+    store.database = MagicMock()
+    store.database.transaction = contextlib.nullcontext
     appended: list[dict[str, Any]] = []
 
     async def _capture(run_id: str, event: dict[str, Any]) -> int:

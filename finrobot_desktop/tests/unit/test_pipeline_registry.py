@@ -9,6 +9,7 @@ and the key↔factory↔tool-name mapping.
 from __future__ import annotations
 
 import sys
+from dataclasses import FrozenInstanceError
 
 import pytest
 
@@ -48,7 +49,7 @@ class TestSpecShape:
 
     def test_spec_is_frozen(self):
         spec = iter_pipeline_specs()[0]
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             spec.key = "mutated"  # type: ignore[misc]
 
 

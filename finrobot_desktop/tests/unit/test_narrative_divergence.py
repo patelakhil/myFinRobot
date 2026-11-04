@@ -10,7 +10,7 @@ Pure, deterministic — no LLM involved. Pins:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.engine.compute.operators.audit.narrative_divergence import (
     BUY_DIVERGENCE_1Y_RETURN_PCT,
@@ -31,7 +31,7 @@ def _financial_data(
 ) -> FinancialData:
     return FinancialData(
         ticker="TEST",
-        timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        timestamp=datetime(2026, 1, 1, tzinfo=UTC),
         income=IncomeStatement(revenue=1.0),
         market=MarketData(
             market_cap=1.0,

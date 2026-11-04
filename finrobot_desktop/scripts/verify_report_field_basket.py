@@ -49,7 +49,7 @@ import asyncio
 import json
 import sys
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -348,14 +348,14 @@ def _parse_anchor_as_of(raw: Any) -> datetime | None:
         except ValueError:
             return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _anchor_is_stale(as_of: datetime | None, max_age: timedelta) -> bool:
     if as_of is None:
         return True
-    return datetime.now(tz=timezone.utc) - as_of > max_age
+    return datetime.now(tz=UTC) - as_of > max_age
 
 
 # ── (d) entities: CEO from the ownership operator ─────────────────────────────
@@ -604,7 +604,7 @@ def summarize(rows: list[FieldRow]) -> dict[str, Any]:
     mismatches = [r for r in rows if r.consistent is False]
     needs_human = [r for r in rows if r.needs_human]
     return {
-        "generated_at": datetime.now(tz=timezone.utc).isoformat(),
+        "generated_at": datetime.now(tz=UTC).isoformat(),
         "total": len(rows),
         "pass": sum(1 for r in rows if r.consistent is True),
         "fail": len(mismatches),

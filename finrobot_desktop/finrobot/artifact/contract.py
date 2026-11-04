@@ -37,9 +37,9 @@ the computation.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from finrobot.artifact.summary_extractor import extract_entry_price, extract_target_price
 from finrobot.engine.models.numeric_claim import Finding
@@ -76,7 +76,7 @@ class ContractClause:
 
     id: str
     severity: ClauseSeverity  # H → violation withholds the TARGET (verdict kept); S → note only.
-    check: Callable[["Artifact"], Finding | None]
+    check: Callable[[Artifact], Finding | None]
     # surface=False → an INTERNAL invariant (C7's no-resurrection scrub): it still
     # withholds + scrubs, but its evidence is engineering plumbing ("nulling so it
     # cannot resurrect downstream"), so it is emitted under a non-surfacing
@@ -88,7 +88,7 @@ class ContractClause:
 # ── C1: headline upside band ─────────────────────────────────────────────────
 
 
-def _clause_c1_upside_band(artifact: "Artifact") -> Finding | None:
+def _clause_c1_upside_band(artifact: Artifact) -> Finding | None:
     """target/entry must sit in the calibrated divergence band. Band selection is
     type-agnostic: a corroborated estimate (``valuation_synthesis.weighted_price``
     present = ≥2 methods agreed) gets the wider multi-method band; a lone method
@@ -122,7 +122,7 @@ def _clause_c1_upside_band(artifact: "Artifact") -> Finding | None:
 # ── C1b: method-vs-method corroboration span ─────────────────────────────────
 
 
-def _clause_c1b_method_span(artifact: "Artifact") -> Finding | None:
+def _clause_c1b_method_span(artifact: Artifact) -> Finding | None:
     """The method-disagreement backstop C1 is structurally blind to. C1 compares
     the headline to the MARKET; a target can sit comfortably in the market band
     (e.g. MU 0.69x of market) while the surviving methods are 7x apart from EACH
@@ -182,7 +182,7 @@ def _clause_c1b_method_span(artifact: "Artifact") -> Finding | None:
 _DOUBLE_DECIMAL_RE = re.compile(r"\$\d[\d,]*\.\d{2}\d*\.\d+")
 
 
-def _clause_c2_double_decimal(artifact: "Artifact") -> Finding | None:
+def _clause_c2_double_decimal(artifact: Artifact) -> Finding | None:
     for text in _iter_narrative_strings(artifact):
         match = _DOUBLE_DECIMAL_RE.search(text)
         if match is not None:
@@ -195,7 +195,7 @@ def _clause_c2_double_decimal(artifact: "Artifact") -> Finding | None:
     return None
 
 
-def _iter_narrative_strings(artifact: "Artifact") -> Iterator[str]:
+def _iter_narrative_strings(artifact: Artifact) -> Iterator[str]:
     """Every analyst-facing string: structured (incl. the thesis prose), the
     llm_narrative mirror (a dict — ⟦复核⟧ must be traversed, not str()'d), and
     summary_text. NOT warnings — those carry the contract's own [CONTRACT/*]
@@ -237,7 +237,7 @@ _CONCLUSION_CUE_RE = re.compile(
 )
 
 
-def _clause_c3_basis_matches_headline(artifact: "Artifact") -> Finding | None:
+def _clause_c3_basis_matches_headline(artifact: Artifact) -> Finding | None:
     """A cue-anchored conclusion $-amount in the basis / valuation_overview must
     equal the headline price_target (relative tolerance). CONSERVATIVE: fires ONLY
     on a clear contradiction — a $-amount that directly follows a conclusion cue
@@ -283,7 +283,7 @@ def _clause_c3_basis_matches_headline(artifact: "Artifact") -> Finding | None:
 _CURRENCY_CHECK = "cross_currency_ratio"
 
 
-def _clause_c4_currency_caliber(artifact: "Artifact") -> Finding | None:
+def _clause_c4_currency_caliber(artifact: Artifact) -> Finding | None:
     """Backstop for a currency-caliber miss. Fires when a per-share headline still
     survives AND either: (a) numeric_audit carries a currency-family blocked_field
     finding (the type-agnostic missed-withhold — mixed-currency P/E on SAP / TSM /
@@ -351,7 +351,7 @@ _CROSS_CHECK_DISCLOSURES = (
 )
 
 
-def _clause_c6_single_method_disclosure(artifact: "Artifact") -> Finding | None:
+def _clause_c6_single_method_disclosure(artifact: Artifact) -> Finding | None:
     """SOFT: when only one method survived (valuation_synthesis.weighted_price is
     None) and a live headline exists, the basis MUST disclose it has no
     cross-check. Missing → a note (severity review) — the target still ships, the
@@ -397,7 +397,7 @@ _FALLBACK_HEADLINE_SLOTS: tuple[tuple[str, str | None], ...] = (
 )
 
 
-def _is_withheld(artifact: "Artifact") -> bool:
+def _is_withheld(artifact: Artifact) -> bool:
     """The withhold judge for C7: True when the published thesis is withholding its
     POINT target. The verdict/target decoupling (commit ③) made the target
     withhold its own signal — ``thesis.price_target is None`` while the
@@ -417,12 +417,10 @@ def _is_withheld(artifact: "Artifact") -> bool:
         return True
     # The published withhold signal: a directional verdict with no point target.
     recommendation = thesis.get("recommendation")
-    if recommendation in ("BUY", "HOLD", "SELL") and thesis.get("price_target") is None:
-        return True
-    return False
+    return bool(recommendation in ("BUY", "HOLD", "SELL") and thesis.get("price_target") is None)
 
 
-def _clause_c7_no_resurrection(artifact: "Artifact") -> Finding | None:
+def _clause_c7_no_resurrection(artifact: Artifact) -> Finding | None:
     """When the artifact is withholding its target (directional verdict, no point),
     NO headline value may survive in ANY fallback slot. Scans the RAW slots (not
     extract_target_price, which already early-returns on a thesis) — the TSLA bug
@@ -472,7 +470,7 @@ CONTRACT_CLAUSES: list[ContractClause] = [
 ]
 
 
-def enforce_artifact_contract(artifact: "Artifact") -> "Artifact":
+def enforce_artifact_contract(artifact: Artifact) -> Artifact:
     """Run every clause at the persist boundary. Hard violations degrade the
     artifact through the existing withhold machinery; soft violations annotate.
     Returns the (possibly degraded) artifact — never raises, never blanks a run.
@@ -519,7 +517,7 @@ def _scrub_headline_slots(structured: dict[str, Any]) -> None:
             parent["implied_price"] = None
 
 
-def _withhold(artifact: "Artifact", violations: list[tuple[ContractClause, Finding]]) -> None:
+def _withhold(artifact: Artifact, violations: list[tuple[ContractClause, Finding]]) -> None:
     """Degrade exactly as the numeric-audit gate does (builders.py): null the
     headline TARGET so it cannot resurrect, set valuation_withheld, and record
     machine evidence as [CONTRACT/*] warnings. The directional VERDICT is
@@ -540,9 +538,8 @@ def _withhold(artifact: "Artifact", violations: list[tuple[ContractClause, Findi
     # directional `recommendation` mirror is PRESERVED (verdict still ships); the
     # analysis body is untouched.
     narrative = artifact.outputs.llm_narrative
-    if isinstance(narrative, dict):
-        if "tagline" in narrative:
-            narrative["tagline"] = None
+    if isinstance(narrative, dict) and "tagline" in narrative:
+        narrative["tagline"] = None
 
     numeric_audit = structured.get("numeric_audit")
     if isinstance(numeric_audit, dict):
@@ -557,7 +554,7 @@ def _withhold(artifact: "Artifact", violations: list[tuple[ContractClause, Findi
     _append_warning(artifact, f"[CONTRACT/withheld] {_WITHHELD_NARRATIVE_STAMP}")
 
 
-def _append_warning(artifact: "Artifact", warning: str) -> None:
+def _append_warning(artifact: Artifact, warning: str) -> None:
     """Idempotent append — re-running the contract must not double-stamp."""
     if warning not in artifact.outputs.warnings:
         artifact.outputs.warnings.append(warning)

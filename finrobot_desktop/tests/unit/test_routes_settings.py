@@ -33,9 +33,10 @@ from finrobot.routes.settings import (
     _merge_non_secret_settings,
     load_non_secret_settings,
     load_non_secret_settings_with_error,
+)
+from finrobot.routes.settings import (
     router as settings_router,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1641,7 +1642,6 @@ async def test_concurrent_puts_do_not_lose_updates(tmp_path: Path, monkeypatch: 
 
     async def slow_get(_key: str) -> None:
         await _asyncio.sleep(0.02)  # widen the read→write window
-        return None
 
     secret_store.get = AsyncMock(side_effect=slow_get)
     app = _make_app(tmp_path, settings=settings, secret_store=secret_store)

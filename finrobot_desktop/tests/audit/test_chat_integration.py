@@ -10,6 +10,7 @@ Covers:
 
 from __future__ import annotations
 
+import contextlib
 import json
 from pathlib import Path
 
@@ -59,10 +60,10 @@ async def _post_chat(payload: dict[str, object]) -> None:
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
-        try:
+        # The LLM call itself is expected to fail in this offline context; the
+        # test only exercises the request plumbing up to that point.
+        with contextlib.suppress(Exception):
             await c.post("/chat", json=payload)
-        except Exception:
-            pass  # LLM call failure expected in unit test context
 
 
 # ---------------------------------------------------------------------------

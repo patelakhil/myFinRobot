@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import AsyncIterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -27,8 +27,6 @@ from finrobot.artifact.sqlite_store import (
     _headline_from_summary,
 )
 from tests.artifact.conftest import _make_artifact
-
-UTC = timezone.utc
 
 
 @pytest_asyncio.fixture
@@ -841,8 +839,13 @@ async def test_headline_backfills_via_startup_version_gate(
     await store.save(art)
 
     # Stamp the pre-fix state: old projection version + the blind-slice headline.
+    # (The projection version lives in schema_meta; PRAGMA user_version is the
+    # schema version owned by the migration runner.)
     with sqlite3.connect(store._db_path) as conn:
-        conn.execute("PRAGMA user_version = 4")
+        conn.execute(
+            "INSERT INTO schema_meta (key, value) VALUES ('summary_projection_version', '4') "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        )
         conn.execute(
             "UPDATE artifacts SET headline = ? WHERE id = ?",
             (_POLLUTED_SUMMARY[:120], "art_backfill"),
@@ -862,5 +865,7 @@ async def test_headline_backfills_via_startup_version_gate(
     assert "# FinRobot Analysis Report" not in summaries[0].headline
 
     with sqlite3.connect(store._db_path) as conn:
-        (applied,) = conn.execute("PRAGMA user_version").fetchone()
-    assert applied == SUMMARY_PROJECTION_VERSION
+        (applied,) = conn.execute(
+            "SELECT value FROM schema_meta WHERE key = 'summary_projection_version'"
+        ).fetchone()
+    assert int(applied) == SUMMARY_PROJECTION_VERSION

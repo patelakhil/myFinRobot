@@ -5,11 +5,9 @@ Hand-calculated verification for all deterministic financial computations.
 
 from __future__ import annotations
 
-
 import pytest
 
 from finrobot.engine.compute.operators.data_processor import calculate_cagr
-
 
 # ---------------------------------------------------------------------------
 # calculate_cagr

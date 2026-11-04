@@ -14,7 +14,7 @@ External anchors (verified 2026-06-05):
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.types import DataType
@@ -32,7 +32,7 @@ def _fmp(ticker: str, mc: float, price: float) -> DataResult:
         provider="fmp",
         ticker=ticker,
         data_type=DataType.FINANCIALS,
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -43,7 +43,7 @@ def _yf(ticker: str, mc: float, shares: int) -> DataResult:
         provider="yfinance",
         ticker=ticker,
         data_type=DataType.FINANCIALS,
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
 
 
@@ -116,7 +116,7 @@ def test_empty_secondary_does_not_crash() -> None:
         provider="yfinance",
         ticker="AAPL",
         data_type=DataType.FINANCIALS,
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     # Only derived shares (primary FMP) available → abstain.
     assert market_cap_consistency(primary, empty) == []

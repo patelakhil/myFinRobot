@@ -196,16 +196,19 @@ class TranscriptWriter:
             scrubbed: dict[str, Any] = _scrub_data(data)
             line = self._build_line(event, scrubbed)
             async with self._lock:
-                with open(self._path, "a", encoding="utf-8") as fh:
-                    fh.write(line + "\n")
+                # Disk I/O off the event loop: the server thread must not stall on a
+                # slow/remote filesystem while holding the transcript lock.
+                await asyncio.to_thread(self._append_line, line)
                 if not self._first_write_done:
                     with contextlib.suppress(OSError):
                         self._path.chmod(0o600)
                     self._first_write_done = True
-        except OSError as exc:
-            logger.exception(
-                "TranscriptWriter._write_event OSError (session=%s): %s", self.session_id, exc
-            )
+        except OSError:
+            logger.exception("TranscriptWriter._write_event OSError (session=%s)", self.session_id)
+
+    def _append_line(self, line: str) -> None:
+        with open(self._path, "a", encoding="utf-8") as fh:
+            fh.write(line + "\n")
 
     # ------------------------------------------------------------------
     # Public logging API

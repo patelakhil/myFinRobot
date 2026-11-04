@@ -7,8 +7,13 @@ strict-numeric-discipline whitelist, the segment-grounding constant, and the
 untrusted-news-headline wrapping of injected catalyst text.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import ClassVar
 
+from finrobot.engine.compute.operators.valuation_synthesis import (
+    resolve_canonical_thesis,
+    synthesize_valuations,
+)
 from finrobot.engine.models.financial import (
     CatalystAnalysis,
     CatalystEvent,
@@ -19,10 +24,6 @@ from finrobot.engine.models.financial import (
     MarketData,
     MarketImpliedCheck,
     ValuationMethod,
-)
-from finrobot.engine.compute.operators.valuation_synthesis import (
-    resolve_canonical_thesis,
-    synthesize_valuations,
 )
 from finrobot.engine.pipelines._thesis_prompt import build_thesis_prompt
 
@@ -36,7 +37,7 @@ def _financial_data(
 ) -> FinancialData:
     return FinancialData(
         ticker="TEST",
-        timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        timestamp=datetime(2026, 1, 1, tzinfo=UTC),
         income=IncomeStatement(revenue=1.0),
         market=MarketData(
             market_cap=1.0,
@@ -468,7 +469,7 @@ class TestSegmentOverviewGrounding:
     entry when landed, and the company-overview instruction is conditional on
     whether it did — never a blanket "unavailable" any more."""
 
-    _METHODS = [
+    _METHODS: ClassVar[list[ValuationMethod]] = [
         ValuationMethod(name="DCF", low=210, mid=245, high=290, confidence=0.5, source="DCF"),
         ValuationMethod(
             name="EV/EBITDA", low=220, mid=250, high=280, confidence=0.3, source="Comps"
@@ -480,7 +481,7 @@ class TestSegmentOverviewGrounding:
 
         return SegmentOverview(
             ticker="AAPL",
-            as_of=datetime(2026, 7, 9, tzinfo=timezone.utc),
+            as_of=datetime(2026, 7, 9, tzinfo=UTC),
             source="sec_xbrl_business_segment",
             period_label="FY ending 2025-06-30",
             segments=[
@@ -538,7 +539,7 @@ class TestSegmentOverviewGrounding:
 
         empty = SegmentOverview(
             ticker="AAPL",
-            as_of=datetime(2026, 7, 9, tzinfo=timezone.utc),
+            as_of=datetime(2026, 7, 9, tzinfo=UTC),
             source="sec_xbrl_business_segment",
             period_label="FY ending 2025-06-30",
             segments=[],
@@ -568,12 +569,12 @@ class TestMomentumContext:
     # Two tightly-clustered methods well above current_price → comfortably past
     # even the widest ("very_low", 50%) BUY band regardless of how the synthesis
     # grades confidence — the test only needs a robust BUY, not a specific tier.
-    _BUY_METHODS = [
+    _BUY_METHODS: ClassVar[list[ValuationMethod]] = [
         ValuationMethod(name="DCF", low=280, mid=320, high=360, confidence=0.7, source="DCF"),
         ValuationMethod(name="Comps", low=300, mid=330, high=360, confidence=0.6, source="Comps"),
     ]
     # Symmetric SELL setup: methods well below current_price.
-    _SELL_METHODS = [
+    _SELL_METHODS: ClassVar[list[ValuationMethod]] = [
         ValuationMethod(name="DCF", low=150, mid=180, high=210, confidence=0.6, source="DCF"),
         ValuationMethod(name="Comps", low=160, mid=190, high=220, confidence=0.5, source="Comps"),
     ]

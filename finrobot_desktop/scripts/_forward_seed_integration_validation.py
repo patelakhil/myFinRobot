@@ -98,7 +98,7 @@ async def main() -> int:
             fair_fwd = _fair(fin, hist, fwd)
             price = fin.market.current_price
 
-            def _pct_mkt(v):  # type: ignore[no-untyped-def]
+            def _pct_mkt(v, price=price):  # type: ignore[no-untyped-def]
                 return f"({v / price:.0%})" if isinstance(v, float) and price else ""
 
             def _fmt(v):  # type: ignore[no-untyped-def]

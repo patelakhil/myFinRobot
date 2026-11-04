@@ -73,20 +73,22 @@ def default_skills_dir() -> str:
 
 
 FINROBOT_HOME: Path = _home() / ".finrobot"
+# The consolidated user-state database: runs + run events, artifacts, coverage
+# groups, portfolios/lots, alerts/notifications — everything the user would
+# lose if it vanished — in ONE file, so a run and the artifact it produced can
+# be committed in a single transaction and backed up as a single unit. Opened
+# through ``finrobot.storage.user_db``; the per-store files below are the
+# pre-consolidation layout, kept only so an upgrading install can be imported.
+USER_DB: Path = FINROBOT_HOME / "finrobot.db"
+# ── legacy per-store files (imported into USER_DB on first open, then renamed
+#    to *.migrated) ───────────────────────────────────────────────────────────
 ARTIFACTS_DB: Path = FINROBOT_HOME / "artifacts.db"
+RUNS_DB: Path = FINROBOT_HOME / "runs.db"
+COVERAGE_DB: Path = FINROBOT_HOME / "coverage.db"
+PORTFOLIO_DB: Path = FINROBOT_HOME / "portfolio.db"  # held both holdings AND alerts
+# ── caches: disposable, rebuilt from providers, so each keeps its own file ──
 QUOTES_DB: Path = FINROBOT_HOME / "quotes.db"
 DATA_CACHE_DB: Path = FINROBOT_HOME / "data_cache.db"
-RUNS_DB: Path = FINROBOT_HOME / "runs.db"
-# Coverage Desk: the user's research coverage universe (groups + members).
-# Own db slot per the per-module convention (artifacts.db / runs.db / …) so a
-# user's curated coverage is a first-class, backup-able research asset rather
-# than localStorage that evaporates (see CoverageDesk plan M5 / ADR-0012).
-COVERAGE_DB: Path = FINROBOT_HOME / "coverage.db"
-# Portfolio Desk: the user's actual holdings (portfolios + purchase lots —
-# ticker / units / cost per unit / purchase date). Own db slot like coverage.db
-# so holdings are a first-class, backup-able asset and never mixed into the
-# research-universe tables.
-PORTFOLIO_DB: Path = FINROBOT_HOME / "portfolio.db"
 SESSIONS_DIR: Path = FINROBOT_HOME / "sessions"
 SETTINGS_JSON: Path = FINROBOT_HOME / "settings.json"
 # 13F local holdings cache — reverse index built by

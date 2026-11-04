@@ -23,7 +23,7 @@ import asyncio
 import logging
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.artifact.models import ArtifactSummary
 from finrobot.artifact.store import ArtifactStore
@@ -38,9 +38,11 @@ from finrobot.coverage.models import (
     NumberSource,
 )
 from finrobot.coverage.sqlite_store import CoverageStore
-from finrobot.engine.compute.operators.dcf import classify_market_implied_nature
 from finrobot.engine.compute.coordinators.extractor import extract_financial_data
+from finrobot.engine.compute.operators.dcf import classify_market_implied_nature
 from finrobot.engine.compute.operators.signal import Signal, compute_signal
+from finrobot.engine.data.interface import ProviderError
+from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CLOSE_ONLY,
     DEGRADED_TTM_LAG,
@@ -50,14 +52,12 @@ from finrobot.engine.data.normalize.session import (
     compute_session_state,
     has_newer_session_since,
 )
+from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import (
     FIELD_WARN_EV_MISSING_NET_DEBT,
     FIELD_WARN_SHARES_DERIVED,
     DCFResult,
 )
-from finrobot.engine.data.interface import ProviderError
-from finrobot.engine.data.layer import DataLayer
-from finrobot.engine.data.types import DataType
 from finrobot.run_store import RunRecord, RunStore
 from finrobot.warning_text import humanize_warnings
 
@@ -88,7 +88,7 @@ _DCF_BEARING_TYPES = ("dcf", "equity_research", "ic_memo")
 
 
 def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 # ── Overview ─────────────────────────────────────────────────────────────────
@@ -108,7 +108,7 @@ async def build_overview(
     *,
     artifact_store: ArtifactStore,
     data_layer: DataLayer,
-    run_store: "RunStore | None" = None,
+    run_store: RunStore | None = None,
     now: datetime | None = None,
     cache_only: bool = False,
     holdings: dict[str, HoldingInput] | None = None,
@@ -195,10 +195,10 @@ async def _assemble_row(
     *,
     artifact_store: ArtifactStore,
     data_layer: DataLayer,
-    latest_run: "RunRecord | None" = None,
+    latest_run: RunRecord | None = None,
     now: datetime,
     cache_only: bool = False,
-    market_sem: "asyncio.Semaphore | None" = None,
+    market_sem: asyncio.Semaphore | None = None,
     holding: HoldingInput | None = None,
 ) -> CoverageRow:
     ticker = ticker.upper()

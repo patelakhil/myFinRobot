@@ -1,10 +1,10 @@
 """SQLite persistence for portfolio alerts + the notification feed.
 
-Lives in the same ``~/.finrobot/portfolio.db`` as the holdings (one file to
-back up), in its own tables and behind its own class so the holdings store
-stays a pure lots/portfolios store. Same concurrency recipe as every store
-here: one lazily opened aiosqlite connection, WAL, ``CREATE TABLE IF NOT
-EXISTS``.
+Lives in the consolidated user database next to the holdings (see
+:mod:`finrobot.storage.user_db`), in its own tables and behind its own class
+so the holdings store stays a pure lots/portfolios store. Connection
+lifecycle, schema versioning and transactions come from
+:class:`finrobot.storage.sqlite.SqliteDatabase`.
 
 Notifications carry an optional ``dedupe_key``: a caller that may observe the
 same fact repeatedly (the alert loop seeing a target already hit, a run
@@ -14,7 +14,6 @@ no-op. That is what makes the background evaluator idempotent.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -23,8 +22,8 @@ from typing import Any
 
 import aiosqlite
 
-from finrobot import paths as _paths
 from finrobot.portfolio.alerts import Alert, Notification
+from finrobot.storage.sqlite import Migration, SqliteDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -166,36 +165,45 @@ def _row_to_notification(row: tuple[Any, ...]) -> Notification:
     )
 
 
-class AlertStore:
-    """Alerts + notifications persistence (``portfolio.db``)."""
+async def _baseline(conn: aiosqlite.Connection) -> None:
+    """v1: portfolio_alerts + portfolio_notifications + indexes (idempotent)."""
+    await conn.execute(_CREATE_ALERTS)
+    await conn.execute(_CREATE_NOTIFICATIONS)
+    for stmt in _CREATE_INDEXES:
+        await conn.execute(stmt)
 
-    def __init__(self, db_path: str | Path | None = None) -> None:
-        if db_path is None:
-            _paths.ensure_home()
-            db_path = _paths.PORTFOLIO_DB
-        self._db_path = str(db_path)
-        self._conn: aiosqlite.Connection | None = None
-        self._conn_lock = asyncio.Lock()
+
+MIGRATIONS: tuple[Migration, ...] = (Migration(1, "alerts: baseline", _baseline),)
+
+
+class AlertStore:
+    """Alerts + notifications persistence (consolidated user db)."""
+
+    def __init__(
+        self,
+        db_path: str | Path | None = None,
+        *,
+        database: SqliteDatabase | None = None,
+    ) -> None:
+        if database is not None:
+            self._db = database
+            self._owns_db = False
+        elif db_path is not None:
+            self._db = SqliteDatabase(db_path, migrations=MIGRATIONS)
+            self._owns_db = True
+        else:
+            from finrobot.storage.user_db import user_database
+
+            self._db = user_database()
+            self._owns_db = True
+        self._db_path = str(self._db.path)
+
+    @property
+    def database(self) -> SqliteDatabase:
+        return self._db
 
     async def _conn_ready(self) -> aiosqlite.Connection:
-        if self._conn is not None:
-            return self._conn
-        async with self._conn_lock:
-            if self._conn is None:
-                Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
-                conn = await aiosqlite.connect(self._db_path)
-                try:
-                    await _paths.configure_connection(conn)
-                    await conn.execute(_CREATE_ALERTS)
-                    await conn.execute(_CREATE_NOTIFICATIONS)
-                    for stmt in _CREATE_INDEXES:
-                        await conn.execute(stmt)
-                    await conn.commit()
-                except BaseException:
-                    await conn.close()
-                    raise
-                self._conn = conn
-        return self._conn
+        return await self._db.connection()
 
     # ── Alerts ───────────────────────────────────────────────────────────────
 
@@ -210,27 +218,26 @@ class AlertStore:
         repeat: bool,
         note: str | None,
     ) -> Alert:
-        conn = await self._conn_ready()
         alert_id = f"al_{uuid.uuid4().hex[:12]}"
         now = _iso(_now())
-        await conn.execute(
-            "INSERT INTO portfolio_alerts (id, portfolio_id, ticker, kind, threshold, window, "
-            "repeat, enabled, note, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)",
-            (
-                alert_id,
-                portfolio_id,
-                ticker.upper(),
-                kind,
-                threshold,
-                window,
-                int(repeat),
-                note,
-                now,
-                now,
-            ),
-        )
-        await conn.commit()
+        async with self._db.transaction() as conn:
+            await conn.execute(
+                "INSERT INTO portfolio_alerts (id, portfolio_id, ticker, kind, threshold, "
+                "window, repeat, enabled, note, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)",
+                (
+                    alert_id,
+                    portfolio_id,
+                    ticker.upper(),
+                    kind,
+                    threshold,
+                    window,
+                    int(repeat),
+                    note,
+                    now,
+                    now,
+                ),
+            )
         alert = await self.get_alert(alert_id)
         if alert is None:  # pragma: no cover — the row was just inserted
             raise RuntimeError(f"alert {alert_id} vanished after insert")
@@ -282,7 +289,6 @@ class AlertStore:
         clear_note: bool = False,
         reset_state: bool = False,
     ) -> Alert | None:
-        conn = await self._conn_ready()
         sets: list[str] = []
         args: list[Any] = []
         if threshold is not None:
@@ -310,12 +316,12 @@ class AlertStore:
             return await self.get_alert(alert_id)
         sets.append("updated_at = ?")
         args.extend([_iso(_now()), alert_id])
-        cur = await conn.execute(
-            f"UPDATE portfolio_alerts SET {', '.join(sets)} WHERE id = ?", args
-        )
-        await conn.commit()
-        if cur.rowcount == 0:
-            return None
+        async with self._db.transaction() as conn:
+            cur = await conn.execute(
+                f"UPDATE portfolio_alerts SET {', '.join(sets)} WHERE id = ?", args
+            )
+            if cur.rowcount == 0:
+                return None
         return await self.get_alert(alert_id)
 
     async def record_evaluation(
@@ -328,45 +334,41 @@ class AlertStore:
         disable: bool,
         now: datetime | None = None,
     ) -> None:
-        conn = await self._conn_ready()
         ts = _iso(now or _now())
-        if fired:
-            await conn.execute(
-                "UPDATE portfolio_alerts SET last_evaluated_at = ?, last_condition = ?, "
-                "last_value = ?, last_triggered_at = ?, trigger_count = trigger_count + 1, "
-                "enabled = ?, updated_at = ? WHERE id = ?",
-                (ts, int(condition), value, ts, 0 if disable else 1, ts, alert_id),
-            )
-        else:
-            await conn.execute(
-                "UPDATE portfolio_alerts SET last_evaluated_at = ?, last_condition = ?, "
-                "last_value = ? WHERE id = ?",
-                (ts, int(condition), value, alert_id),
-            )
-        await conn.commit()
+        async with self._db.transaction() as conn:
+            if fired:
+                await conn.execute(
+                    "UPDATE portfolio_alerts SET last_evaluated_at = ?, last_condition = ?, "
+                    "last_value = ?, last_triggered_at = ?, trigger_count = trigger_count + 1, "
+                    "enabled = ?, updated_at = ? WHERE id = ?",
+                    (ts, int(condition), value, ts, 0 if disable else 1, ts, alert_id),
+                )
+            else:
+                await conn.execute(
+                    "UPDATE portfolio_alerts SET last_evaluated_at = ?, last_condition = ?, "
+                    "last_value = ? WHERE id = ?",
+                    (ts, int(condition), value, alert_id),
+                )
 
     async def delete_alert(self, alert_id: str) -> bool:
-        conn = await self._conn_ready()
-        cur = await conn.execute("DELETE FROM portfolio_alerts WHERE id = ?", (alert_id,))
-        await conn.commit()
-        return cur.rowcount > 0
+        async with self._db.transaction() as conn:
+            cur = await conn.execute("DELETE FROM portfolio_alerts WHERE id = ?", (alert_id,))
+            return cur.rowcount > 0
 
     async def delete_alerts_for_portfolio(self, portfolio_id: str) -> int:
-        conn = await self._conn_ready()
-        cur = await conn.execute(
-            "DELETE FROM portfolio_alerts WHERE portfolio_id = ?", (portfolio_id,)
-        )
-        await conn.commit()
-        return cur.rowcount
+        async with self._db.transaction() as conn:
+            cur = await conn.execute(
+                "DELETE FROM portfolio_alerts WHERE portfolio_id = ?", (portfolio_id,)
+            )
+            return cur.rowcount
 
     async def delete_alerts_for_ticker(self, portfolio_id: str, ticker: str) -> int:
-        conn = await self._conn_ready()
-        cur = await conn.execute(
-            "DELETE FROM portfolio_alerts WHERE portfolio_id = ? AND ticker = ?",
-            (portfolio_id, ticker.upper()),
-        )
-        await conn.commit()
-        return cur.rowcount
+        async with self._db.transaction() as conn:
+            cur = await conn.execute(
+                "DELETE FROM portfolio_alerts WHERE portfolio_id = ? AND ticker = ?",
+                (portfolio_id, ticker.upper()),
+            )
+            return cur.rowcount
 
     async def alert_counts_by_ticker(self, portfolio_id: str) -> dict[str, int]:
         """Enabled-alert count per ticker — the little bell badge on each row."""
@@ -398,32 +400,31 @@ class AlertStore:
     ) -> Notification | None:
         """Insert a notification. Returns None when ``dedupe_key`` already
         exists (the fact was already announced)."""
-        conn = await self._conn_ready()
         nid = f"nt_{uuid.uuid4().hex[:12]}"
-        cur = await conn.execute(
-            "INSERT INTO portfolio_notifications (id, created_at, kind, severity, title, body, "
-            "ticker, portfolio_id, alert_id, run_id, artifact_id, read, dedupe_key) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) "
-            "ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
-            (
-                nid,
-                _iso(now or _now()),
-                kind,
-                severity,
-                title,
-                body,
-                ticker.upper() if ticker else None,
-                portfolio_id,
-                alert_id,
-                run_id,
-                artifact_id,
-                dedupe_key,
-            ),
-        )
-        await conn.commit()
-        if cur.rowcount == 0:
-            return None
-        await self._prune()
+        async with self._db.transaction() as conn:
+            cur = await conn.execute(
+                "INSERT INTO portfolio_notifications (id, created_at, kind, severity, title, "
+                "body, ticker, portfolio_id, alert_id, run_id, artifact_id, read, dedupe_key) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?) "
+                "ON CONFLICT(dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
+                (
+                    nid,
+                    _iso(now or _now()),
+                    kind,
+                    severity,
+                    title,
+                    body,
+                    ticker.upper() if ticker else None,
+                    portfolio_id,
+                    alert_id,
+                    run_id,
+                    artifact_id,
+                    dedupe_key,
+                ),
+            )
+            if cur.rowcount == 0:
+                return None
+            await self._prune()
         return await self.get_notification(nid)
 
     async def get_notification(self, nid: str) -> Notification | None:
@@ -456,42 +457,41 @@ class AlertStore:
 
     async def mark_read(self, ids: list[str] | None = None) -> int:
         """Mark the given notifications read; ``None`` → all of them."""
-        conn = await self._conn_ready()
-        if ids is None:
-            cur = await conn.execute("UPDATE portfolio_notifications SET read = 1 WHERE read = 0")
-        elif not ids:
+        if ids is not None and not ids:
             return 0
-        else:
-            marks = ",".join("?" * len(ids))
-            cur = await conn.execute(
-                f"UPDATE portfolio_notifications SET read = 1 WHERE read = 0 AND id IN ({marks})",
-                ids,
-            )
-        await conn.commit()
-        return cur.rowcount
+        async with self._db.transaction() as conn:
+            if ids is None:
+                cur = await conn.execute(
+                    "UPDATE portfolio_notifications SET read = 1 WHERE read = 0"
+                )
+            else:
+                marks = ",".join("?" * len(ids))
+                cur = await conn.execute(
+                    "UPDATE portfolio_notifications SET read = 1 "
+                    f"WHERE read = 0 AND id IN ({marks})",
+                    ids,
+                )
+            return cur.rowcount
 
     async def delete_notification(self, nid: str) -> bool:
-        conn = await self._conn_ready()
-        cur = await conn.execute("DELETE FROM portfolio_notifications WHERE id = ?", (nid,))
-        await conn.commit()
-        return cur.rowcount > 0
+        async with self._db.transaction() as conn:
+            cur = await conn.execute("DELETE FROM portfolio_notifications WHERE id = ?", (nid,))
+            return cur.rowcount > 0
 
     async def clear_read(self) -> int:
-        conn = await self._conn_ready()
-        cur = await conn.execute("DELETE FROM portfolio_notifications WHERE read = 1")
-        await conn.commit()
-        return cur.rowcount
+        async with self._db.transaction() as conn:
+            cur = await conn.execute("DELETE FROM portfolio_notifications WHERE read = 1")
+            return cur.rowcount
 
     async def _prune(self) -> None:
-        conn = await self._conn_ready()
-        await conn.execute(
-            "DELETE FROM portfolio_notifications WHERE read = 1 AND id NOT IN ("
-            "SELECT id FROM portfolio_notifications ORDER BY created_at DESC LIMIT ?)",
-            (MAX_NOTIFICATIONS,),
-        )
-        await conn.commit()
+        async with self._db.transaction() as conn:
+            await conn.execute(
+                "DELETE FROM portfolio_notifications WHERE read = 1 AND id NOT IN ("
+                "SELECT id FROM portfolio_notifications ORDER BY created_at DESC LIMIT ?)",
+                (MAX_NOTIFICATIONS,),
+            )
 
     async def close(self) -> None:
-        if self._conn is not None:
-            await self._conn.close()
-            self._conn = None
+        """Close only when this store owns its database (see RunStore.close)."""
+        if self._owns_db:
+            await self._db.close()

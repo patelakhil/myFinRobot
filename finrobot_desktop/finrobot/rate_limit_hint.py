@@ -21,7 +21,7 @@ from __future__ import annotations
 import math
 import re
 import time
-from datetime import timezone
+from datetime import UTC
 from email.utils import parsedate_to_datetime
 
 # Substrings that mark an exception as a non-recoverable error that must NOT be
@@ -118,7 +118,7 @@ def coerce_retry_after_value(raw: str, *, now: float) -> float | None:
     except (TypeError, ValueError, IndexError):
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return max(0.0, dt.timestamp() - now)
 
 
@@ -129,7 +129,7 @@ def retry_after_from_text(message: str) -> float | None:
         return None
     value = float(match.group(1))
     unit = match.group(2).lower()
-    if unit.startswith("ms") or unit.startswith("milli"):
+    if unit.startswith(("ms", "milli")):
         return value / 1000.0
     if unit.startswith("m"):  # "m", "min", "mins", "minute(s)" — checked AFTER ms
         return value * 60.0

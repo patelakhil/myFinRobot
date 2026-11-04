@@ -1,4 +1,4 @@
-"""Pin the SSE event contract between routes/runs.py and desktop/src/stores/runStreamStore.ts.
+"""Pin the SSE event contract between routes/runs.py and desktop/src/stores/runStream/transport.ts.
 
 Spec §5.3 originally listed an aspirational event vocabulary
 (``pipeline.start`` / ``step.start`` / ``step.complete`` …) but the running
@@ -8,7 +8,7 @@ code uses ``run.X`` / ``step.X`` naming and both halves of the contract
 churn the names.
 
 This audit catches silent drift: if anyone renames a backend event without
-also updating ``desktop/src/stores/runStreamStore.ts``, the UI would silently
+also updating ``desktop/src/stores/runStream/transport.ts``, the UI would silently
 stop receiving progress updates. The contract test makes that a hard CI
 failure instead of a debug-friday surprise.
 """
@@ -23,7 +23,7 @@ BACKEND_SRC = REPO_ROOT / "finrobot" / "routes" / "runs.py"
 # The UI lives under desktop/ (the old ui/ path silently skipped the frontend
 # half of this contract for months — an audit that can't find its subject must
 # fail loudly, hence the hard assert in the test below).
-FRONTEND_SRC = REPO_ROOT / "desktop" / "src" / "stores" / "runStreamStore.ts"
+FRONTEND_SRC = REPO_ROOT / "desktop" / "src" / "stores" / "runStream" / "transport.ts"
 
 # The events both sides must agree on. Adding to this list requires both
 # code paths AND this test to update in lockstep — that's the point.
@@ -59,7 +59,7 @@ def test_frontend_listens_for_every_required_sse_event() -> None:
         if not re.search(rf"addEventListener\(\s*['\"]{re.escape(name)}['\"]", src)
     ]
     assert not missing, (
-        f"desktop/src/stores/runStreamStore.ts is missing addEventListener for: {missing}. "
+        f"desktop/src/stores/runStream/transport.ts is missing addEventListener for: {missing}. "
         "Add the listener or remove the corresponding backend emit + this entry."
     )
 

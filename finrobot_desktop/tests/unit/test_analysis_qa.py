@@ -13,7 +13,7 @@ crashed every live 10-K fetch.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -43,7 +43,7 @@ def _make_data_layer(
         provider="sec_edgar",
         ticker="AAPL",
         data_type="10k_rag",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     layer = MagicMock()
     layer.fetch = AsyncMock(return_value=result)
@@ -173,7 +173,7 @@ class TestRunQA:
             provider="sec_edgar",
             ticker="AAPL",
             data_type="10k_rag",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
         dumped = result.model_dump_json()  # must not raise
         assert "rag_chunks" in dumped

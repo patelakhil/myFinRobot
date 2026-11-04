@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import replace
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -18,8 +18,6 @@ from finrobot.engine.compute.operators.forward_estimates import (
     ForwardFinancials,
     get_forward_financials,
 )
-from finrobot.engine.primitives.historical_valuation import HistoricalMetricName
-from finrobot.engine.primitives.industry import is_balance_sheet_financial, is_commodity_cyclical
 from finrobot.engine.compute.operators.multiples import current_ev_ebitda
 from finrobot.engine.compute.operators.valuation_aggregator import aggregate_valuation
 from finrobot.engine.data.cache import cached_fetch
@@ -39,6 +37,8 @@ from finrobot.engine.models.financial import (
     PeerComps,
     ValuationAggregate,
 )
+from finrobot.engine.primitives.historical_valuation import HistoricalMetricName
+from finrobot.engine.primitives.industry import is_balance_sheet_financial, is_commodity_cyclical
 from finrobot.routes._ready import ensure_engine_ready
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,7 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
     fd = await _financial_data(ticker, data_layer)
     industry = fd.market.industry if fd else None
     sector = fd.market.sector if fd else None
-    as_of = datetime.now(tz=timezone.utc)
+    as_of = datetime.now(tz=UTC)
 
     # Self historical EV/EBITDA band (P25/P75) → revives the EV/EBITDA reverse row
     # (band × forward consensus EBITDA − current net debt). Previously hardcoded

@@ -10,9 +10,10 @@ Verifies:
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from httpx import AsyncClient, ASGITransport
-from unittest.mock import patch, AsyncMock
+from httpx import ASGITransport, AsyncClient
 
 from finrobot.engine.models.financial import HistoricalMetrics
 

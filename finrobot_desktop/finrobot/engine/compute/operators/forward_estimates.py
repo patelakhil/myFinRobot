@@ -336,9 +336,11 @@ def _guard_fx_mismatch(
         confidence="unavailable",
         warnings=[
             *result.warnings,
-            f"forward NI/EPS abstained: FMP consensus {ni_phrase}{why}"
-            f" — /analyst-estimates carries no currency field, likely native reporting currency (non-USD); "
-            f"cross-currency forward P/E rejected, set to None",
+            (
+                f"forward NI/EPS abstained: FMP consensus {ni_phrase}{why}"
+                f" — /analyst-estimates carries no currency field, likely native reporting currency (non-USD); "
+                f"cross-currency forward P/E rejected, set to None"
+            ),
         ],
     )
 

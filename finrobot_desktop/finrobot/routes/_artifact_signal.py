@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Iterable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.artifact.models import ArtifactSummary
 from finrobot.engine.compute.operators.signal import compute_signal
@@ -52,7 +52,7 @@ async def attach_signals(
     if not summaries:
         return summaries
 
-    now = now if now is not None else datetime.now(tz=timezone.utc)
+    now = now if now is not None else datetime.now(tz=UTC)
     tickers_needed = {
         s.ticker.upper()
         for s in summaries

@@ -110,7 +110,7 @@ async def main() -> int:
 
             old_px, new_px = _px(inputs_old), _px(inputs_new)
 
-            def _resid(y1):  # type: ignore[no-untyped-def]
+            def _resid(y1, cons_fy1=cons_fy1):  # type: ignore[no-untyped-def]
                 return f"{y1 / cons_fy1 - 1:+.1%}" if (cons_fy1 and y1) else "—"
 
             dpx = (

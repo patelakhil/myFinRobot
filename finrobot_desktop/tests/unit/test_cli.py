@@ -1,6 +1,6 @@
 """CLI tests using click.testing.CliRunner with TestModel mock."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -100,7 +100,7 @@ class FakeDataLayer:
             provider="fake",
             ticker=ticker,
             data_type=data_type,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
     async def fetch_canonical(self, data_type, ticker, **kwargs):
@@ -386,6 +386,7 @@ class TestDcfCommand:
         )
         proc = subprocess.run(
             [sys.executable, "-c", single_loop],
+            check=False,  # the assertion below reports the exit code with context
             capture_output=True,
             text=True,
             timeout=60,  # the bug hangs 3+ min; 60s is a generous non-hang bound

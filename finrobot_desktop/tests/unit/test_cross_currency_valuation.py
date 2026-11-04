@@ -20,19 +20,19 @@ passed directly so the assertions are deterministic.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.engine.compute.operators.dcf import calculate_dcf
 from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
 from finrobot.engine.compute.operators.fx_normalize import normalize_financialdata_to_usd
 from finrobot.engine.models.financial import (
     BalanceSheet,
+    CompanyFinancials,
     FinancialData,
     HistoricalMetrics,
     IncomeStatement,
     MarketData,
     PeerComps,
-    CompanyFinancials,
 )
 
 # Fixed TWD→USD spot used throughout (≈ 32 TWD/USD). No network.
@@ -75,7 +75,7 @@ def _tsm_financialdata() -> FinancialData:
     """
     return FinancialData(
         ticker="TSM",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=4_536_412e6,  # TWD FY revenue ≈ $142B
             ebitda=2_700_000e6,  # TWD
@@ -149,7 +149,7 @@ class TestDcfSeedForeignIssuer:
         DCFInputs are identical with or without the normalize step."""
         fd = FinancialData(
             ticker="AAPL",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             income=IncomeStatement(
                 revenue=383_285e6,
                 ebitda=130_000e6,

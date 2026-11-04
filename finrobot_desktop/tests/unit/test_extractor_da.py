@@ -4,12 +4,12 @@ ADR-0006 Step 4: fixtures wrap raw DataResult dicts with normalize_financials /
 normalize_price before passing to extractor functions.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from finrobot.engine.compute.coordinators.extractor import extract_financial_data
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.financials import normalize_financials
 from finrobot.engine.data.normalize.price import normalize_price
-from finrobot.engine.compute.coordinators.extractor import extract_financial_data
 
 
 def _make_fin(**overrides):
@@ -30,7 +30,7 @@ def _make_fin(**overrides):
         provider="fmp",
         ticker="AAPL",
         data_type="financials",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     return normalize_financials(raw)
 
@@ -41,7 +41,7 @@ def _make_price():
         provider="fmp",
         ticker="AAPL",
         data_type="price",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
     )
     return normalize_price(raw)
 

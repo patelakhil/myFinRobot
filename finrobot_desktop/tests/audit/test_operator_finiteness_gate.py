@@ -18,8 +18,9 @@ below — the development checklist (T4#5) points here.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 
@@ -47,14 +48,14 @@ NON_FINITE = [float("nan"), float("inf"), float("-inf")]
 
 
 def _company(**overrides: Any) -> CompanyFinancials:
-    base: dict[str, Any] = dict(
-        ticker="TST",
-        name="Test Co.",
-        market_cap=100e9,
-        revenue=10e9,
-        reporting_currency="TWD",
-        quote_currency="USD",
-    )
+    base: dict[str, Any] = {
+        "ticker": "TST",
+        "name": "Test Co.",
+        "market_cap": 100e9,
+        "revenue": 10e9,
+        "reporting_currency": "TWD",
+        "quote_currency": "USD",
+    }
     base.update(overrides)
     return CompanyFinancials(**base)
 
@@ -63,7 +64,7 @@ def _financial_data() -> FinancialData:
     return FinancialData(
         ticker="TST",
         company_name="Test Co.",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=10e9,
             ebitda=4e9,

@@ -10,6 +10,8 @@ revenue into a price target; a false-positive WARNING costs one triage glance).
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from finrobot.engine.compute.operators.report_drift import (
     collect_numeric_leaves,
     detect_report_drift,
@@ -39,7 +41,7 @@ class TestCollectNumericLeaves:
 
 
 class TestDetectReportDrift:
-    LEAVES = {276.43, 391_035_000_000.0, 96_995_000_000.0, 425.10}
+    LEAVES: ClassVar[set[float]] = {276.43, 391_035_000_000.0, 96_995_000_000.0, 425.10}
 
     def test_exact_and_rounded_amounts_match(self):
         # "$276" vs canonical 276.43 is a display rounding (0.16% < 1% shared

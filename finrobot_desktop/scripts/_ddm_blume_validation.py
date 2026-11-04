@@ -232,12 +232,12 @@ async def main() -> int:
                 and raw_picked > 1.0
                 and math.isfinite(v_now)
                 and math.isfinite(v_fix)
+                and not (beta_fix < beta_now - 1e-9 and coe_fix < coe_now and v_fix > v_now - 1e-9)
             ):
-                if not (beta_fix < beta_now - 1e-9 and coe_fix < coe_now and v_fix > v_now - 1e-9):
-                    failures.append(
-                        f"{t}: β>1 wrong direction (β {beta_now}->{beta_fix}, val {v_now:.2f}->{v_fix:.2f})"
-                    )
-                    note = "‼ wrong dir"
+                failures.append(
+                    f"{t}: β>1 wrong direction (β {beta_now}->{beta_fix}, val {v_now:.2f}->{v_fix:.2f})"
+                )
+                note = "‼ wrong dir"
 
             delta = (v_fix - v_now) / v_now if (math.isfinite(v_now) and v_now) else float("nan")
             implied_s = f"{implied:.2f}" if isinstance(implied, float) else str(implied)

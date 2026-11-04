@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from finrobot.artifact.builders import build_equity_research_artifact
 from finrobot.engine.models.sec import (
@@ -56,7 +56,7 @@ def test_equity_research_artifact_persists_sec_top_level_keys() -> None:
             ceo_total_compensation=51_800_000,
             provenance=_prov("DEF 14A"),
         ),
-        generated_at=datetime.now(tz=timezone.utc),
+        generated_at=datetime.now(tz=UTC),
     )
     result = PipelineResult(
         steps={"ownership_governance_analysis": "done"},

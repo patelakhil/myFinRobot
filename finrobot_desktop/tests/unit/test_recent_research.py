@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -13,7 +13,7 @@ from finrobot.engine.aggregations.recent_research import (
     format_age_label,
 )
 
-NOW = datetime(2026, 5, 22, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 5, 22, 12, 0, 0, tzinfo=UTC)
 
 
 def _input(

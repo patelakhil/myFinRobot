@@ -3,7 +3,7 @@ import logging
 import sqlite3
 import weakref
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import aiosqlite
@@ -12,7 +12,7 @@ from pydantic import BaseModel, ValidationError
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import CANONICAL_CONTRACT_VERSION
 from finrobot.engine.data.types import DataType
-from finrobot.paths import configure_connection
+from finrobot.storage.sqlite import Migration, SqliteDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +206,7 @@ _DEFAULT_TTL_SECONDS: int = 3600  # 1 hour
 _EVICT_AFTER_DAYS: int = 30
 
 
-def _get_ttl_seconds(data_type: str | DataType) -> int:  # noqa: D401
+def _get_ttl_seconds(data_type: str | DataType) -> int:
     data_type = _normalize_data_type(data_type)  # FILINGS → FILINGS_10K etc.
     """Return the TTL in seconds for a given data type."""
     return _TTL_SECONDS.get(str(data_type), _DEFAULT_TTL_SECONDS)
@@ -228,33 +228,30 @@ class CachedCanonical(BaseModel):
     cached_at: datetime
 
 
+async def _baseline(conn: aiosqlite.Connection) -> None:
+    await conn.execute(_CREATE_TABLE)
+
+
+MIGRATIONS: tuple[Migration, ...] = (Migration(1, "data_cache: baseline", _baseline),)
+
+
 class DataCache:
+    """Provider-response cache (``~/.finrobot/data_cache.db``).
+
+    Its own file on purpose: every row is rebuildable from the providers, so
+    it stays out of the consolidated user database and can be deleted freely.
+    """
+
     def __init__(self, db_path: str = "") -> None:
         if not db_path:
             from finrobot.paths import default_data_cache_db_path
 
             db_path = default_data_cache_db_path()
         self._db_path = db_path
-        self._conn: aiosqlite.Connection | None = None
-        self._conn_lock = asyncio.Lock()
+        self._db = SqliteDatabase(db_path, migrations=MIGRATIONS)
 
     async def _ensure_connection(self) -> aiosqlite.Connection:
-        """Lazily create connection and table on first use, then reuse.
-
-        Hot path skips the lock entirely once the connection exists; the
-        lock only guards the first-init race (TOCTOU when multiple
-        coroutines call this simultaneously before the connection is set).
-        WAL mode is enabled on first open so concurrent set() calls don't SQLITE_BUSY.
-        """
-        if self._conn is not None:
-            return self._conn
-        async with self._conn_lock:
-            if self._conn is None:
-                self._conn = await aiosqlite.connect(self._db_path)
-                await configure_connection(self._conn)
-                await self._conn.execute(_CREATE_TABLE)
-                await self._conn.commit()
-        return self._conn
+        return await self._db.connection()
 
     async def _get_slot(
         self,
@@ -295,8 +292,8 @@ class DataCache:
             await self._delete_slot(slot_key, ticker)
             return None
         if cached_at.tzinfo is None:
-            cached_at = cached_at.replace(tzinfo=timezone.utc)
-        age_seconds = (datetime.now(tz=timezone.utc) - cached_at).total_seconds()
+            cached_at = cached_at.replace(tzinfo=UTC)
+        age_seconds = (datetime.now(tz=UTC) - cached_at).total_seconds()
         if max_age_hours is not None:
             is_stale = age_seconds > max_age_hours * 3600
         else:
@@ -312,13 +309,12 @@ class DataCache:
         fetch only overwrites the row on success — so a merely-skipped corrupt
         row would keep poisoning reads until the 30-day evict.
         """
-        conn = await self._ensure_connection()
         try:
-            await conn.execute(
-                "DELETE FROM cache WHERE data_type = ? AND ticker = ?",
-                (slot_key, ticker),
-            )
-            await conn.commit()
+            async with self._db.transaction() as conn:
+                await conn.execute(
+                    "DELETE FROM cache WHERE data_type = ? AND ticker = ?",
+                    (slot_key, ticker),
+                )
         except sqlite3.Error as exc:
             # Best-effort, same contract as _set_slot: this runs inside a READ's
             # corrupt-row self-heal, so a write failure (disk full, I/O error)
@@ -329,20 +325,19 @@ class DataCache:
             )
 
     async def _set_slot(self, slot_key: str, ticker: str, payload_json: str) -> None:
-        cached_at = datetime.now(tz=timezone.utc).isoformat()
-        conn = await self._ensure_connection()
+        cached_at = datetime.now(tz=UTC).isoformat()
         try:
-            await conn.execute(
-                """
-                INSERT INTO cache (data_type, ticker, data, cached_at)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(data_type, ticker) DO UPDATE SET
-                    data = excluded.data,
-                    cached_at = excluded.cached_at
-                """,
-                (slot_key, ticker, payload_json, cached_at),
-            )
-            await conn.commit()
+            async with self._db.transaction() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO cache (data_type, ticker, data, cached_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(data_type, ticker) DO UPDATE SET
+                        data = excluded.data,
+                        cached_at = excluded.cached_at
+                    """,
+                    (slot_key, ticker, payload_json, cached_at),
+                )
         except sqlite3.Error as exc:
             # A cache WRITE is an optimization, not the deliverable: never let its
             # failure (disk full / SQLITE_FULL, I/O error) propagate and turn a
@@ -472,8 +467,8 @@ class DataCache:
             await self._delete_slot(slot_key, ticker)
             return None
         if cached_at.tzinfo is None:
-            cached_at = cached_at.replace(tzinfo=timezone.utc)
-        age_seconds = (datetime.now(tz=timezone.utc) - cached_at).total_seconds()
+            cached_at = cached_at.replace(tzinfo=UTC)
+        age_seconds = (datetime.now(tz=UTC) - cached_at).total_seconds()
         if max_age_hours is not None:
             is_stale = age_seconds > max_age_hours * 3600
         else:
@@ -509,12 +504,11 @@ class DataCache:
         await self._delete_slot(canonical_key(data_type, provider), ticker)
 
     async def clear(self, ticker: str | None = None) -> None:
-        conn = await self._ensure_connection()
-        if ticker is None:
-            await conn.execute("DELETE FROM cache")
-        else:
-            await conn.execute("DELETE FROM cache WHERE ticker = ?", (ticker,))
-        await conn.commit()
+        async with self._db.transaction() as conn:
+            if ticker is None:
+                await conn.execute("DELETE FROM cache")
+            else:
+                await conn.execute("DELETE FROM cache WHERE ticker = ?", (ticker,))
 
     async def evict_expired(self, *, max_age_days: int = _EVICT_AFTER_DAYS) -> int:
         """Physically delete cache rows older than ``max_age_days``; reclaim file space.
@@ -532,12 +526,12 @@ class DataCache:
 
         Returns the number of rows deleted.
         """
-        cutoff_iso = (datetime.now(tz=timezone.utc) - timedelta(days=max_age_days)).isoformat()
+        cutoff_iso = (datetime.now(tz=UTC) - timedelta(days=max_age_days)).isoformat()
         conn = await self._ensure_connection()
         try:
-            cur = await conn.execute("DELETE FROM cache WHERE cached_at < ?", (cutoff_iso,))
-            deleted = cur.rowcount
-            await conn.commit()
+            async with self._db.transaction() as tx:
+                cur = await tx.execute("DELETE FROM cache WHERE cached_at < ?", (cutoff_iso,))
+                deleted = cur.rowcount
         except sqlite3.Error as exc:
             # Best-effort housekeeping: a write failure (disk full — ironically
             # when eviction is most needed) must not crash the background pass.
@@ -556,17 +550,15 @@ class DataCache:
             # into an error (e.g. VACUUM cannot run inside a transaction or
             # with an open cursor on some platforms).
             try:
+                # VACUUM must run outside any transaction — autocommit mode.
                 await conn.execute("VACUUM")
-                await conn.commit()
             except aiosqlite.Error:
                 logger.warning("data_cache VACUUM after eviction failed — non-fatal")
         return deleted
 
     async def close(self) -> None:
         """Close the connection. Call during shutdown."""
-        if self._conn is not None:
-            await self._conn.close()
-            self._conn = None
+        await self._db.close()
 
 
 # Per-(data_type, cache_key) locks used to collapse concurrent cache-miss
@@ -661,7 +653,7 @@ async def cached_fetch(
                 provider="route-direct",
                 ticker=cache_key,
                 data_type=data_type,
-                timestamp=datetime.now(tz=timezone.utc),
+                timestamp=datetime.now(tz=UTC),
                 warnings=list(data.get("warnings", [])) if isinstance(data, dict) else [],
             )
             await cache.set(data_type, cache_key, envelope)

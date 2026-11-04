@@ -8,8 +8,11 @@ routes / pipelines / tests share one entry point; new code may import
 
 Args:
     base_dir: When provided, ``base_dir / artifacts.db`` is used (so tests
-        that hand-roll a tmp dir keep isolation). When omitted, the unified
-        path from :mod:`finrobot.paths` applies.
+        that hand-roll a tmp dir keep isolation). When omitted, the
+        consolidated user database (:mod:`finrobot.storage.user_db`) applies.
+    database: Share an already-open :class:`SqliteDatabase` (the server
+        lifespan passes the user database so artifact writes can join a
+        run's transaction).
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ from pathlib import Path
 
 from finrobot.artifact.models import Artifact, ArtifactSummary, ArtifactType
 from finrobot.artifact.sqlite_store import SqliteArtifactStore, summary_from_artifact
+from finrobot.storage.sqlite import SqliteDatabase
 
 # Alias kept so tests + audit tools importing the private
 # ``_summary_from_artifact`` keep working; new code uses the public name.
@@ -33,11 +37,20 @@ class ArtifactStore:
     SqliteArtifactStore methods fall through via ``__getattr__``.
     """
 
-    def __init__(self, base_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        base_dir: Path | None = None,
+        *,
+        database: SqliteDatabase | None = None,
+    ) -> None:
         db_path: Path | None = None
         if base_dir is not None:
             db_path = Path(base_dir) / "artifacts.db"
-        self._impl = SqliteArtifactStore(db_path=db_path)
+        self._impl = SqliteArtifactStore(db_path=db_path, database=database)
+
+    @property
+    def database(self) -> SqliteDatabase:
+        return self._impl.database
 
     async def save(self, artifact: Artifact) -> str:
         return await self._impl.save(artifact)
@@ -54,7 +67,7 @@ class ArtifactStore:
     async def list_by_ticker(
         self,
         ticker: str | None = None,
-        type: ArtifactType | None = None,  # noqa: A002
+        type: ArtifactType | None = None,
         include_archived: bool = False,
         limit: int = 100,
         tickers: set[str] | None = None,
@@ -83,7 +96,7 @@ class ArtifactStore:
     async def distinct_ticker_count(self, *, include_archived: bool = False) -> int:
         return await self._impl.distinct_ticker_count(include_archived=include_archived)
 
-    async def list_versions(self, ticker: str, type: ArtifactType) -> list[ArtifactSummary]:  # noqa: A002
+    async def list_versions(self, ticker: str, type: ArtifactType) -> list[ArtifactSummary]:
         return await self._impl.list_versions(ticker, type)
 
     async def mark_viewed(self, artifact_id: str) -> None:

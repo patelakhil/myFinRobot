@@ -166,12 +166,16 @@ def format_portfolio_snapshot(
     totals = _combined_totals(overviews)
 
     lines: list[str] = [
-        f"User's portfolio ({name}) — system-supplied context this turn, "
-        "deterministically computed, NOT from a tool call:",
-        "Caliber: P&L = realized + unrealized; its % divides by the capital still "
-        "at risk (open cost + cost of units already sold). today = the day's move "
-        "on open, same-currency positions only. Distinct from the watchlist's "
-        "live-price upside — a portfolio P&L is against YOUR cost, not a report target.",
+        (
+            f"User's portfolio ({name}) — system-supplied context this turn, "
+            "deterministically computed, NOT from a tool call:"
+        ),
+        (
+            "Caliber: P&L = realized + unrealized; its % divides by the capital still "
+            "at risk (open cost + cost of units already sold). today = the day's move "
+            "on open, same-currency positions only. Distinct from the watchlist's "
+            "live-price upside — a portfolio P&L is against YOUR cost, not a report target."
+        ),
         f"Totals: cost basis {_fmt_amount(totals['cost_basis'], None)} · "
         f"market value {_fmt_amount(totals['market_value'], None)} · "
         f"P&L {_fmt_amount(totals['total_pnl'], None)} ({_fmt_pct(totals['total_pnl_pct'])}) · "
@@ -227,11 +231,13 @@ def format_portfolio_for_tool(overviews: list[PortfolioOverview]) -> str:
     )
     lines = [
         header,
-        f"Totals: cost basis {_fmt_amount(totals['cost_basis'], None)} · "
-        f"market value {_fmt_amount(totals['market_value'], None)} · "
-        f"P&L {_fmt_amount(totals['total_pnl'], None)} ({_fmt_pct(totals['total_pnl_pct'])}) · "
-        f"realized {_fmt_amount(totals['realized_pnl'], None)} · "
-        f"today {_fmt_amount(totals['day_pnl'], None)}",
+        (
+            f"Totals: cost basis {_fmt_amount(totals['cost_basis'], None)} · "
+            f"market value {_fmt_amount(totals['market_value'], None)} · "
+            f"P&L {_fmt_amount(totals['total_pnl'], None)} ({_fmt_pct(totals['total_pnl_pct'])}) · "
+            f"realized {_fmt_amount(totals['realized_pnl'], None)} · "
+            f"today {_fmt_amount(totals['day_pnl'], None)}"
+        ),
     ]
     rows: list[tuple[str | None, PortfolioPosition]]
     rows = _rows(overviews) if multi else [(None, p) for p in overviews[0].positions]

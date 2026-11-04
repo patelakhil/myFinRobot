@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import uuid
 from collections.abc import Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -13,7 +12,7 @@ import aiosqlite
 from pydantic import BaseModel, Field
 
 from finrobot.events import RunEvent
-from finrobot.paths import configure_connection
+from finrobot.storage.sqlite import Migration, SqliteDatabase, add_missing_columns
 
 logger = logging.getLogger(__name__)
 
@@ -59,11 +58,11 @@ CREATE TABLE IF NOT EXISTS runs (
 # connection open via ALTER TABLE (SQLite has no "ADD COLUMN IF NOT EXISTS"), so
 # existing on-disk run DBs gain the column without a manual migration. Keep the
 # CREATE statement above in sync — fresh DBs get the column from CREATE directly.
-_RUN_COLUMN_MIGRATIONS = (
-    ("language", "ALTER TABLE runs ADD COLUMN language TEXT"),
-    ("source_artifact_id", "ALTER TABLE runs ADD COLUMN source_artifact_id TEXT"),
-    ("retry_at", "ALTER TABLE runs ADD COLUMN retry_at TEXT"),
-    ("refresh_integrations", "ALTER TABLE runs ADD COLUMN refresh_integrations TEXT"),
+_RUN_COLUMN_MIGRATIONS: tuple[tuple[str, str], ...] = (
+    ("language", "TEXT"),
+    ("source_artifact_id", "TEXT"),
+    ("retry_at", "TEXT"),
+    ("refresh_integrations", "TEXT"),
 )
 
 _CREATE_RUN_EVENTS = """
@@ -77,9 +76,9 @@ CREATE TABLE IF NOT EXISTS run_events (
 """
 
 # run→artifact link table. Distinct from the canonical artifact store in
-# artifacts.db (artifact/sqlite_store.py); named run_artifacts to avoid the
+# the artifacts table (artifact/sqlite_store.py); named run_artifacts to avoid the
 # collision. file_path holds the canonical artifact's API path
-# (/api/artifacts/<id>). No data BLOB: artifact bodies live in artifacts.db,
+# (/api/artifacts/<id>). No data BLOB: artifact bodies live in the artifacts table,
 # this table only records which artifact a run produced.
 _CREATE_ARTIFACTS = """
 CREATE TABLE IF NOT EXISTS run_artifacts (
@@ -173,45 +172,63 @@ class ArtifactRecord(BaseModel):
     created_at: str
 
 
+async def _baseline(conn: aiosqlite.Connection) -> None:
+    """v1: the runs / run_events / run_artifacts tables as they ship today.
+
+    Idempotent against a pre-versioning ``runs.db``: ``CREATE IF NOT EXISTS``
+    plus the column / CHECK-constraint catch-ups those files may still need.
+    """
+    await conn.execute(_CREATE_RUNS)
+    # Column migrations BEFORE the CHECK rebuild: the rebuild copies an
+    # explicit column list, so a legacy table must gain language /
+    # source_artifact_id / … first.
+    await add_missing_columns(conn, "runs", _RUN_COLUMN_MIGRATIONS)
+    await _migrate_runs_status_check(conn)
+    await conn.execute(_CREATE_RUN_EVENTS)
+    await conn.execute(_CREATE_ARTIFACTS)
+    # Indexes AFTER the CHECK rebuild — DROP TABLE inside the rebuild drops
+    # the runs indexes with it; IF NOT EXISTS recreates them here.
+    for stmt in _CREATE_INDEXES:
+        await conn.execute(stmt)
+
+
+MIGRATIONS: tuple[Migration, ...] = (Migration(1, "runs: baseline", _baseline),)
+
+
 class RunStore:
-    """SQLite-backed run, event, and artifact metadata store."""
+    """Run, event, and artifact-link metadata store.
 
-    def __init__(self, db_path: str | Path | None = None) -> None:
-        if db_path is None:
-            from finrobot.paths import RUNS_DB, ensure_home
+    Lives in the consolidated user database by default (see
+    ``finrobot.storage.user_db``). ``db_path`` opens a private standalone file
+    instead (tests, tools); ``database`` shares an already-open
+    :class:`SqliteDatabase` so writes can join the owner's transactions.
+    """
 
-            ensure_home()
-            db_path = RUNS_DB
-        self._db_path = str(db_path)
-        self._conn: aiosqlite.Connection | None = None
-        self._conn_lock = asyncio.Lock()
+    def __init__(
+        self,
+        db_path: str | Path | None = None,
+        *,
+        database: SqliteDatabase | None = None,
+    ) -> None:
+        if database is not None:
+            self._db = database
+            self._owns_db = False
+        elif db_path is not None:
+            self._db = SqliteDatabase(db_path, migrations=MIGRATIONS)
+            self._owns_db = True
+        else:
+            from finrobot.storage.user_db import user_database
+
+            self._db = user_database()
+            self._owns_db = True
+        self._db_path = str(self._db.path)
+
+    @property
+    def database(self) -> SqliteDatabase:
+        return self._db
 
     async def _ensure_connection(self) -> aiosqlite.Connection:
-        async with self._conn_lock:
-            if self._conn is None:
-                Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
-                conn = await aiosqlite.connect(self._db_path)
-                try:
-                    await configure_connection(conn)
-                    await conn.execute(_CREATE_RUNS)
-                    # Column migrations BEFORE the CHECK rebuild: the rebuild
-                    # copies an explicit 12-column list, so a legacy table must
-                    # gain language/source_artifact_id first.
-                    await _apply_run_column_migrations(conn)
-                    await _migrate_runs_status_check(conn)
-                    await conn.execute(_CREATE_RUN_EVENTS)
-                    await conn.execute(_CREATE_ARTIFACTS)
-                    # Indexes AFTER the CHECK rebuild — DROP TABLE inside the
-                    # rebuild drops the runs indexes with it; IF NOT EXISTS
-                    # recreates them here.
-                    for stmt in _CREATE_INDEXES:
-                        await conn.execute(stmt)
-                    await conn.commit()
-                except BaseException:
-                    await conn.close()
-                    raise
-                self._conn = conn
-        return self._conn
+        return await self._db.connection()
 
     async def create_run(
         self,
@@ -224,26 +241,25 @@ class RunStore:
         try:
             run_id = f"run_{uuid.uuid4().hex[:12]}"
             created_at = _now()
-            conn = await self._ensure_connection()
             refresh_csv = ",".join(refresh_integrations) if refresh_integrations else None
-            await conn.execute(
-                """
-                INSERT INTO runs
-                    (run_id, pipeline_type, ticker, status, created_at, language,
-                     source_artifact_id, refresh_integrations)
-                VALUES (?, ?, ?, 'created', ?, ?, ?, ?)
-                """,
-                (
-                    run_id,
-                    pipeline_type,
-                    ticker.upper(),
-                    created_at,
-                    language,
-                    source_artifact_id,
-                    refresh_csv,
-                ),
-            )
-            await conn.commit()
+            async with self._db.transaction() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO runs
+                        (run_id, pipeline_type, ticker, status, created_at, language,
+                         source_artifact_id, refresh_integrations)
+                    VALUES (?, ?, ?, 'created', ?, ?, ?, ?)
+                    """,
+                    (
+                        run_id,
+                        pipeline_type,
+                        ticker.upper(),
+                        created_at,
+                        language,
+                        source_artifact_id,
+                        refresh_csv,
+                    ),
+                )
             return RunRecord(
                 run_id=run_id,
                 pipeline_type=pipeline_type,
@@ -270,31 +286,32 @@ class RunStore:
         error: str | None = None,
     ) -> None:
         try:
-            conn = await self._ensure_connection()
-            async with conn.execute(
-                """
-                UPDATE runs SET
-                    status = COALESCE(?, status),
-                    completed_at = COALESCE(?, completed_at),
-                    duration_s = COALESCE(?, duration_s),
-                    result_text = COALESCE(?, result_text),
-                    result_json = COALESCE(?, result_json),
-                    error = COALESCE(?, error)
-                WHERE run_id = ?
-                """,
-                (
-                    status,
-                    completed_at,
-                    duration_s,
-                    result_text,
-                    json.dumps(result_json) if result_json is not None else None,
-                    error,
-                    run_id,
-                ),
-            ) as cursor:
+            async with (
+                self._db.transaction() as conn,
+                conn.execute(
+                    """
+                    UPDATE runs SET
+                        status = COALESCE(?, status),
+                        completed_at = COALESCE(?, completed_at),
+                        duration_s = COALESCE(?, duration_s),
+                        result_text = COALESCE(?, result_text),
+                        result_json = COALESCE(?, result_json),
+                        error = COALESCE(?, error)
+                    WHERE run_id = ?
+                    """,
+                    (
+                        status,
+                        completed_at,
+                        duration_s,
+                        result_text,
+                        json.dumps(result_json) if result_json is not None else None,
+                        error,
+                        run_id,
+                    ),
+                ) as cursor,
+            ):
                 if cursor.rowcount == 0:
                     raise KeyError(f"Run not found: {run_id}")
-            await conn.commit()
         except KeyError:
             raise
         except aiosqlite.OperationalError:
@@ -320,13 +337,14 @@ class RunStore:
         clearing the park marker is exactly the operation we need here.
         """
         try:
-            conn = await self._ensure_connection()
-            async with conn.execute(
-                "UPDATE runs SET retry_at = ? WHERE run_id = ?", (retry_at, run_id)
-            ) as cursor:
+            async with (
+                self._db.transaction() as conn,
+                conn.execute(
+                    "UPDATE runs SET retry_at = ? WHERE run_id = ?", (retry_at, run_id)
+                ) as cursor,
+            ):
                 if cursor.rowcount == 0:
                     raise KeyError(f"Run not found: {run_id}")
-            await conn.commit()
         except KeyError:
             raise
         except aiosqlite.OperationalError:
@@ -381,14 +399,15 @@ class RunStore:
         ) as cursor:
             orphan_ids = [str(row[0]) for row in await cursor.fetchall()]
         completed_at = _now()
-        for run_id in orphan_ids:
-            await self.finish_run(
-                run_id,
-                RunFailed(event="run.failed", run_id=run_id, error=error_msg),
-                status="failed",
-                completed_at=completed_at,
-                error=error_msg,
-            )
+        async with self._db.transaction():
+            for run_id in orphan_ids:
+                await self.finish_run(
+                    run_id,
+                    RunFailed(event="run.failed", run_id=run_id, error=error_msg),
+                    status="failed",
+                    completed_at=completed_at,
+                    error=error_msg,
+                )
         if orphan_ids:
             logger.info("Reconciled %d orphaned run(s) to failed on startup", len(orphan_ids))
         return len(orphan_ids)
@@ -405,22 +424,23 @@ class RunStore:
         (the Coverage overview's history). Returns the number of event rows
         deleted.
         """
-        cutoff = (datetime.now(tz=timezone.utc) - timedelta(days=retention_days)).isoformat()
-        conn = await self._ensure_connection()
-        async with conn.execute(
-            """
-            DELETE FROM run_events
-            WHERE run_id IN (
-                SELECT run_id FROM runs
-                WHERE status IN ('completed', 'failed', 'cancelled')
-                  AND completed_at IS NOT NULL
-                  AND completed_at < ?
-            )
-            """,
-            (cutoff,),
-        ) as cursor:
+        cutoff = (datetime.now(tz=UTC) - timedelta(days=retention_days)).isoformat()
+        async with (
+            self._db.transaction() as conn,
+            conn.execute(
+                """
+                DELETE FROM run_events
+                WHERE run_id IN (
+                    SELECT run_id FROM runs
+                    WHERE status IN ('completed', 'failed', 'cancelled')
+                      AND completed_at IS NOT NULL
+                      AND completed_at < ?
+                )
+                """,
+                (cutoff,),
+            ) as cursor,
+        ):
             count = cursor.rowcount
-        await conn.commit()
         if count:
             logger.info(
                 "Pruned %d run_events row(s) for runs terminal > %d days", count, retention_days
@@ -499,41 +519,47 @@ class RunStore:
         banner). An invariant every event writer must share belongs in the
         store, not in each call site's prose.
         """
-        await self.append_event(run_id, terminal_event)
-        await self.update_run(
-            run_id,
-            status=status,
-            completed_at=completed_at,
-            duration_s=duration_s,
-            result_text=result_text,
-            result_json=result_json,
-            error=error,
-        )
-        # A terminal run is never "retrying at …" — drop a stale park marker
-        # (a run cancelled / failed while parked) so no reader re-schedules it.
-        await self.set_retry_at(run_id, None)
+        # One transaction: the terminal event, the status flip and the park
+        # marker reset land together or not at all (and, when the caller has
+        # a transaction open, together with *its* writes — e.g. the artifact
+        # link in the run-finalisation path).
+        async with self._db.transaction():
+            await self.append_event(run_id, terminal_event)
+            await self.update_run(
+                run_id,
+                status=status,
+                completed_at=completed_at,
+                duration_s=duration_s,
+                result_text=result_text,
+                result_json=result_json,
+                error=error,
+            )
+            # A terminal run is never "retrying at …" — drop a stale park marker
+            # (a run cancelled / failed while parked) so no reader re-schedules it.
+            await self.set_retry_at(run_id, None)
 
     async def append_event(self, run_id: str, event: RunEvent) -> int:
         try:
-            conn = await self._ensure_connection()
             now = _now()
-            async with conn.execute(
-                """
-                INSERT INTO run_events (run_id, seq, event, created_at)
-                VALUES (
-                    ?,
-                    (SELECT COALESCE(MAX(seq), 0) + 1
-                     FROM run_events WHERE run_id = ?),
-                    ?, ?
-                )
-                """,
-                (run_id, run_id, json.dumps(event), now),
-            ) as cursor:
-                seq = cursor.lastrowid
-            # Fetch the actual seq value (lastrowid is the AUTOINCREMENT id, not seq)
-            async with conn.execute("SELECT seq FROM run_events WHERE id = ?", (seq,)) as cursor:
-                row = await cursor.fetchone()
-            await conn.commit()
+            async with self._db.transaction() as conn:
+                async with conn.execute(
+                    """
+                    INSERT INTO run_events (run_id, seq, event, created_at)
+                    VALUES (
+                        ?,
+                        (SELECT COALESCE(MAX(seq), 0) + 1
+                         FROM run_events WHERE run_id = ?),
+                        ?, ?
+                    )
+                    """,
+                    (run_id, run_id, json.dumps(event), now),
+                ) as cursor:
+                    seq = cursor.lastrowid
+                # Fetch the actual seq value (lastrowid is the AUTOINCREMENT id, not seq)
+                async with conn.execute(
+                    "SELECT seq FROM run_events WHERE id = ?", (seq,)
+                ) as cursor:
+                    row = await cursor.fetchone()
             if row is None:
                 raise RuntimeError(f"Failed to read back seq for run {run_id}")
             return int(row[0])
@@ -571,15 +597,14 @@ class RunStore:
         file_path: str | None = None,
     ) -> None:
         try:
-            conn = await self._ensure_connection()
-            await conn.execute(
-                """
-                INSERT INTO run_artifacts (run_id, artifact_type, format, file_path, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (run_id, artifact_type, format, file_path, _now()),
-            )
-            await conn.commit()
+            async with self._db.transaction() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO run_artifacts (run_id, artifact_type, format, file_path, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (run_id, artifact_type, format, file_path, _now()),
+                )
         except aiosqlite.OperationalError:
             logger.exception("Failed to add artifact to run %s", run_id)
             raise
@@ -588,20 +613,21 @@ class RunStore:
         """Drop run_artifacts rows pointing at a deleted canonical artifact.
 
         run_artifacts only records which artifact a run produced (the body
-        lives in artifacts.db). When DELETE /api/artifacts/{id} removes the
+        lives in the artifacts table). When DELETE /api/artifacts/{id} removes the
         canonical artifact, the link rows here used to dangle forever — GET
         /api/runs/{run_id} kept listing the artifact and the UI's open-report
         path 404'd on a ghost. Linkage is by the stored API path (the only
         artifact identity this table holds). Returns the rows removed.
         """
         try:
-            conn = await self._ensure_connection()
-            async with conn.execute(
-                "DELETE FROM run_artifacts WHERE file_path = ?",
-                (f"/api/artifacts/{artifact_id}",),
-            ) as cursor:
+            async with (
+                self._db.transaction() as conn,
+                conn.execute(
+                    "DELETE FROM run_artifacts WHERE file_path = ?",
+                    (f"/api/artifacts/{artifact_id}",),
+                ) as cursor,
+            ):
                 count = cursor.rowcount
-            await conn.commit()
             return count
         except aiosqlite.OperationalError:
             logger.exception("Failed to remove run_artifacts links for %s", artifact_id)
@@ -630,13 +656,18 @@ class RunStore:
         ]
 
     async def close(self) -> None:
-        if self._conn is not None:
-            await self._conn.close()
-            self._conn = None
+        """Close the connection — only when this store owns the database.
+
+        A store sharing the consolidated user database leaves closing to its
+        owner (the server lifespan), otherwise the first store to shut down
+        would pull the handle out from under the others.
+        """
+        if self._owns_db:
+            await self._db.close()
 
 
 def _now() -> str:
-    return datetime.now(tz=timezone.utc).isoformat()
+    return datetime.now(tz=UTC).isoformat()
 
 
 def _row_to_run(row: Any) -> RunRecord:
@@ -687,37 +718,19 @@ async def _migrate_runs_status_check(conn: aiosqlite.Connection) -> None:
     if row is None or row[0] is None or "'cancelled'" in row[0]:
         return
     logger.info("Migrating runs table: rebuilding status CHECK to admit 'cancelled'")
+    # Runs inside the migration runner's transaction (one per schema version),
+    # so a crash mid-rebuild rolls back to the untouched legacy table; a
+    # leftover temp from a crashed pre-versioning attempt is dropped first.
     await conn.execute("DROP TABLE IF EXISTS runs_check_migration_new")
-    await conn.execute("BEGIN IMMEDIATE")
-    try:
-        await conn.execute(
-            _CREATE_RUNS.replace(
-                "CREATE TABLE IF NOT EXISTS runs ",
-                "CREATE TABLE runs_check_migration_new ",
-            )
+    await conn.execute(
+        _CREATE_RUNS.replace(
+            "CREATE TABLE IF NOT EXISTS runs ",
+            "CREATE TABLE runs_check_migration_new ",
         )
-        await conn.execute(
-            f"INSERT INTO runs_check_migration_new ({_RUN_SELECT_COLUMNS}) "
-            f"SELECT {_RUN_SELECT_COLUMNS} FROM runs"
-        )
-        await conn.execute("DROP TABLE runs")
-        await conn.execute("ALTER TABLE runs_check_migration_new RENAME TO runs")
-        await conn.commit()
-    except BaseException:
-        await conn.rollback()
-        raise
-
-
-async def _apply_run_column_migrations(conn: aiosqlite.Connection) -> None:
-    """Idempotently add columns introduced after the initial runs schema.
-
-    SQLite lacks ADD COLUMN IF NOT EXISTS, so we read the current columns from
-    PRAGMA table_info and only ALTER for the ones that are missing. Safe to call
-    on every connection open; a no-op once the column exists.
-    """
-    cursor = await conn.execute("PRAGMA table_info(runs)")
-    existing = {row[1] for row in await cursor.fetchall()}
-    await cursor.close()
-    for column, ddl in _RUN_COLUMN_MIGRATIONS:
-        if column not in existing:
-            await conn.execute(ddl)
+    )
+    await conn.execute(
+        f"INSERT INTO runs_check_migration_new ({_RUN_SELECT_COLUMNS}) "
+        f"SELECT {_RUN_SELECT_COLUMNS} FROM runs"
+    )
+    await conn.execute("DROP TABLE runs")
+    await conn.execute("ALTER TABLE runs_check_migration_new RENAME TO runs")

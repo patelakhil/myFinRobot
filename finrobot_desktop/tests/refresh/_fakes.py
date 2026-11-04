@@ -4,7 +4,7 @@ registry maps them exactly as in production."""
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import aiosqlite
@@ -57,7 +57,7 @@ class CountingProvider(DataProvider):
             provider=self._name,
             ticker=ticker,
             data_type=data_type,
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
         )
 
 
@@ -91,7 +91,7 @@ def chain(*, fmp_fail: bool = False) -> dict[str, CountingProvider]:
 
 
 async def backdate(db_path: str, ticker: str, hours: float) -> None:
-    old = (datetime.now(tz=timezone.utc) - timedelta(hours=hours)).isoformat()
+    old = (datetime.now(tz=UTC) - timedelta(hours=hours)).isoformat()
     async with aiosqlite.connect(db_path) as conn:
         await conn.execute(
             "UPDATE cache SET cached_at = ? WHERE ticker LIKE ?", (old, f"{ticker}%")

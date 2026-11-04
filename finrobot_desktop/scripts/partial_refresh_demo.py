@@ -32,12 +32,12 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from finrobot.artifact.sqlite_store import SqliteArtifactStore  # noqa: E402
-from finrobot.engine.data.cache import DataCache  # noqa: E402
-from finrobot.engine.data.layer import DataLayer  # noqa: E402
-from finrobot.engine.pipelines.refresh import build_refresh_plan  # noqa: E402
-from tests.refresh._fakes import backdate, chain  # noqa: E402
-from tests.refresh.test_refresh_pipeline import Counters, _build_pipeline  # noqa: E402
+from finrobot.artifact.sqlite_store import SqliteArtifactStore
+from finrobot.engine.data.cache import DataCache
+from finrobot.engine.data.layer import DataLayer
+from finrobot.engine.pipelines.refresh import build_refresh_plan
+from tests.refresh._fakes import backdate, chain
+from tests.refresh.test_refresh_pipeline import Counters, _build_pipeline
 
 TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOG", "META", "TSLA", "JPM", "KO", "PEP"]
 

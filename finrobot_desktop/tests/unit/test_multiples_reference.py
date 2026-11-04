@@ -24,11 +24,11 @@ Excel verification:
   Median P/E (peers only, sorted): 25.00, 29.17, 35.23 → median = 29.17
 """
 
-from finrobot.engine.models.financial import CompanyFinancials, PeerComps
 from finrobot.engine.compute.operators.multiples import (
     calculate_multiples,
     calculate_peer_statistics,
 )
+from finrobot.engine.models.financial import CompanyFinancials, PeerComps
 
 
 def _make(ticker, rev, ebitda, ni, mcap, debt, cash):

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from finrobot.engine.compute.operators.ownership import (
     _canonical_transaction_type,
     _money_from_text,
@@ -9,7 +8,6 @@ from finrobot.engine.compute.operators.ownership import (
     build_schedule13_alerts,
     compute_ownership_governance,
 )
-
 
 _SCHED13_OK = {
     "alerts": [

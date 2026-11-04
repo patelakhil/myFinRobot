@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import math
+from datetime import UTC, datetime
 
 import pytest
-
-from datetime import datetime, timezone
 
 from finrobot.engine.compute.operators.fx_normalize import (
     normalize_company_to_usd,
@@ -251,7 +250,7 @@ def _fd(
 ) -> FinancialData:
     return FinancialData(
         ticker="X",
-        timestamp=datetime.now(tz=timezone.utc),
+        timestamp=datetime.now(tz=UTC),
         income=IncomeStatement(
             revenue=revenue,
             ebitda=ebitda,

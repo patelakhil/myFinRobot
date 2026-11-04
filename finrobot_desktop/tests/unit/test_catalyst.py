@@ -1,17 +1,17 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from finrobot.engine.models.financial import CatalystEvent
+from finrobot.engine.compute.coordinators.news import NewsItem
 from finrobot.engine.compute.operators.catalyst import (
-    rank_catalysts,
-    filter_by_impact,
     classify_catalyst_type,
-    extract_catalysts_from_news,
     cluster_near_duplicates,
-    filter_fresh_news,
     compute_expected_impact,
+    extract_catalysts_from_news,
+    filter_by_impact,
+    filter_fresh_news,
+    rank_catalysts,
     summarize_catalyst_outlook,
 )
-from finrobot.engine.compute.coordinators.news import NewsItem
+from finrobot.engine.models.financial import CatalystEvent
 
 
 def _make_events() -> list[CatalystEvent]:
@@ -147,7 +147,7 @@ class TestExtractCatalystsFromNews:
             NewsItem(
                 title="Big Earnings",
                 source="WSJ",
-                published=datetime.now(tz=timezone.utc),
+                published=datetime.now(tz=UTC),
                 url="http://x",
                 category="earnings",
                 sentiment="positive",
@@ -157,7 +157,7 @@ class TestExtractCatalystsFromNews:
             NewsItem(
                 title="Minor Update",
                 source="Blog",
-                published=datetime.now(tz=timezone.utc),
+                published=datetime.now(tz=UTC),
                 url="http://y",
                 category="other",
                 sentiment="neutral",
@@ -179,7 +179,7 @@ class TestExtractCatalystsFromNews:
             NewsItem(
                 title="Low",
                 source="Blog",
-                published=datetime.now(tz=timezone.utc),
+                published=datetime.now(tz=UTC),
                 url="http://z",
                 category="other",
                 sentiment="neutral",
@@ -191,7 +191,7 @@ class TestExtractCatalystsFromNews:
 
     def test_extract_preserves_published_and_url(self):
         """CatalystEvent must carry published + url from NewsItem (traceability)."""
-        pub = datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)
+        pub = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
         item = NewsItem(
             title="AAPL Earnings Beat",
             source="Reuters",
@@ -219,7 +219,7 @@ class TestSourceAuthorityWeighting:
         item = NewsItem(
             title="Microsoft posts record cloud revenue in Q4",
             source="Reuters",
-            published=datetime.now(tz=timezone.utc),
+            published=datetime.now(tz=UTC),
             url="https://reuters.com/msft-q4",
             category="earnings",
             sentiment="positive",
@@ -235,7 +235,7 @@ class TestSourceAuthorityWeighting:
         item = NewsItem(
             title="Microsoft files 8-K on executive transition",
             source="SEC EDGAR",
-            published=datetime.now(tz=timezone.utc),
+            published=datetime.now(tz=UTC),
             url="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
             category="management",
             sentiment="neutral",
@@ -255,7 +255,7 @@ class TestSourceAuthorityWeighting:
                 "Inquire About Securities Class Action Investigation - MSFT"
             ),
             source="GlobeNewswire",
-            published=datetime.now(tz=timezone.utc),
+            published=datetime.now(tz=UTC),
             url="https://globenewswire.com/news-release/rosen-msft",
             category="regulatory",
             sentiment="negative",
@@ -274,7 +274,7 @@ class TestSourceAuthorityWeighting:
                 "Regarding Possible Securities Fraud"
             ),
             source="PRNewswire",
-            published=datetime.now(tz=timezone.utc),
+            published=datetime.now(tz=UTC),
             url="https://prnewswire.com/pomerantz-msft",
             category="regulatory",
             sentiment="negative",
@@ -291,7 +291,7 @@ class TestSourceAuthorityWeighting:
         item = NewsItem(
             title="Skadden Arps LLP advises Microsoft on $2B acquisition of startup",
             source="Bloomberg",
-            published=datetime.now(tz=timezone.utc),
+            published=datetime.now(tz=UTC),
             url="https://bloomberg.com/msft-deal",
             category="acquisition",
             sentiment="positive",
@@ -457,7 +457,7 @@ def _make_news_item(
     importance: int = 4,
     sentiment: str = "positive",
 ) -> NewsItem:
-    pub = datetime.now(tz=timezone.utc) - timedelta(days=days_ago)
+    pub = datetime.now(tz=UTC) - timedelta(days=days_ago)
     return NewsItem(
         title=title,
         source="Test",
@@ -539,7 +539,7 @@ def _cat_event(
     url: str | None = None,
     reasoning: str | None = None,
 ) -> CatalystEvent:
-    pub = datetime.now(tz=timezone.utc) - timedelta(days=days_ago)
+    pub = datetime.now(tz=UTC) - timedelta(days=days_ago)
     return CatalystEvent(
         category=category,  # type: ignore[arg-type]  # narrow Literal in test helper
         headline=headline,

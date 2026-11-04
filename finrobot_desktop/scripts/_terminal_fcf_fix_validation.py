@@ -165,7 +165,7 @@ async def main() -> int:
             pc = _implied_price(inputs)
             dcf_mod._terminal_fcf = _ORIG_TERMINAL_FCF
 
-            def _ratio(p: str) -> str:
+            def _ratio(p: str, price: float | None = price) -> str:
                 if not p.startswith("$") or not price:
                     return ""
                 return f"({float(p[1:].replace(',', '')) / price:.2f}x)"

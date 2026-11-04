@@ -16,8 +16,8 @@ import sys
 from unittest.mock import MagicMock
 
 from finrobot.config import get_settings
-from finrobot.engine.compute.operators.peer_screen import screen_peers
 from finrobot.engine.compute.coordinators.extractor import extract_financial_data
+from finrobot.engine.compute.operators.peer_screen import screen_peers
 from finrobot.engine.data.factory import build_data_layer
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps

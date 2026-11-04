@@ -24,7 +24,7 @@ this module is arithmetic only.
 from __future__ import annotations
 
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from finrobot.engine.models.financial import SOTPScenarioBand
 
@@ -119,6 +119,6 @@ def compute_scenario_band(
         analyst_count=analyst_count,
         confidence=confidence,
         source=source,
-        as_of=as_of or datetime.now(tz=timezone.utc),
+        as_of=as_of or datetime.now(tz=UTC),
         warnings=warn,
     )

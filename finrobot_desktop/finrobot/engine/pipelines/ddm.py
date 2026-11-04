@@ -32,17 +32,15 @@ from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import DDMInputs, FinancialData, StepOutput
-from finrobot.engine.primitives.book_value import reconcile_book_value_to_price_basis
-from finrobot.engine.primitives.industry import is_non_life_insurer
+from finrobot.engine.pipelines._helpers import (
+    build_sensitivity_ranges,
+    execute_financial_data_step,
+)
 from finrobot.engine.pipelines.base import (
     Pipeline,
     PipelineStep,
     StructuredValidator,
     TextValidator,
-)
-from finrobot.engine.pipelines._helpers import (
-    build_sensitivity_ranges,
-    execute_financial_data_step,
 )
 from finrobot.engine.pipelines.validators import (
     validate_ddm_inputs,
@@ -52,14 +50,16 @@ from finrobot.engine.pipelines.validators import (
     validate_has_fields,
     validate_is_non_empty,
 )
+from finrobot.engine.primitives.book_value import reconcile_book_value_to_price_basis
+from finrobot.engine.primitives.industry import is_non_life_insurer
 
 logger = logging.getLogger(__name__)
 
 
 async def _execute_ddm_seed(
-    agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
+    agent: Agent[Any, Any],
     deps: FinRobotDeps,
-    prompt: str,  # noqa: ARG001 — kept for executor signature; unused
+    prompt: str,
     structured_context: dict[str, object],
     ticker: str,
     **_kwargs: object,
