@@ -56,8 +56,8 @@ _NO_HOLDOUT_WARNING = (
     "— treat it as a fit, not a validated strategy."
 )
 
-# LLM-failure exceptions we degrade on. In pydantic-ai 1.73 both ModelAPIError
-# and ModelHTTPError (auth / rate-limit / HTTP) subclass AgentRunError, so the
+# LLM-failure exceptions we degrade on. In pydantic-ai (1.73 and 2.x alike) both
+# ModelAPIError and ModelHTTPError (auth / rate-limit / HTTP) subclass AgentRunError, so the
 # base class covers all transport/provider failures; ValidationError (pydantic)
 # is separate and fires when the model's structured output fails schema checks.
 _LLM_FAILURES = (AgentRunError, ValidationError)

@@ -119,6 +119,25 @@ describe('SettingsView', () => {
     expect(await screen.findByRole('heading', { name: 'AI Model' })).toBeInTheDocument()
   })
 
+  it('discloses the encrypted local-file store, and says nothing for the keychain', async () => {
+    vi.mocked(api.GET).mockResolvedValue({
+      data: { ...OK_SETTINGS, secret_storage_mode: 'encrypted_file' },
+      error: undefined,
+    } as never)
+    const { unmount } = renderWithQuery(<SettingsView />)
+    const notice = await screen.findByTestId('secret-storage-encrypted-file')
+    expect(notice).toHaveTextContent(/stored encrypted \(AES-256\) in a local file/)
+    unmount()
+
+    vi.mocked(api.GET).mockResolvedValue({
+      data: { ...OK_SETTINGS, secret_storage_mode: 'keychain' },
+      error: undefined,
+    } as never)
+    renderWithQuery(<SettingsView />)
+    expect(await screen.findByRole('heading', { name: 'AI Model' })).toBeInTheDocument()
+    expect(screen.queryByTestId('secret-storage-encrypted-file')).not.toBeInTheDocument()
+  })
+
   // The settings page is tabbed: only the selected panel renders, so data-source
   // assertions must first switch panels via the left nav.
   it('renders unified data-source rows: live circuit state + inline key config', async () => {

@@ -8,10 +8,19 @@ import type { UIMessage, UIMessagePart, UIDataTypes, UITools, DynamicToolUIPart 
 import { isTextUIPart, isToolUIPart, isReasoningUIPart } from 'ai'
 import { ToolCard } from '../../../components/ToolCard'
 import type { ToolResult } from '../../../components/ToolCard'
+import { DataPermissionCard, type ApprovalResponse } from '../../../components/DataPermissionCard'
 import { MarkdownLite } from '../../../components/MarkdownLite'
 import { useI18n } from '../../../i18n'
 
-export function MessageBubble({ message }: { message: UIMessage }): React.ReactElement {
+export function MessageBubble({
+  message,
+  onApprovalResponse,
+}: {
+  message: UIMessage
+  /** Answers an AI data-sharing permission request (useChat's
+   * addToolApprovalResponse). Absent → the prompt renders without actions. */
+  onApprovalResponse?: (response: ApprovalResponse) => void
+}): React.ReactElement {
   const isUser = message.role === 'user'
   // Read the replay-supplied timestamp instead of new Date() — the latter
   // re-runs on every render so all historical messages would show "now".
@@ -37,7 +46,11 @@ export function MessageBubble({ message }: { message: UIMessage }): React.ReactE
             ? `● FINROBOT · ${timeStr}`
             : '● FINROBOT'}
       </div>
-      {isUser ? <UserBubble message={message} /> : <AssistantContent message={message} />}
+      {isUser ? (
+        <UserBubble message={message} />
+      ) : (
+        <AssistantContent message={message} onApprovalResponse={onApprovalResponse} />
+      )}
     </div>
   )
 }
@@ -65,15 +78,50 @@ function UserBubble({ message }: { message: UIMessage }): React.ReactElement {
 function ToolCardFromPart({
   part,
   fallbackId,
+  onApprovalResponse,
 }: {
   part: UIMessagePart<UIDataTypes, UITools>
   fallbackId: string
+  onApprovalResponse?: (response: ApprovalResponse) => void
 }): React.ReactElement {
   const anyPart = part as DynamicToolUIPart
 
   const toolName = anyPart.toolName ?? part.type.replace(/^tool-/, '')
   const toolCallId = anyPart.toolCallId ?? fallbackId
   const state = anyPart.state
+  const approval = anyPart.approval as { id: string; approved?: boolean } | undefined
+
+  // AI data-sharing guardrail: the backend paused this tool until the user
+  // decides whether its (personal) data may be sent to the AI provider.
+  if (state === 'approval-requested' && approval) {
+    return (
+      <div className="trace">
+        <DataPermissionCard
+          toolName={toolName}
+          approvalId={approval.id}
+          state="requested"
+          onRespond={onApprovalResponse}
+        />
+      </div>
+    )
+  }
+  if (state === 'output-denied') {
+    return (
+      <div className="trace">
+        <DataPermissionCard toolName={toolName} approvalId={approval?.id ?? ''} state="denied" />
+      </div>
+    )
+  }
+  // A decision on record: show it above the tool card (approved → the tool
+  // runs / ran; declined but not yet acknowledged by the server → denied).
+  const decided = approval && typeof approval.approved === 'boolean' ? approval.approved : null
+  if (decided === false) {
+    return (
+      <div className="trace">
+        <DataPermissionCard toolName={toolName} approvalId={approval?.id ?? ''} state="denied" />
+      </div>
+    )
+  }
 
   const args =
     anyPart.input && typeof anyPart.input === 'object'
@@ -84,9 +132,14 @@ function ToolCardFromPart({
   let result: ToolResult | undefined
   let errorText: string | undefined
 
-  if (state === 'input-streaming' || state === 'input-available') {
+  if (
+    state === 'input-streaming' ||
+    state === 'input-available' ||
+    // Approved, the follow-up request is running the tool now.
+    state === 'approval-responded'
+  ) {
     cardState = 'running'
-  } else if (state === 'output-available' || state === 'approval-responded') {
+  } else if (state === 'output-available') {
     cardState = 'complete'
     const rawOutput = anyPart.output
     if (rawOutput && typeof rawOutput === 'object') {
@@ -110,6 +163,9 @@ function ToolCardFromPart({
 
   return (
     <div className="trace">
+      {decided === true && (
+        <DataPermissionCard toolName={toolName} approvalId={approval?.id ?? ''} state="approved" />
+      )}
       <ToolCard
         toolCallId={toolCallId}
         toolName={toolName}
@@ -122,7 +178,13 @@ function ToolCardFromPart({
   )
 }
 
-function AssistantContent({ message }: { message: UIMessage }): React.ReactElement {
+function AssistantContent({
+  message,
+  onApprovalResponse,
+}: {
+  message: UIMessage
+  onApprovalResponse?: (response: ApprovalResponse) => void
+}): React.ReactElement {
   return (
     <div className="msg-body">
       {message.parts.map((part, idx) => {
@@ -144,6 +206,7 @@ function AssistantContent({ message }: { message: UIMessage }): React.ReactEleme
               key={idx}
               part={part as UIMessagePart<UIDataTypes, UITools>}
               fallbackId={String(idx)}
+              onApprovalResponse={onApprovalResponse}
             />
           )
         }

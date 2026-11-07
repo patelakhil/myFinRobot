@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useChat } from '@ai-sdk/react'
-import { DefaultChatTransport } from 'ai'
+import { lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai'
 import type { DynamicToolUIPart } from 'ai'
 import { isToolUIPart } from 'ai'
 import { useToastStore } from '../../../stores/toastStore'
@@ -14,6 +14,7 @@ import { useUiStore } from '../../../stores/uiStore'
 import { useI18n, useUiPrefs } from '../../../i18n'
 import { BASE_URL, api } from '../../../api/client'
 import { fetchBackendStream } from '../../../api/fetch'
+import { TolerantChatTransport } from '../../../api/chatTransport'
 import { useChatSessions } from '../../../hooks/useChatSessions'
 import { MAX_INPUT_LENGTH, isContextOverflowError } from './constants'
 
@@ -90,7 +91,9 @@ export function useChatStream(ticker: string | undefined) {
   // changes within a session.
   const transport = useMemo(
     () =>
-      new DefaultChatTransport({
+      // Tolerant reader: a backend newer than this UI may stream chunk types
+      // the SDK doesn't know yet — skip them instead of aborting the turn.
+      new TolerantChatTransport({
         api: `${BASE_URL}/chat`,
         // Authenticate the LLM stream with the capability token (no timeout —
         // the chat SSE runs 30-60s). Without this /chat 401s under enforced auth.
@@ -116,29 +119,44 @@ export function useChatStream(ticker: string | undefined) {
     [ticker],
   )
 
-  const { messages, status, error, sendMessage, stop, regenerate, clearError, setMessages } =
-    useChat({
-      // Per-session Chat instance: changing the id rebinds useChat to that
-      // conversation. The transcript-derived seed is re-applied via the effect
-      // below (the transcript resolves async after the id flips).
-      id: activeSessionId,
-      messages: seedMessages ?? [],
-      transport,
-      onError(err) {
-        const msg = err.message ?? ''
-        if (isContextOverflowError(msg)) {
-          addToast({ type: 'error', title: t('chat.error.context') })
-        } else if (msg.includes('503') || msg.includes('Service Unavailable')) {
-          addToast({ type: 'error', title: t('chat.error.unavailable') })
-        } else {
-          addToast({
-            type: 'error',
-            title: t('chat.error.generic'),
-            description: msg || undefined,
-          })
-        }
-      },
-    })
+  const {
+    messages,
+    status,
+    error,
+    sendMessage,
+    stop,
+    regenerate,
+    clearError,
+    setMessages,
+    addToolApprovalResponse,
+  } = useChat({
+    // Per-session Chat instance: changing the id rebinds useChat to that
+    // conversation. The transcript-derived seed is re-applied via the effect
+    // below (the transcript resolves async after the id flips).
+    id: activeSessionId,
+    messages: seedMessages ?? [],
+    transport,
+    // AI data-sharing guardrails: when the backend pauses a tool to ask
+    // whether personal data may go to the AI provider, the user answers on
+    // the permission card (addToolApprovalResponse). Once every pending
+    // prompt in the last assistant message is answered, resubmit so the
+    // backend runs (or skips) the tool and the model finishes its answer.
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
+    onError(err) {
+      const msg = err.message ?? ''
+      if (isContextOverflowError(msg)) {
+        addToast({ type: 'error', title: t('chat.error.context') })
+      } else if (msg.includes('503') || msg.includes('Service Unavailable')) {
+        addToast({ type: 'error', title: t('chat.error.unavailable') })
+      } else {
+        addToast({
+          type: 'error',
+          title: t('chat.error.generic'),
+          description: msg || undefined,
+        })
+      }
+    },
+  })
 
   const isLoading = status === 'submitted' || status === 'streaming'
 
@@ -218,6 +236,14 @@ export function useChatStream(ticker: string | undefined) {
     regenerate()
   }, [clearError, regenerate])
 
+  const respondToApproval = useCallback(
+    (response: { id: string; approved: boolean; reason?: string }) => {
+      clearError()
+      void addToolApprovalResponse(response)
+    },
+    [addToolApprovalResponse, clearError],
+  )
+
   // ── Pending prompt from Dashboard hero (or anywhere) ─────────
   // Fills the input box; auto-sends if the caller requested it.
   useEffect(() => {
@@ -253,5 +279,6 @@ export function useChatStream(ticker: string | undefined) {
     stop,
     handleSubmit,
     handleReload,
+    respondToApproval,
   }
 }

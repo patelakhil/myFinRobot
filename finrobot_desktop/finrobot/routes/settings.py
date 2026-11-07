@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 # DataProvider secrets (FMP / Finnhub / …) stored in the OS keychain (or
-# FileSecretStore fallback) under their own field name. LLM provider API keys
+# EncryptedFileSecretStore fallback) under their own field name. LLM provider API keys
 # use the dynamic ``provider_key:<id>`` scheme instead — see _PROVIDER_KEY_PREFIX.
 _DATA_SECRET_FIELDS: tuple[str, ...] = DATA_PROVIDER_SECRET_FIELDS
 
@@ -131,6 +131,9 @@ _NON_SECRET_FIELDS: tuple[str, ...] = (
     "auto_update_check",
     "decorative_remote_assets",
     "startup_warmups",
+    # AI data-sharing policy — written only via /api/ai-guardrails (SettingsUpdate
+    # has no such field), listed here so settings.json round-trips it on boot.
+    "ai_data_policy",
     "log_level",
     "log_to_file",
     "log_retention_days",
@@ -195,9 +198,10 @@ class SettingsResponse(BaseModel):
     # onboarding state (overlay + AI-CTA preflight), distinct from startup_error
     # which only fires for a chosen-but-broken model.
     model_configured: bool = False
-    # Indicates whether secrets are protected by the OS keychain or written to
-    # a permission-locked plaintext JSON file.  "plaintext" means the user
-    # should be warned that their API keys are stored unencrypted on disk.
+    # Where API keys live: "keychain" = the OS credential store; "encrypted_file"
+    # = the AES-256-GCM encrypted ~/.finrobot/.secrets fallback (key held in a
+    # separate key file or derived from FINROBOT_SECRETS_PASSPHRASE). The UI
+    # discloses the latter so the user knows where their keys are.
     secret_storage_mode: SecretStorageMode = "keychain"
 
 
@@ -847,7 +851,7 @@ def load_non_secret_settings_with_error(path: Path) -> tuple[dict[str, Any], str
     """
     if not path.exists():
         return {}, None
-    # Self-heal permission drift on the boot read, mirroring FileSecretStore:
+    # Self-heal permission drift on the boot read, mirroring EncryptedFileSecretStore:
     # an existing install's settings.json predates the 0600 write path (or a
     # backup/restore loosened it), and waiting for the next save would leave it
     # group/other-readable indefinitely. Never fatal — perms are best-effort.
@@ -898,7 +902,7 @@ def _atomic_write_text(path: Path, payload: str) -> None:
     sidecar — could leave a truncated file on disk. The rename is atomic on the
     same filesystem, so readers only ever observe the old or the new content.
 
-    Mode is forced to 0600 — symmetric with the FileSecretStore's .secrets
+    Mode is forced to 0600 — symmetric with the EncryptedFileSecretStore's .secrets
     handling. settings.json holds no API keys, but it does hold the user's SEC
     identity (name + email in ``sec_user_agent``) and their provider registry
     (custom base_urls), which other local users have no business reading. The

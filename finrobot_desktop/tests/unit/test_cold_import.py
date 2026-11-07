@@ -28,7 +28,9 @@ import sys
 # the /api/compute/monte-carlo route needs MonteCarloRequest/Result as real
 # Pydantic models at route-registration time, which pulls numpy (~40ms);
 # splitting the operator module to defer that is not worth the churn.
-_FORBIDDEN = ("edgar", "pydantic_ai", "yfinance", "matplotlib", "pandas")
+# httpx2 (~0.3s) is the LLM SDKs' HTTP client; config.py builds the shared LLM
+# pool lazily so it too stays off the cold path.
+_FORBIDDEN = ("edgar", "pydantic_ai", "yfinance", "matplotlib", "pandas", "httpx2")
 
 
 def test_importing_server_does_not_load_heavy_stack() -> None:

@@ -25,7 +25,14 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "pydantic-ai>=1.70.0",
+    # AI stack: only the providers / tools FinRobot uses (OpenAI-compatible —
+    # incl. OpenRouter and custom endpoints —, Anthropic, DuckDuckGo search, the
+    # Vercel-AI UI adapter), NOT the `pydantic-ai` meta-package, which installs
+    # every provider SDK (AWS, Google, Groq, Mistral, Cohere, xAI, Temporal, …:
+    # ~90 extra packages of unused attack surface and sidecar bundle weight).
+    "pydantic-ai-slim[openai,anthropic,duckduckgo,ui]>=2.63.0",
+    # The LLM SDKs' HTTP client (config._shared_llm_http_client builds the pool).
+    "httpx2>=2.16.0",
     "pydantic-settings>=2.0",
     "fastapi>=0.115",
     "uvicorn>=0.34",
@@ -37,6 +44,10 @@ dependencies = [
     "jinja2>=3.1",
     "rank-bm25>=0.2.2",
     "keyring>=25.0",
+    # AES-256-GCM + scrypt for the encrypted local secret store
+    # (finrobot/secret_store.py). Already in the tree transitively; declared
+    # directly because secret_store imports it unconditionally.
+    "cryptography>=42.0",
     "edgartools>=5.31.5",
     "ddgs>=9.14.4",
 ]

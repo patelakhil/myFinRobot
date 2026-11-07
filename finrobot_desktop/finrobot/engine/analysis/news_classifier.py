@@ -214,7 +214,7 @@ async def classify_news(
         prompt = f"Classify these {len(indices)} news items:\n{news_text}"
 
         try:
-            result = await classification_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
+            result = await classification_agent.run(prompt, deps=deps)
         except AgentRunError:
             # Pass through UNWRAPPED: the pipeline runner's recoverability check
             # is isinstance-based (AgentRunError → typed-recoverable → retry with

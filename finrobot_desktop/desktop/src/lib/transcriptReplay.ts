@@ -151,6 +151,10 @@ export function reconstructMessages(events: TranscriptEvent[]): UIMessage[] {
 
   let current: ReplayMessage | null = null
   let seq = 0
+  // A tool that waited on an AI data-sharing permission prompt is logged twice
+  // under the same id — once when it asked, again when it ran after approval —
+  // so each tool_use_id yields exactly one part.
+  const emittedToolIds = new Set<string>()
 
   const closeAssistant = (): void => {
     current = null
@@ -197,6 +201,8 @@ export function reconstructMessages(events: TranscriptEvent[]): UIMessage[] {
         const toolUseId = isNonEmptyString(e.data.tool_use_id)
           ? e.data.tool_use_id
           : `replay-call-${seq}`
+        if (emittedToolIds.has(toolUseId)) break
+        emittedToolIds.add(toolUseId)
         const input = (e.data.args ?? {}) as unknown
         const msg = openAssistant(e.timestamp)
         msg.parts.push(

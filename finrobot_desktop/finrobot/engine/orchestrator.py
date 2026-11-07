@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import ValidationError
 from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai.capabilities import ProcessHistory
 from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool
 
 from finrobot.artifact.models import Artifact, ArtifactSummary
@@ -36,6 +37,11 @@ from finrobot.engine.pipelines.base import Pipeline
 from finrobot.engine.pipelines.registry import PipelineSpec, iter_pipeline_specs
 from finrobot.engine.skills.pipeline_methodology import render_pipeline_methodology
 from finrobot.engine.skills.registry import SkillRegistry
+from finrobot.guardrails.enforcement import (
+    authorize_data_access,
+    guardrail_history_processor,
+    record_data_shared,
+)
 from finrobot.portfolio.prompt import format_portfolio_for_tool
 from finrobot.portfolio.service import build_all_overviews
 
@@ -299,11 +305,18 @@ def create_lead_agent(
     # via settings.web_search_enabled (Settings → Privacy & network). Off → the
     # tool is simply not registered; the model can't call what it can't see.
     tools = [duckduckgo_search_tool(max_results=8)] if settings.web_search_enabled else []
+    # AI data-sharing guardrails: before EVERY model request the history is
+    # re-checked against the user's policy for the selected provider — PII in
+    # what the user typed is redacted, and earlier results of guarded tools
+    # (holdings, watchlist, saved reports) are withheld from a provider that
+    # may not see them. The guarded tools themselves gate at call time via
+    # authorize_data_access. See finrobot/guardrails/.
     agent: Agent[FinRobotDeps, str] = Agent(
         settings.create_model(),
         deps_type=FinRobotDeps,
         instructions=instructions,
         tools=tools,
+        capabilities=[ProcessHistory(guardrail_history_processor)],
     )
 
     if sub_agents is None:
@@ -390,10 +403,12 @@ def create_lead_agent(
     async def query_coverage_universe(ctx: RunContext[FinRobotDeps], refresh: bool = False) -> str:
         """List the user's watchlist (Studied Tickers) with each name's live snapshot.
 
-        Most watchlist questions are already answerable from the "User's watchlist"
-        block in your system context — it is injected EVERY turn. Call this tool
-        only when you need data NOT in that block, or when the user explicitly asks
-        for fresh/live numbers.
+        If the user lets FinRobot share their watchlist automatically, a "User's
+        watchlist" block is in your system context every turn — answer from it and
+        call this tool only for data NOT in that block or fresh/live numbers. If
+        that block is ABSENT, call this tool whenever a question needs the
+        watchlist: FinRobot may first ask the user's permission to share it. If the
+        result says it was not shared, respect that — answer without it.
 
         refresh=False (default): instant, reads the local cache — cheap, but the
         prices may be the same last-known snapshot already in your context.
@@ -405,6 +420,9 @@ def create_lead_agent(
         ((target − price) / price) — it is NOT the report's entry-based upside;
         never conflate them.
         """
+        refusal = authorize_data_access(ctx, "watchlist")
+        if refusal is not None:
+            return refusal
         store = ctx.deps.coverage_store
         if store is None or ctx.deps.artifact_store is None:
             return (
@@ -420,6 +438,7 @@ def create_lead_agent(
             data_layer=ctx.deps.data_layer,
             cache_only=not refresh,
         )
+        record_data_shared(ctx, "watchlist")
         return format_coverage_for_tool(overview)
 
     @agent.tool
@@ -428,11 +447,13 @@ def create_lead_agent(
 
         Distinct from the watchlist: the watchlist is what the user is
         STUDYING, this is what they OWN — units, cost, market value, realized +
-        unrealized P&L. Most portfolio questions are already answerable from
-        the "User's portfolio" block in your system context — it is injected
-        EVERY turn the user has holdings. Call this tool only when you need
-        something NOT in that block (e.g. a position past the row cap), or the
-        user explicitly wants a fresh live re-price.
+        unrealized P&L. If the user lets FinRobot share holdings automatically,
+        a "User's portfolio" block is in your system context every turn —
+        answer from it and call this tool only for something NOT in that block
+        (e.g. a position past the row cap) or a fresh live re-price. If that
+        block is ABSENT, call this tool whenever a question needs the holdings:
+        FinRobot may first ask the user's permission to share them. If the
+        result says they were not shared, respect that — answer without them.
 
         refresh=False (default): instant, reads the local price cache — cheap,
         may repeat numbers already in your context.
@@ -443,6 +464,9 @@ def create_lead_agent(
         it with a report's entry-based upside or the watchlist's live-price
         upside (see "upside caliber" in your instructions).
         """
+        refusal = authorize_data_access(ctx, "portfolio")
+        if refusal is not None:
+            return refusal
         store = ctx.deps.portfolio_store
         if store is None:
             return (
@@ -456,6 +480,7 @@ def create_lead_agent(
             artifact_store=ctx.deps.artifact_store,
             cache_only=not refresh,
         )
+        record_data_shared(ctx, "portfolio")
         return format_portfolio_for_tool(overviews)
 
     @agent.tool
@@ -520,6 +545,9 @@ def create_lead_agent(
             validate_integrations,
         )
 
+        refusal = authorize_data_access(ctx, "research_library")
+        if refusal is not None:
+            return refusal
         try:
             ids = validate_integrations(integrations, ctx.deps.settings)
         except RefreshError as exc:
@@ -572,6 +600,7 @@ def create_lead_agent(
             more = f" … +{len(skipped) - 20}" if len(skipped) > 20 else ""
             return f"\nSkipped {len(skipped)}: {rows}{more}"
 
+        record_data_shared(ctx, "research_library")
         if not candidates:
             return (
                 "\n".join(header)
@@ -633,6 +662,9 @@ def create_lead_agent(
         surface a report the user already has — that creates a duplicate; call
         this instead. This tool only locates; it never creates a report.
         """
+        refusal = authorize_data_access(ctx, "research_library")
+        if refusal is not None:
+            return refusal
         store = ctx.deps.artifact_store
         if store is None:
             return "Report history isn't available in this session (no artifact store)."
@@ -645,6 +677,7 @@ def create_lead_agent(
         summaries = await store.list_by_ticker(ticker=norm, limit=limit)
         if not summaries:
             return f"No saved reports for {norm} yet — run an analysis to create one."
+        record_data_shared(ctx, "research_library")
         return _format_reports_for_tool(norm, summaries)
 
     @agent.tool
@@ -667,12 +700,16 @@ def create_lead_agent(
         "catalysts"]) to return just those when the user asks about one topic
         — omit to get the whole narrative.
         """
+        refusal = authorize_data_access(ctx, "research_library")
+        if refusal is not None:
+            return refusal
         store = ctx.deps.artifact_store
         if store is None:
             return "Report history isn't available in this session (no artifact store)."
         artifact = await store.get(artifact_id)
         if artifact is None:
             return f"Report not found: {artifact_id}. Use find_reports to list valid ids."
+        record_data_shared(ctx, "research_library")
         return _format_report_for_tool(artifact, sections)
 
     @agent.tool
@@ -688,6 +725,9 @@ def create_lead_agent(
         get the two artifact ids. Both must already exist — this never creates a
         report.
         """
+        refusal = authorize_data_access(ctx, "research_library")
+        if refusal is not None:
+            return refusal
         store = ctx.deps.artifact_store
         if store is None:
             return "Report history isn't available in this session (no artifact store)."
@@ -700,6 +740,7 @@ def create_lead_agent(
         if a is None or b is None:
             missing = ", ".join(aid for aid, art in ((a_id, a), (b_id, b)) if art is None)
             return f"Report(s) not found: {missing}. Use find_reports to list valid ids."
+        record_data_shared(ctx, "research_library")
         return _format_delta_for_tool(build_semantic_delta(a, b))
 
     @agent.tool

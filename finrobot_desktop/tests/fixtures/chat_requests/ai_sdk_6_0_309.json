@@ -1,0 +1,670 @@
+{
+ "first_question": {
+  "ticker": null,
+  "locale": "en",
+  "context_bundle": {
+   "route": "/portfolio",
+   "ticker": null,
+   "artifact_id": null
+  },
+  "id": "ca7fa02e-c8ce-4ca8-80c7-ac90a6b8252b",
+  "messages": [
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "How is my portfolio doing?"
+     }
+    ],
+    "id": "bBLtN91d6ZJxoGbM",
+    "role": "user"
+   }
+  ],
+  "trigger": "submit-message"
+ },
+ "approval_declined": {
+  "ticker": null,
+  "locale": "en",
+  "context_bundle": {
+   "route": "/portfolio",
+   "ticker": null,
+   "artifact_id": null
+  },
+  "id": "ca7fa02e-c8ce-4ca8-80c7-ac90a6b8252b",
+  "messages": [
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "How is my portfolio doing?"
+     }
+    ],
+    "id": "bBLtN91d6ZJxoGbM",
+    "role": "user"
+   },
+   {
+    "id": "tMyv63jEgnvcr1Ug",
+    "role": "assistant",
+    "parts": [
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "tool-query_portfolio_holdings",
+      "toolCallId": "call_1794001443331",
+      "state": "approval-responded",
+      "input": {},
+      "approval": {
+       "id": "147ae25f-e22b-498a-9aee-a31be14c5fe3",
+       "approved": false,
+       "reason": "The user chose not to share your portfolio holdings with Acme Cloud AI. Answer without it, and do not ask for it again in this turn."
+      }
+     }
+    ]
+   }
+  ],
+  "trigger": "submit-message",
+  "messageId": "tMyv63jEgnvcr1Ug"
+ },
+ "follow_up_after_decline": {
+  "ticker": null,
+  "locale": "en",
+  "context_bundle": {
+   "route": "/portfolio",
+   "ticker": null,
+   "artifact_id": null
+  },
+  "id": "ca7fa02e-c8ce-4ca8-80c7-ac90a6b8252b",
+  "messages": [
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "How is my portfolio doing?"
+     }
+    ],
+    "id": "bBLtN91d6ZJxoGbM",
+    "role": "user"
+   },
+   {
+    "id": "tMyv63jEgnvcr1Ug",
+    "role": "assistant",
+    "parts": [
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "tool-query_portfolio_holdings",
+      "toolCallId": "call_1794001443331",
+      "state": "output-denied",
+      "input": {},
+      "approval": {
+       "id": "147ae25f-e22b-498a-9aee-a31be14c5fe3",
+       "approved": false,
+       "reason": "The user chose not to share your portfolio holdings with Acme Cloud AI. Answer without it, and do not ask for it again in this turn."
+      }
+     },
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "reasoning",
+      "id": "1c7b9dbf-34c5-4325-9cd4-17d8d4f8733a",
+      "text": "Looking at the positions first. ",
+      "providerMetadata": {
+       "pydantic_ai": {
+        "id": "reasoning_content",
+        "provider_name": "openai"
+       }
+      },
+      "state": "done"
+     },
+     {
+      "type": "text",
+      "text": "Understood \u2014 I won't use your holdings. Ask me about any ticker instead. ",
+      "state": "done"
+     }
+    ]
+   },
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "OK, what about NVDA generally?"
+     }
+    ],
+    "id": "qvjiAWPI5yVEUzAE",
+    "role": "user"
+   }
+  ],
+  "trigger": "submit-message"
+ },
+ "new_message_with_pending_card": {
+  "ticker": null,
+  "locale": "en",
+  "context_bundle": {
+   "route": "/portfolio",
+   "ticker": null,
+   "artifact_id": null
+  },
+  "id": "ca7fa02e-c8ce-4ca8-80c7-ac90a6b8252b",
+  "messages": [
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "How is my portfolio doing?"
+     }
+    ],
+    "id": "bBLtN91d6ZJxoGbM",
+    "role": "user"
+   },
+   {
+    "id": "tMyv63jEgnvcr1Ug",
+    "role": "assistant",
+    "parts": [
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "tool-query_portfolio_holdings",
+      "toolCallId": "call_1794001443331",
+      "state": "output-denied",
+      "input": {},
+      "approval": {
+       "id": "147ae25f-e22b-498a-9aee-a31be14c5fe3",
+       "approved": false,
+       "reason": "The user chose not to share your portfolio holdings with Acme Cloud AI. Answer without it, and do not ask for it again in this turn."
+      }
+     },
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "reasoning",
+      "id": "1c7b9dbf-34c5-4325-9cd4-17d8d4f8733a",
+      "text": "Looking at the positions first. ",
+      "providerMetadata": {
+       "pydantic_ai": {
+        "id": "reasoning_content",
+        "provider_name": "openai"
+       }
+      },
+      "state": "done"
+     },
+     {
+      "type": "text",
+      "text": "Understood \u2014 I won't use your holdings. Ask me about any ticker instead. ",
+      "state": "done"
+     }
+    ]
+   },
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "OK, what about NVDA generally?"
+     }
+    ],
+    "id": "qvjiAWPI5yVEUzAE",
+    "role": "user"
+   },
+   {
+    "id": "eWY8oNUdFW1Z8kW8",
+    "role": "assistant",
+    "parts": [
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "tool-query_portfolio_holdings",
+      "toolCallId": "call_1794001446935",
+      "state": "approval-requested",
+      "input": {},
+      "approval": {
+       "id": "37211b3d-e7ba-436c-b48f-8b21b473e0a2"
+      }
+     }
+    ]
+   },
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "Never mind \u2014 tell me about MSFT."
+     }
+    ],
+    "id": "FDnmcoAp9BYsoSXn",
+    "role": "user"
+   }
+  ],
+  "trigger": "submit-message"
+ },
+ "approval_granted": {
+  "ticker": null,
+  "locale": "en",
+  "context_bundle": {
+   "route": "/portfolio",
+   "ticker": null,
+   "artifact_id": null
+  },
+  "id": "ca7fa02e-c8ce-4ca8-80c7-ac90a6b8252b",
+  "messages": [
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "How is my portfolio doing?"
+     }
+    ],
+    "id": "bBLtN91d6ZJxoGbM",
+    "role": "user"
+   },
+   {
+    "id": "tMyv63jEgnvcr1Ug",
+    "role": "assistant",
+    "parts": [
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "tool-query_portfolio_holdings",
+      "toolCallId": "call_1794001443331",
+      "state": "output-denied",
+      "input": {},
+      "approval": {
+       "id": "147ae25f-e22b-498a-9aee-a31be14c5fe3",
+       "approved": false,
+       "reason": "The user chose not to share your portfolio holdings with Acme Cloud AI. Answer without it, and do not ask for it again in this turn."
+      }
+     },
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "reasoning",
+      "id": "1c7b9dbf-34c5-4325-9cd4-17d8d4f8733a",
+      "text": "Looking at the positions first. ",
+      "providerMetadata": {
+       "pydantic_ai": {
+        "id": "reasoning_content",
+        "provider_name": "openai"
+       }
+      },
+      "state": "done"
+     },
+     {
+      "type": "text",
+      "text": "Understood \u2014 I won't use your holdings. Ask me about any ticker instead. ",
+      "state": "done"
+     }
+    ]
+   },
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "OK, what about NVDA generally?"
+     }
+    ],
+    "id": "qvjiAWPI5yVEUzAE",
+    "role": "user"
+   },
+   {
+    "id": "eWY8oNUdFW1Z8kW8",
+    "role": "assistant",
+    "parts": [
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "tool-query_portfolio_holdings",
+      "toolCallId": "call_1794001446935",
+      "state": "approval-requested",
+      "input": {},
+      "approval": {
+       "id": "37211b3d-e7ba-436c-b48f-8b21b473e0a2"
+      }
+     }
+    ]
+   },
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "Never mind \u2014 tell me about MSFT."
+     }
+    ],
+    "id": "FDnmcoAp9BYsoSXn",
+    "role": "user"
+   },
+   {
+    "id": "zAZWqjZSI3ol9njd",
+    "role": "assistant",
+    "parts": [
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "tool-query_portfolio_holdings",
+      "toolCallId": "call_1794001448601",
+      "state": "approval-responded",
+      "input": {},
+      "approval": {
+       "id": "24ad2743-c63f-4b02-97ec-43bf39180ee9",
+       "approved": true
+      }
+     }
+    ]
+   }
+  ],
+  "trigger": "submit-message",
+  "messageId": "zAZWqjZSI3ol9njd"
+ },
+ "follow_up_after_approval": {
+  "ticker": null,
+  "locale": "en",
+  "context_bundle": {
+   "route": "/portfolio",
+   "ticker": null,
+   "artifact_id": null
+  },
+  "id": "ca7fa02e-c8ce-4ca8-80c7-ac90a6b8252b",
+  "messages": [
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "How is my portfolio doing?"
+     }
+    ],
+    "id": "bBLtN91d6ZJxoGbM",
+    "role": "user"
+   },
+   {
+    "id": "tMyv63jEgnvcr1Ug",
+    "role": "assistant",
+    "parts": [
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "tool-query_portfolio_holdings",
+      "toolCallId": "call_1794001443331",
+      "state": "output-denied",
+      "input": {},
+      "approval": {
+       "id": "147ae25f-e22b-498a-9aee-a31be14c5fe3",
+       "approved": false,
+       "reason": "The user chose not to share your portfolio holdings with Acme Cloud AI. Answer without it, and do not ask for it again in this turn."
+      }
+     },
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "reasoning",
+      "id": "1c7b9dbf-34c5-4325-9cd4-17d8d4f8733a",
+      "text": "Looking at the positions first. ",
+      "providerMetadata": {
+       "pydantic_ai": {
+        "id": "reasoning_content",
+        "provider_name": "openai"
+       }
+      },
+      "state": "done"
+     },
+     {
+      "type": "text",
+      "text": "Understood \u2014 I won't use your holdings. Ask me about any ticker instead. ",
+      "state": "done"
+     }
+    ]
+   },
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "OK, what about NVDA generally?"
+     }
+    ],
+    "id": "qvjiAWPI5yVEUzAE",
+    "role": "user"
+   },
+   {
+    "id": "eWY8oNUdFW1Z8kW8",
+    "role": "assistant",
+    "parts": [
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "tool-query_portfolio_holdings",
+      "toolCallId": "call_1794001446935",
+      "state": "approval-requested",
+      "input": {},
+      "approval": {
+       "id": "37211b3d-e7ba-436c-b48f-8b21b473e0a2"
+      }
+     }
+    ]
+   },
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "Never mind \u2014 tell me about MSFT."
+     }
+    ],
+    "id": "FDnmcoAp9BYsoSXn",
+    "role": "user"
+   },
+   {
+    "id": "zAZWqjZSI3ol9njd",
+    "role": "assistant",
+    "parts": [
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "tool-query_portfolio_holdings",
+      "toolCallId": "call_1794001448601",
+      "state": "output-available",
+      "input": {},
+      "output": "Portfolio holdings (Main book), 3 position(s), last-known cache snapshot. P&L = realized + unrealized against cost (not a report target's upside).\nTotals: cost basis 47,224.00 \u00b7 market value ? \u00b7 P&L ? (?) \u00b7 realized 0.00 \u00b7 today ?\n- AAPL: 120 units @ avg 148.20 USD \u00b7 not priced yet \u00b7 no research yet\n- MSFT: 35 units @ avg 372.00 USD \u00b7 not priced yet \u00b7 no research yet\n- NVDA: 40 units @ avg 410.50 USD \u00b7 not priced yet \u00b7 no research yet",
+      "approval": {
+       "id": "24ad2743-c63f-4b02-97ec-43bf39180ee9",
+       "approved": true
+      }
+     },
+     {
+      "type": "step-start"
+     },
+     {
+      "type": "reasoning",
+      "id": "06d58333-c70a-4f89-bf43-e2a4fe02537e",
+      "text": "Looking at the positions first. ",
+      "providerMetadata": {
+       "pydantic_ai": {
+        "id": "reasoning_content",
+        "provider_name": "openai"
+       }
+      },
+      "state": "done"
+     },
+     {
+      "type": "text",
+      "text": "Here's your book. Largest line: AAPL: 120 units @ avg 148.20 USD \u00b7 not priced yet \u00b7 no research yet ",
+      "state": "done"
+     }
+    ]
+   },
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "Thanks. Anything else?"
+     }
+    ],
+    "id": "bM4koDzPLrgOpUFa",
+    "role": "user"
+   }
+  ],
+  "trigger": "submit-message"
+ },
+ "resumed_session_follow_up": {
+  "ticker": null,
+  "locale": "en",
+  "context_bundle": {
+   "route": "/portfolio",
+   "ticker": null,
+   "artifact_id": null
+  },
+  "id": "ca7fa02e-c8ce-4ca8-80c7-ac90a6b8252b",
+  "messages": [
+   {
+    "id": "replay-user-0",
+    "role": "user",
+    "parts": [
+     {
+      "type": "text",
+      "text": "How is my portfolio doing?"
+     }
+    ],
+    "metadata": {
+     "createdAt": "2026-11-06T21:44:03.300898+00:00"
+    }
+   },
+   {
+    "id": "replay-asst-1",
+    "role": "assistant",
+    "parts": [
+     {
+      "type": "dynamic-tool",
+      "toolName": "query_portfolio_holdings",
+      "toolCallId": "call_1794001443331",
+      "state": "output-available",
+      "input": {},
+      "output": {
+       "summary": "The user chose not to share your portfolio holdings with Acme Cloud AI. Answer without it, and do not ask for it again in this turn."
+      }
+     },
+     {
+      "type": "text",
+      "text": "Understood \u2014 I won't use your holdings. Ask me about any ticker instead. "
+     }
+    ],
+    "metadata": {
+     "createdAt": "2026-11-06T21:44:03.336409+00:00"
+    }
+   },
+   {
+    "id": "replay-user-2",
+    "role": "user",
+    "parts": [
+     {
+      "type": "text",
+      "text": "OK, what about NVDA generally?"
+     }
+    ],
+    "metadata": {
+     "createdAt": "2026-11-06T21:44:06.912109+00:00"
+    }
+   },
+   {
+    "id": "replay-asst-3",
+    "role": "assistant",
+    "parts": [
+     {
+      "type": "dynamic-tool",
+      "toolName": "query_portfolio_holdings",
+      "toolCallId": "call_1794001446935",
+      "state": "output-error",
+      "input": {},
+      "errorText": "Interrupted \u2014 this step did not finish before the session was closed."
+     }
+    ],
+    "metadata": {
+     "createdAt": "2026-11-06T21:44:06.938935+00:00"
+    }
+   },
+   {
+    "id": "replay-user-4",
+    "role": "user",
+    "parts": [
+     {
+      "type": "text",
+      "text": "Never mind \u2014 tell me about MSFT."
+     }
+    ],
+    "metadata": {
+     "createdAt": "2026-11-06T21:44:08.576386+00:00"
+    }
+   },
+   {
+    "id": "replay-asst-5",
+    "role": "assistant",
+    "parts": [
+     {
+      "type": "dynamic-tool",
+      "toolName": "query_portfolio_holdings",
+      "toolCallId": "call_1794001448601",
+      "state": "output-available",
+      "input": {},
+      "output": {
+       "summary": "Portfolio holdings (Main book), 3 position(s), last-known cache snapshot. P&L = realized + unrealized against cost (not a report target's upside).\nTotals: cost basis 47,224.00 \u00b7 market value ? \u00b7 P&L ? (?) \u00b7 realized 0.00 \u00b7 today ?\n- AAPL: 120 units @ avg 148.20 USD \u00b7 not priced yet \u00b7 no research yet\n- MSFT: 35 units @ avg 372.00 USD \u00b7 not priced yet \u00b7 no research yet\n- NVDA: 40 units @ avg 410.50 USD \u00b7 not priced yet \u00b7 no research yet"
+      }
+     },
+     {
+      "type": "text",
+      "text": "Here's your book. Largest line: AAPL: 120 units @ avg 148.20 USD \u00b7 not priced yet \u00b7 no research yet "
+     }
+    ],
+    "metadata": {
+     "createdAt": "2026-11-06T21:44:08.605800+00:00"
+    }
+   },
+   {
+    "id": "replay-user-6",
+    "role": "user",
+    "parts": [
+     {
+      "type": "text",
+      "text": "Thanks. Anything else?"
+     }
+    ],
+    "metadata": {
+     "createdAt": "2026-11-06T21:44:14.920251+00:00"
+    }
+   },
+   {
+    "id": "replay-asst-7",
+    "role": "assistant",
+    "parts": [
+     {
+      "type": "dynamic-tool",
+      "toolName": "query_portfolio_holdings",
+      "toolCallId": "call_1794001454951",
+      "state": "output-error",
+      "input": {},
+      "errorText": "Interrupted \u2014 this step did not finish before the session was closed."
+     }
+    ],
+    "metadata": {
+     "createdAt": "2026-11-06T21:44:14.956256+00:00"
+    }
+   },
+   {
+    "parts": [
+     {
+      "type": "text",
+      "text": "Resumed: one more question"
+     }
+    ],
+    "id": "wlRb4y1ocyJrPNHV",
+    "role": "user"
+   }
+  ],
+  "trigger": "submit-message"
+ }
+}

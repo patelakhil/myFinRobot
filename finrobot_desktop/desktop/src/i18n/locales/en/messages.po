@@ -2737,8 +2737,8 @@ msgid "settings.subtitle"
 msgstr "Configure your API keys and data sources here — everything is stored locally on this machine."
 
 #. js-lingui-explicit-id
-msgid "settings.secretStorage.localFile"
-msgstr "Keys are stored in a local file on this device"
+msgid "settings.secretStorage.encryptedFile"
+msgstr "Keys are stored encrypted (AES-256) in a local file on this device, not in the OS keychain"
 
 #. js-lingui-explicit-id
 msgid "settings.llm.apiKeyLabel"
@@ -4262,7 +4262,7 @@ msgstr "Connections you configured"
 
 #. js-lingui-explicit-id
 msgid "settings.privacy.integrationsDesc"
-msgstr "These receive data because you set them up — the AI model gets your chat and the research inputs; data providers get the tickers you look up. Manage them in AI Model and Data Sources."
+msgstr "These receive data because you set them up — the AI model gets your chat and the research inputs; data providers get the tickers you look up. Manage them in AI Model and Data Sources; control what personal data the AI may see in AI data sharing."
 
 #. js-lingui-explicit-id
 msgid "settings.privacy.integrationsNone"
@@ -4270,7 +4270,7 @@ msgstr "Nothing configured yet — only the keyless market-data provider is acti
 
 #. js-lingui-explicit-id
 msgid "settings.privacy.integration.llm"
-msgstr "AI model — {model}: chat messages, research pipeline inputs, the studied-tickers snapshot, and — only when you ask about them in chat — your portfolio holdings and saved-report content"
+msgstr "AI model — {model}: chat messages and research pipeline inputs. Your watchlist, holdings and saved reports only as allowed in AI data sharing"
 
 #. js-lingui-explicit-id
 msgid "settings.privacy.integration.provider.yfinance"
@@ -4302,7 +4302,7 @@ msgstr "SEC EDGAR: your declared identity (User-Agent) plus the filings you requ
 
 #. js-lingui-explicit-id
 msgid "settings.privacy.localNote"
-msgstr "Your portfolio and saved reports are stored only on this machine. Raw lot/alert records never leave it; the AI model only sees a holding (or a report's content) when YOU ask it a question about your portfolio or a report in chat — same channel as everything else it answers, nothing separate."
+msgstr "Your portfolio and saved reports are stored only on this machine. Raw lot/alert records never leave it. What the AI model may see of your holdings, watchlist and reports is up to you — by default it must ask first (Settings → AI data sharing)."
 
 #. js-lingui-explicit-id
 msgid "settings.privacy.gatesTitle"
@@ -4471,3 +4471,251 @@ msgstr "carried over"
 #. js-lingui-explicit-id
 msgid "workspace.pipeline.reusedHint"
 msgstr "Partial refresh: reused unchanged from the previous report version (no new data for this section)"
+
+#. js-lingui-explicit-id
+msgid "settings.nav.aiGuard"
+msgstr "AI data sharing"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.title"
+msgstr "AI data sharing"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.intro"
+msgstr "Choose what FinRobot may send to the AI provider behind the assistant. Your personal data is never sent unless you allow it — by default FinRobot asks you first, each time it's needed."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.loadFailed"
+msgstr "Couldn't load AI data sharing settings."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.scope.label"
+msgstr "Rules for"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.scope.all"
+msgstr "All providers"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.scope.active"
+msgstr "in use"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.scope.custom"
+msgstr "custom"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.scope.hintAll"
+msgstr "Defaults for every AI provider. Pick a provider above to give it its own rules — e.g. allow holdings for a model you run locally, but ask for a cloud one."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.scope.hintProvider"
+msgstr "Rules for {provider} only. Anything set to “Default” follows the all-providers rules."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.inherit"
+msgstr "Default ({decision})"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.resetProvider"
+msgstr "Reset {provider} to defaults"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.resetAll"
+msgstr "Reset all to defaults"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.section.required"
+msgstr "Required for AI features"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.section.requiredDesc"
+msgstr "The assistant can't work without sending these. They contain no personal data beyond what you choose to type."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.section.choice"
+msgstr "Your choice"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.section.choiceDesc"
+msgstr "“Ask each time” shows a permission prompt in the chat whenever the assistant needs this data."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.badge.required"
+msgstr "Required"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.badge.personal"
+msgstr "Personal data"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.badge.never"
+msgstr "Never shared"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.badge.alwaysShared"
+msgstr "Always shared"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.decision.allow"
+msgstr "Allow"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.decision.ask"
+msgstr "Ask each time"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.decision.deny"
+msgstr "Never"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.market_data.label"
+msgstr "Market & company data"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.market_data.desc"
+msgstr "Ticker symbols, prices, financial statements, SEC filings and news about the companies you research — public information every analysis is built from."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.conversation.label"
+msgstr "Your chat messages"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.conversation.desc"
+msgstr "What you type in the assistant and the conversation so far. Personal identifiers can be removed automatically first (below)."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.screen_context.label"
+msgstr "What you're looking at"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.screen_context.desc"
+msgstr "The page you're on, the ticker in focus, the report you have open and any text you've selected."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.research_library.label"
+msgstr "Your saved reports"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.research_library.desc"
+msgstr "The content of reports you generated, when the assistant looks one up, reads it, compares versions or refreshes them."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.watchlist.label"
+msgstr "Your watchlist"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.watchlist.desc"
+msgstr "The tickers you're studying, with their latest prices, verdicts and signals. Reveals which companies you're interested in."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.portfolio.label"
+msgstr "Your portfolio holdings"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.portfolio.desc"
+msgstr "What you own: positions, units, average cost, market value, profit and loss, and the alerts you've set."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.identity.label"
+msgstr "Your identity"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.identity.desc"
+msgstr "The name and email in your SEC identity. Only ever sent to sec.gov — never to an AI provider, and removed if it appears in a message."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.redact.label"
+msgstr "Remove personal identifiers from messages"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.redact.desc"
+msgstr "Before anything you type is sent, replace emails, phone numbers, and card, bank-account and social-security numbers with placeholders like [redacted email]. Financial figures are left untouched."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.activity.title"
+msgstr "Recent activity"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.activity.desc"
+msgstr "What was shared with or withheld from AI providers since FinRobot started. Only the kind of data is recorded — never the data itself."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.activity.empty"
+msgstr "No personal data has been shared yet."
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.activity.clear"
+msgstr "Clear"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.activity.shared"
+msgstr "{category} → {provider}"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.activity.withheld"
+msgstr "{category} withheld from {provider}"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.reason.allowed"
+msgstr "allowed by your settings"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.reason.approved"
+msgstr "you approved"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.reason.declined"
+msgstr "you declined"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.reason.not_permitted"
+msgstr "not permitted by your settings"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.reason.approval_unavailable"
+msgstr "needs your permission"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.reason.redacted"
+msgstr "removed: {detail}"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.title"
+msgstr "Share {category} with {provider}?"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.body"
+msgstr "The assistant needs this to answer. If you allow it, it's sent to {provider} for this request."
+
+#. js-lingui-explicit-id
+msgid "chat.permission.allowOnce"
+msgstr "Allow once"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.allowAlways"
+msgstr "Always allow for {provider}"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.deny"
+msgstr "Don't allow"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.manage"
+msgstr "Manage in Settings"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.approved"
+msgstr "Shared {category} with {provider}"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.denied"
+msgstr "Not shared — {category} stayed on this device"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.alwaysFailed"
+msgstr "Couldn't save the rule — allowed for this request only."
+
+#. js-lingui-explicit-id
+msgid "chat.permission.providerFallback"
+msgstr "the AI provider"

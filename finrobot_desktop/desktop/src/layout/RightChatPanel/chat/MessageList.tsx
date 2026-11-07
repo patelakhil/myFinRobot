@@ -7,6 +7,7 @@ import { useEffect, useRef } from 'react'
 import type { UIMessage } from 'ai'
 import { useI18n } from '../../../i18n'
 import { MessageBubble } from './MessageBubble'
+import type { ApprovalResponse } from '../../../components/DataPermissionCard'
 import { StatusIndicator, type ChatStatus } from './StatusIndicator'
 
 interface MessageListProps {
@@ -19,6 +20,8 @@ interface MessageListProps {
   /** True while a switched/reloaded session's transcript is being restored —
    * suppresses the empty-state so it doesn't flash "start chatting" mid-resume. */
   restoring: boolean
+  /** Answers an AI data-sharing permission card in the transcript. */
+  onApprovalResponse?: (response: ApprovalResponse) => void
 }
 
 export function MessageList({
@@ -26,6 +29,7 @@ export function MessageList({
   isLoading,
   status,
   restoring,
+  onApprovalResponse,
 }: MessageListProps): React.ReactElement {
   const bottomRef = useRef<HTMLDivElement>(null)
   const { t } = useI18n()
@@ -89,7 +93,7 @@ export function MessageList({
   return (
     <div data-testid="message-list" className="ai-messages">
       {messages.map((message) => (
-        <MessageBubble key={message.id} message={message} />
+        <MessageBubble key={message.id} message={message} onApprovalResponse={onApprovalResponse} />
       ))}
 
       {isLoading && <StatusIndicator status={status} messages={messages} />}

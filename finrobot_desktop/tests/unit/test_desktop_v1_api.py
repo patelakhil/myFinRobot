@@ -9,7 +9,7 @@ import pytest
 from finrobot.config import get_settings
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.run_store import RunStore
-from finrobot.secret_store import FileSecretStore
+from finrobot.secret_store import EncryptedFileSecretStore
 from finrobot.server import app
 
 
@@ -86,7 +86,9 @@ class TestSettingsRoutes:
     @pytest.mark.asyncio
     async def test_settings_get_masks_api_keys(self, tmp_path):
         settings = get_settings(model_name="test")
-        secret_store = FileSecretStore(tmp_path / ".secrets")
+        secret_store = EncryptedFileSecretStore(
+            tmp_path / ".secrets", key_path=tmp_path / "keys" / "secrets.key"
+        )
         await secret_store.set("fmp_api_key", "secret-fmp-key")
         app.state.secret_store = secret_store
         app.state.settings_path = tmp_path / "settings.json"

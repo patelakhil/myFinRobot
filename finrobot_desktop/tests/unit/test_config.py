@@ -225,12 +225,14 @@ class TestCreateModel:
         a stalled turn fails over in ~2min instead of hanging 5min as "still
         waiting…".
         """
-        import httpx
+        import httpx2
 
         from finrobot.config import _shared_llm_http_client
 
         client = _shared_llm_http_client()
-        assert isinstance(client, httpx.AsyncClient)
+        # httpx2: what the OpenAI 3.x / Anthropic 2.x SDKs require (Anthropic
+        # rejects a legacy httpx client outright).
+        assert isinstance(client, httpx2.AsyncClient)
         # trust_env defaults to True -> httpx reads HTTP_PROXY/HTTPS_PROXY/NO_PROXY.
         assert client.trust_env is True
         # Warm across normal turn gaps, but not so long a dead proxy socket lingers.

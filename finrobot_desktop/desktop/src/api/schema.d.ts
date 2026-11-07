@@ -3550,7 +3550,7 @@ export interface components {
        * @default keychain
        * @enum {string}
        */
-      secret_storage_mode: 'keychain' | 'plaintext'
+      secret_storage_mode: 'keychain' | 'encrypted_file'
     }
     /** SettingsUpdate */
     SettingsUpdate: {

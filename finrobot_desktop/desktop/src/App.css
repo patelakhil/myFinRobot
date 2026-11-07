@@ -9087,6 +9087,261 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   color: var(--text-dim);
 }
 
+/* ── Settings: AI data sharing (guardrails) ─────────────────────────────── */
+.aig-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 6px;
+}
+.aig-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+.aig-chip.is-active {
+  color: var(--text-primary);
+  background: var(--primary-soft);
+  box-shadow: inset 0 0 0 1px var(--border-glow);
+}
+.aig-chip__tag {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+}
+.aig-group--required {
+  margin-bottom: 22px;
+  padding: 10px 14px 4px;
+  border-left: 3px solid var(--accent-cyan);
+  background: var(--accent-cyan-soft);
+  border-radius: var(--r-sm);
+}
+.aig-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.aig-row__text {
+  min-width: 0;
+}
+.aig-row__label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.aig-row__desc {
+  margin-top: 4px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.aig-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.aig-badge--required {
+  color: var(--accent-cyan);
+  background: var(--accent-cyan-soft);
+}
+.aig-badge--personal {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+.aig-fixed {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.aig-seg {
+  display: inline-flex;
+  flex-shrink: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.aig-seg__opt {
+  padding: 5px 10px;
+  border: 0;
+  border-left: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.aig-seg__opt:first-child {
+  border-left: 0;
+}
+.aig-seg__opt:disabled {
+  cursor: wait;
+}
+.aig-seg__opt.is-active {
+  color: var(--text-primary);
+  background: var(--primary-soft);
+}
+.aig-seg__opt--allow.is-active {
+  background: var(--success-soft);
+}
+.aig-seg__opt--ask.is-active {
+  background: var(--warning-soft);
+}
+.aig-seg__opt--deny.is-active {
+  background: var(--danger-soft);
+}
+.aig-actions {
+  display: flex;
+  gap: 16px;
+  margin: 8px 0 18px;
+}
+.aig-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--aip-accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+.aig-link:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.aig-activity__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.aig-activity {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.aig-activity__item {
+  display: flex;
+  gap: 10px;
+  padding: 3px 0;
+}
+.aig-activity__item.is-withheld {
+  color: var(--text-muted);
+}
+.aig-activity__time {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+
+/* ── Chat: AI data-sharing permission card ──────────────────────────────── */
+.perm-card {
+  margin: 8px 0;
+  padding: 12px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--warning-soft);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-lg);
+}
+.perm-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.perm-card__lock {
+  display: inline-flex;
+  color: var(--warning);
+}
+.perm-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.perm-card__body,
+.perm-card__what {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.perm-card__what {
+  color: var(--text-muted);
+}
+.perm-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.perm-btn {
+  padding: 5px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+.perm-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.perm-btn--primary {
+  background: var(--primary-soft);
+  border-color: var(--border-glow);
+}
+.perm-btn--deny {
+  color: var(--text-secondary);
+}
+.perm-card__manage {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--aip-accent);
+}
+.perm-card--done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-left-width: 1px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+.perm-card--done.is-approved {
+  border-color: var(--success-soft);
+}
+.perm-card--done.is-denied {
+  border-color: var(--border-soft);
+}
+.perm-card__icon {
+  font-size: 11px;
+}
+.perm-card--done.is-approved .perm-card__icon {
+  color: var(--success);
+}
+
 /* ── Global prefers-reduced-motion fallback ──────────────────────────────
    The earlier @media block only silenced .cosmic-stars; every other
    keyframe (shimmer / pulse-ring / halo / btn-shimmer / cosmic-morph …)

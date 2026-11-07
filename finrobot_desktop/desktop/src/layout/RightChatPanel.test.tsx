@@ -1,7 +1,7 @@
 /**
  * RightChatPanel tests
  *
- * useChat (v3 @ai-sdk/react) is mocked so tests run without a live server.
+ * useChat (@ai-sdk/react) is mocked so tests run without a live server.
  * The mock exposes controls that individual tests can manipulate:
  *   mockChatControls.setMessages(msgs)
  *   mockChatControls.setStatus('streaming' | 'ready' | 'submitted' | 'error')
@@ -29,6 +29,7 @@ interface MockChatControls {
   stop: ReturnType<typeof vi.fn>
   regenerate: ReturnType<typeof vi.fn>
   clearError: ReturnType<typeof vi.fn>
+  addToolApprovalResponse: ReturnType<typeof vi.fn>
 }
 
 const mockChatControls: MockChatControls = {
@@ -48,6 +49,7 @@ const mockChatControls: MockChatControls = {
   stop: vi.fn(),
   regenerate: vi.fn(),
   clearError: vi.fn(),
+  addToolApprovalResponse: vi.fn(),
 }
 
 vi.mock('@ai-sdk/react', () => ({
@@ -61,6 +63,7 @@ vi.mock('@ai-sdk/react', () => ({
     regenerate: mockChatControls.regenerate,
     clearError: mockChatControls.clearError,
     setMessages: vi.fn(),
+    addToolApprovalResponse: mockChatControls.addToolApprovalResponse,
   })),
 }))
 
@@ -76,6 +79,10 @@ interface CapturedTransport {
 }
 const lastTransportOptions: { current: CapturedTransport | null } = { current: null }
 
+const { lastAssistantMessageIsCompleteWithApprovalResponses } = vi.hoisted(() => ({
+  lastAssistantMessageIsCompleteWithApprovalResponses: vi.fn(() => false),
+}))
+
 vi.mock('ai', () => {
   const isTextUIPart = (p: { type: string }): boolean => p.type === 'text'
   const isToolUIPart = (p: { type: string }): boolean =>
@@ -90,6 +97,11 @@ vi.mock('ai', () => {
     isTextUIPart,
     isToolUIPart,
     isReasoningUIPart,
+    lastAssistantMessageIsCompleteWithApprovalResponses,
+    // Used only inside TolerantChatTransport.processResponseStream (not reached
+    // with the mocked useChat) — present so the module's imports resolve.
+    parseJsonEventStream: vi.fn(),
+    uiMessageChunkSchema: {},
   }
 })
 
@@ -923,6 +935,40 @@ describe('RightChatPanel — exception paths', () => {
 // ──────────────────────────────────────────────────────────────
 // Tests: model selector
 // ──────────────────────────────────────────────────────────────
+
+describe('RightChatPanel — AI data-sharing permission', () => {
+  it('resubmits automatically once a permission prompt is answered', async () => {
+    const { useChat } = await import('@ai-sdk/react')
+    renderPanel()
+    const options = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
+      { sendAutomaticallyWhen?: unknown } | undefined
+    expect(options?.sendAutomaticallyWhen).toBe(lastAssistantMessageIsCompleteWithApprovalResponses)
+  })
+
+  it("routes the card's answer to addToolApprovalResponse", async () => {
+    mockChatControls.setMessages([
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-query_portfolio_holdings',
+            toolCallId: 'call_pf',
+            state: 'approval-requested',
+            input: {},
+            approval: { id: 'ap1' },
+          },
+        ],
+      } as unknown as UIMessage,
+    ])
+    renderPanel()
+    fireEvent.click(await screen.findByRole('button', { name: 'Allow once' }))
+    expect(mockChatControls.addToolApprovalResponse).toHaveBeenCalledWith({
+      id: 'ap1',
+      approved: true,
+    })
+  })
+})
 
 describe('RightChatPanel — model selector', () => {
   it('renders model selector in header', () => {

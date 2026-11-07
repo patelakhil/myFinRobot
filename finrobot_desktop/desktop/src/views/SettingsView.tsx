@@ -11,7 +11,14 @@ import { fetchWithTimeout } from '../api/fetch'
 import { useToastStore } from '../stores/toastStore'
 import { mapErrorToUserMessage, FetchHttpError } from '../utils/errorMessage'
 import { useI18n, tSync } from '../i18n'
-import { Icon, ICON_MODEL, ICON_DATA, ICON_PRIVACY, ICON_UPDATE } from './settings/controls'
+import {
+  Icon,
+  ICON_MODEL,
+  ICON_DATA,
+  ICON_PRIVACY,
+  ICON_UPDATE,
+  ICON_AI_GUARD,
+} from './settings/controls'
 import { useSettingsSave } from './settings/useSettingsSave'
 import { AiModelPanel, type DraftProvider, type LlmTestState } from './settings/AiModelPanel'
 import {
@@ -22,6 +29,7 @@ import {
 import { SecHoldingsSection } from './settings/SecHoldingsSection'
 import { UpdatesSection } from './settings/UpdatesSection'
 import { PrivacyPanel } from './settings/PrivacyPanel'
+import { AiGuardrailsPanel } from './settings/AiGuardrailsPanel'
 import { ClearKeyConfirmModal } from './settings/ClearKeyConfirmModal'
 import { AI_CHAT_ENABLED } from '../config/features'
 
@@ -35,12 +43,21 @@ export { isValidSecIdentity, secHeaderIdentityPreview } from './settings/secIden
 
 const NAV_ITEMS = [
   { id: 'aiModel', icon: ICON_MODEL, labelKey: 'settings.section.aiModel' },
+  { id: 'aiGuard', icon: ICON_AI_GUARD, labelKey: 'settings.nav.aiGuard' },
   { id: 'dataSources', icon: ICON_DATA, labelKey: 'settings.section.dataSources' },
   { id: 'privacy', icon: ICON_PRIVACY, labelKey: 'settings.nav.privacy' },
   { id: 'updates', icon: ICON_UPDATE, labelKey: 'settings.nav.updates' },
 ] as const
 
 type SettingsPanel = (typeof NAV_ITEMS)[number]['id']
+
+/** `/settings?panel=aiGuard` opens that panel (e.g. "Manage in Settings" on a
+ * chat permission card). Read from window.location so it needs no router. */
+function initialPanel(): SettingsPanel {
+  if (typeof window === 'undefined') return 'aiModel'
+  const wanted = new URLSearchParams(window.location.search).get('panel')
+  return NAV_ITEMS.find((item) => item.id === wanted)?.id ?? 'aiModel'
+}
 
 // ─── Main component ────────────────────────────────────────────────────────
 
@@ -109,7 +126,7 @@ export default function SettingsView() {
     useSettingsSave()
 
   // ── Active panel (tabbed nav — only the selected panel renders) ──────────
-  const [activePanel, setActivePanel] = useState<SettingsPanel>('aiModel')
+  const [activePanel, setActivePanel] = useState<SettingsPanel>(initialPanel)
 
   // Populate editable fields from the server on first load.
   useEffect(() => {
@@ -268,13 +285,14 @@ export default function SettingsView() {
 
         {/* Honest secret-storage disclosure. The backend stores secrets in the
             OS keychain where it can; on an unsigned macOS build / Linux without a
-            keyring it falls back to a local file, and `secret_storage_mode` then
-            reports 'plaintext'. Surface that NEUTRALLY (it's a normal state, not
-            an error — muted, not red) so a user knows where their keys live. Page
-            level because it covers every secret across all panels. */}
-        {settingsResp.secret_storage_mode === 'plaintext' && (
+            keyring it falls back to an AES-256-GCM encrypted local file, and
+            `secret_storage_mode` then reports 'encrypted_file'. Surface that
+            NEUTRALLY (it's a normal state, not an error — muted, not red) so a
+            user knows where their keys live. Page level because it covers every
+            secret across all panels. */}
+        {settingsResp.secret_storage_mode === 'encrypted_file' && (
           <div
-            data-testid="secret-storage-plaintext"
+            data-testid="secret-storage-encrypted-file"
             style={{
               background: 'var(--bg-card-faint)',
               border: '1px solid var(--border-soft)',
@@ -287,7 +305,7 @@ export default function SettingsView() {
               color: 'var(--text-secondary)',
             }}
           >
-            {t('settings.secretStorage.localFile')}
+            {t('settings.secretStorage.encryptedFile')}
           </div>
         )}
 
@@ -441,6 +459,8 @@ export default function SettingsView() {
                 <SecHoldingsSection />
               </>
             )}
+
+            {activePanel === 'aiGuard' && <AiGuardrailsPanel />}
 
             {activePanel === 'privacy' && (
               <PrivacyPanel

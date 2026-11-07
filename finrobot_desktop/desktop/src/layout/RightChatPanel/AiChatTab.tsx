@@ -75,6 +75,7 @@ export function AiChatTab({
     stop,
     handleSubmit,
     handleReload,
+    respondToApproval,
   } = useChatStream(ticker)
 
   // Track unread for collapsed state
@@ -155,6 +156,7 @@ export function AiChatTab({
         isLoading={isLoading}
         status={status}
         restoring={seedLoading}
+        onApprovalResponse={respondToApproval}
       />
 
       <AiInputArea

@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from finrobot.artifact.store import ArtifactStore
     from finrobot.coverage.sqlite_store import CoverageStore
     from finrobot.engine.pipelines.refresh_service import RunSpawner
+    from finrobot.guardrails.ledger import DisclosureLog
     from finrobot.portfolio.sqlite_store import PortfolioStore
     from finrobot.run_store import RunStore
 
@@ -59,3 +60,14 @@ class FinRobotDeps:
     triggered reports ignore the UI locale and fall back to ``settings.language``
     (the REST/Coverage path already threads ``language`` directly). None = no
     per-request locale → settings fallback (CLI/SDK/REST)."""
+    disclosure_log: DisclosureLog | None = None
+    """The app's record of what personal data was shared with / withheld from
+    which AI provider (finrobot/guardrails/ledger.py). Also how the chat history
+    processor knows an "ask each time" result was approved for the current
+    provider. None = no record (CLI/SDK) — guarded results are then withheld
+    from history unless a rule allows them outright."""
+    approvals_supported: bool = False
+    """True when the caller can show the user an in-chat permission prompt
+    (the desktop /chat path streams approval requests to the UI). When False
+    (CLI/SDK, background runs) an "ask each time" category is NOT shared — the
+    tool explains that permission is needed instead of pausing the run."""

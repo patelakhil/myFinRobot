@@ -302,7 +302,7 @@ class TestRunStrategySelection:
     async def test_llm_failure_falls_back_to_default_sma(self) -> None:
         """LLM auth/HTTP failure -> deterministic SMA backtest, not a crash.
 
-        Uses ModelHTTPError (an AgentRunError subclass in pydantic-ai 1.73,
+        Uses ModelHTTPError (an AgentRunError subclass in pydantic-ai 1.73 and 2.x,
         modelling an auth/rate-limit failure) to confirm the except tuple
         catches real provider errors and degrades gracefully.
         """

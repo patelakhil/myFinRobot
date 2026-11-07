@@ -156,7 +156,7 @@ REST surface: `GET/POST /api/portfolio/portfolios`, lots under `/portfolios/{id}
 
 ### Privacy & network
 
-Nothing is computed or stored off-machine: numbers come from the pure-Python compute layer and every database lives under `~/.finrobot/`. The only outbound connections are the ones you configure — your LLM provider (chat, pipeline inputs, the studied-tickers snapshot, and — only when you ask about them in chat — your portfolio holdings and a saved report's content) and your keyed data providers (the tickers you look up) — plus a handful of optional contacts that are **not** integrations, each behind a switch in **Settings → Privacy & network** (all on by default; each is a pure gate):
+Nothing is computed or stored off-machine: numbers come from the pure-Python compute layer and every database lives under `~/.finrobot/`. The only outbound connections are the ones you configure — your LLM provider (chat and pipeline inputs; what personal data it may see is governed by [AI data sharing](#ai-data-sharing-guardrails) below) and your keyed data providers (the tickers you look up) — plus a handful of optional contacts that are **not** integrations, each behind a switch in **Settings → Privacy & network** (all on by default; each is a pure gate):
 
 | Switch | What it controls | Contacts when on |
 |:---|:---|:---|
@@ -166,7 +166,50 @@ Nothing is computed or stored off-machine: numbers come from the pure-Python com
 | Warm up at launch | Boot-time SEC symbol index + quote warm-up (else lazy, on first use) | `sec.gov`, Yahoo Finance |
 | Auto-refresh 13F holdings | Scheduled institutional-holdings sync (needs your SEC identity) | `sec.gov` |
 
-Your portfolio and saved reports are stored only on this machine; raw lot/alert records never leave it. The AI model only sees a holding or a report's content when you ask it about one in chat — the same channel as everything else it answers, never a separate path. There is no telemetry, analytics or crash reporting.
+Your portfolio and saved reports are stored only on this machine; raw lot/alert records never leave it. There is no telemetry, analytics or crash reporting.
+
+### AI data sharing (guardrails)
+
+**Settings → AI data sharing** decides what the assistant may send to your LLM provider. It works like app permissions on a phone: your personal data is never sent by default. Instead, the chat asks before the assistant reads it.
+
+| Data | Default | Notes |
+|:---|:---|:---|
+| Market & company data (tickers, prices, financials, filings, news) | Always shared | **Required** — every analysis is built from it |
+| Your chat messages | Always shared | **Required**; personal identifiers removed first (below) |
+| What you're looking at (page, focused ticker, open report, selected text) | Allow | Allow / Never |
+| Your saved reports (when the assistant looks one up, reads, diffs or refreshes them) | Allow | Allow / Ask each time / Never |
+| Your watchlist | **Ask each time** | Personal data |
+| Your portfolio holdings (positions, units, cost, P&L, alerts) | **Ask each time** | Personal data |
+| Your identity (the name + email in your SEC identity) | Never shared | Only sent to sec.gov; redacted if it appears in a message |
+
+Rules can be set for all providers, or per provider. For example, you could allow holdings for a model you run locally but ask first for a cloud one. A provider's own rule overrides the default.
+
+- **Ask each time.** When the assistant needs your holdings, the chat shows a permission card: *Share your portfolio holdings with OpenAI?* — **Allow once**, **Always allow for OpenAI** (saves a rule), or **Don't allow**. If you decline, the model is told and answers without the data. Watchlist and holdings snapshots are only added to the model's context automatically when a rule says **Allow**.
+- **History follows the rules, too.** The whole conversation is re-sent on every turn. Before each request, data that the current provider may not see is replaced with a "withheld" notice. For example, holdings you approved for one provider are not forwarded after you switch to another, or after you change the rule to **Never**.
+- **Redaction.** Before anything you type (or select) is sent, emails, phone numbers, card numbers (Luhn-checked), IBANs (checksum-checked), US social-security numbers and labelled account numbers are replaced with placeholders like `[redacted email]`. Ordinary financial figures are left alone. You can turn this off, except for your SEC identity, which is always removed.
+- **Activity.** The panel lists what was shared with or withheld from which provider since launch: the kind of data and the reason, never the data itself.
+
+Scope: this governs what FinRobot sends to the LLM. Research pipelines send only market data and the ticker you asked about. Running research on your holdings (Portfolio → Research) sends those tickers, because that is the request itself. Whatever your provider does with the data it receives is subject to its own terms.
+
+### API key storage
+
+API keys (LLM providers, FMP, Finnhub, …) are never written to `settings.json`, a `.env` file, or anywhere else in plaintext. They go to the strongest prompt-free store the platform offers:
+
+| Platform | Where keys live |
+|:---|:---|
+| Windows / Linux with a keyring | The OS credential store (Credential Manager / Secret Service) |
+| macOS (current unsigned build), Linux without a keyring, or `FINROBOT_DEV_MODE=1` | `~/.finrobot/.secrets`, **encrypted with AES-256-GCM** |
+
+The macOS build doesn't use the Keychain yet: without a stable Developer ID signature, macOS would show an access prompt for every key on every launch. A signed build can opt in with `FINROBOT_USE_KEYCHAIN=1`. Settings shows a notice when the encrypted file is in use.
+
+When the encrypted file is used, its 256-bit key is kept **outside** `~/.finrobot`: in `~/Library/Application Support/FinRobot/secrets.key` (macOS), `~/.local/share/finrobot/secrets.key` (Linux, honours `XDG_DATA_HOME`) or `%LOCALAPPDATA%\FinRobot\secrets.key` (Windows). Both files are `0600` in `0700` directories. A backup, sync or zip of `~/.finrobot` alone therefore does not expose your keys. Two environment variables change this:
+
+- `FINROBOT_SECRETS_PASSPHRASE` — derive the key from a passphrase (scrypt) instead of a key file. No key material is stored on disk. Suited to CLI, server and container use; the same passphrase must be set on every start.
+- `FINROBOT_SECRETS_KEY_FILE` — read the key file from a different path (e.g. a mounted container secret).
+
+What this does and does not protect against: the encrypted file defeats leaks of the data directory (backups, cloud or dotfile sync, support bundles, credential-scanning malware) and other local users. Passphrase mode also protects a copy of your *whole* home directory, since no key is stored anywhere. Neither mode can stop malware that already runs as *your* user: it can read the key file, or the passphrase from the process environment. The OS keychain is the stronger option where it is available.
+
+Upgrading is automatic: an existing plaintext `.secrets` file is encrypted in place the first time the app starts. If the file can't be decrypted (key file deleted, wrong passphrase), the app still starts and shows the keys as unset. The next key you save moves the unreadable file aside to `.secrets.unreadable-<timestamp>` rather than deleting it.
 
 ### Skills
 
@@ -247,7 +290,7 @@ uv sync --extra dev            # keeps pytest / ruff / mypy installed
 
 It waits for the backend's `/openapi.json` to answer before starting the frontend, and prints the backend log path (`/tmp/finrobot-backend.log`) if startup fails. `Ctrl+C` stops both. Backend edits need a restart of the script; frontend edits hot-reload.
 
-Configure your LLM API key from the **Settings** page in the browser UI, exactly as in the desktop app — keys are stored in the OS keychain, not in a `.env` file.
+Configure your LLM API key from the **Settings** page in the browser UI, exactly as in the desktop app — keys go to the OS keychain or the encrypted `~/.finrobot/.secrets` (see [API key storage](#api-key-storage)), never to a `.env` file.
 
 Two things to know before you run it:
 
@@ -287,6 +330,21 @@ pytest tests/                                          # 237 test files; live-ne
 pytest tests/ --cov=finrobot --cov-report=term-missing
 ruff check . && mypy finrobot                          # also wired into .pre-commit-config.yaml
 ```
+
+### Chat protocol compatibility
+
+The chat UI (Vercel AI SDK, `ai` via `@ai-sdk/react`) and the backend (`pydantic-ai`) speak the same streaming message protocol but are released independently. Either side may add fields, part types or chunk types before the other knows them. Both ends of `/chat` are therefore *tolerant readers*, so version drift degrades gracefully instead of failing every message with a 422 or aborting the answer:
+
+- **Requests (UI → backend): `finrobot/chat_compat.py`.**
+  - Valid requests are used untouched.
+  - Otherwise the request is adapted to the installed pydantic-ai's **own** schema. Older client shapes are upgraded; fields and parts that version can't represent are set aside. The request is then re-validated.
+  - Only a genuinely malformed request gets a 422, with the original error.
+  - There are no hard-coded field lists. The same file is verified against pydantic-ai 1.73 and 2.63 (the version now in use).
+- **Responses (backend → UI): `desktop/src/api/chatTransport.ts`.** Chunk types the UI's SDK doesn't know are skipped (with one console warning per kind) instead of ending the turn. Error chunks are always surfaced.
+
+Drift is visible, not silent: the backend logs one `Chat request adapted …` warning per kind of mismatch. When you bump either library:
+1. Recapture real request bodies from the UI into `tests/fixtures/chat_requests/`.
+2. Run `pytest tests/unit/test_chat_compat.py`. A property-based test injects arbitrary unknown fields into those bodies and requires the parsed result to be unchanged.
 
 Layout:
 

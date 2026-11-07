@@ -150,15 +150,31 @@ class TestCreateLeadAgent:
         agent = _agent()
         assert "run_ic_memo" in agent._function_toolset.tools
 
+    @staticmethod
+    def _instructions_sent(agent) -> str:
+        """The instructions the model actually receives — asserted through a
+        real run, not the agent's private attributes (whose shape changed in
+        pydantic_ai 2.x and is no part of the contract)."""
+        from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart
+        from pydantic_ai.models.function import FunctionModel
+
+        seen: list[str] = []
+
+        def capture(messages, info):
+            seen.extend(m.instructions or "" for m in messages if isinstance(m, ModelRequest))
+            return ModelResponse(parts=[TextPart("ok")])
+
+        agent.run_sync("hi", deps=_deps(), model=FunctionModel(capture))
+        return "\n".join(seen)
+
     def test_without_skill_registry_instructions_no_available_skills(self):
         agent = _agent(skill_registry=None)
-        instructions_text = "\n".join(agent._instructions)
-        assert "Available Skills" not in instructions_text
+        assert "Available Skills" not in self._instructions_sent(agent)
 
     def test_with_skill_registry_instructions_contain_summaries(self):
         registry = SkillRegistry(FIXTURES_DIR)
         agent = _agent(skill_registry=registry)
-        instructions_text = "\n".join(agent._instructions)
+        instructions_text = self._instructions_sent(agent)
         assert "Available Skills" in instructions_text
         assert "comps-analysis" in instructions_text
 
@@ -668,8 +684,16 @@ def _query_portfolio_holdings_fn(agent):
     return agent._function_toolset.tools["query_portfolio_holdings"].function
 
 
+def _portfolio_shared_settings():
+    """Settings whose AI data-sharing policy ALLOWS holdings — these tests cover
+    the data path; the default ("ask first") is covered in test_guardrails_*."""
+    return get_settings(model_name="test", ai_data_policy={"defaults": {"portfolio": "allow"}})
+
+
 def _deps_with_portfolio(store) -> FinRobotDeps:
-    return FinRobotDeps(data_layer=FakeDataLayer(), settings=_settings(), portfolio_store=store)
+    return FinRobotDeps(
+        data_layer=FakeDataLayer(), settings=_portfolio_shared_settings(), portfolio_store=store
+    )
 
 
 class TestQueryPortfolioHoldings:
@@ -680,7 +704,7 @@ class TestQueryPortfolioHoldings:
     async def test_no_store_returns_friendly_message_not_raise(self):
         agent = _agent()
         fn = _query_portfolio_holdings_fn(agent)
-        out = await fn(_run_context(_deps()), False)
+        out = await fn(_run_context(_deps_with_portfolio(None)), False)
         assert isinstance(out, str)
         assert "available" in out.lower()
 

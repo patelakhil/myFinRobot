@@ -217,7 +217,7 @@ def test_merge_enforces_0600_mode(tmp_path: Path) -> None:
 
 def test_load_tightens_drifted_mode_on_boot_read(tmp_path: Path) -> None:
     """The boot read self-heals a loose settings.json immediately (mirroring
-    FileSecretStore) instead of waiting for the next save."""
+    EncryptedFileSecretStore) instead of waiting for the next save."""
     path = tmp_path / "settings.json"
     path.write_text(json.dumps({"model_name": "openai:gpt-4o"}))
     os.chmod(path, 0o644)
@@ -923,15 +923,15 @@ async def test_get_settings_reports_keychain_mode(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_settings_reports_plaintext_mode(tmp_path: Path) -> None:
-    """When keychain is unavailable, 'plaintext' mode is reported so the UI can warn."""
+async def test_get_settings_reports_encrypted_file_mode(tmp_path: Path) -> None:
+    """When keychain is unavailable, 'encrypted_file' is reported so the UI can disclose it."""
     app = _make_app(tmp_path)
-    app.state.secret_storage_mode = "plaintext"
+    app.state.secret_storage_mode = "encrypted_file"
     async with _client(app) as c:
         resp = await c.get("/api/settings")
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["secret_storage_mode"] == "plaintext"
+    assert body["secret_storage_mode"] == "encrypted_file"
 
 
 @pytest.mark.asyncio

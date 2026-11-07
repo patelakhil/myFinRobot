@@ -30,6 +30,8 @@ from finrobot.engine.data.factory import build_provider_chain
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.skills.registry import SkillRegistry
+from finrobot.guardrails import chat_context as guard_ctx
+from finrobot.guardrails.ledger import DisclosureLog
 from finrobot.llm_probe import LlmProbeGate
 from finrobot.obs import bind_session, setup_logging
 from finrobot.obs.middleware import RequestTraceMiddleware
@@ -40,6 +42,7 @@ from finrobot.portfolio.prompt import format_portfolio_snapshot
 from finrobot.portfolio.service import build_all_overviews
 from finrobot.portfolio.sqlite_store import PortfolioStore
 from finrobot.ratelimit import RunRateLimiter
+from finrobot.routes.ai_guardrails import router as ai_guardrails_router
 from finrobot.routes.artifacts import router as artifacts_router
 from finrobot.routes.chat_sessions import router as chat_sessions_router
 from finrobot.routes.compute import router as compute_router
@@ -306,6 +309,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # portfolio routes use — one store instance over the shared user db.
     portfolio_store = PortfolioStore(database=user_db)
 
+    # What personal data was shared with / withheld from which AI provider —
+    # shown in Settings → AI data sharing, and consulted by the chat history
+    # processor so an "ask each time" result only reaches a provider the user
+    # approved it for (finrobot/guardrails/ledger.py).
+    disclosure_log = DisclosureLog()
+
     deps = FinRobotDeps(
         data_layer=data_layer,
         settings=settings,
@@ -314,6 +323,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         coverage_store=coverage_store,
         portfolio_store=portfolio_store,
         run_semaphore=run_semaphore,
+        disclosure_log=disclosure_log,
     )
 
     app.state.agent = agent
@@ -327,6 +337,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # (require_ready_data_layer); /health + local-SQLite routes never wait on it.
     app.state.engine_ready = False
     app.state.deps = deps
+    app.state.disclosure_log = disclosure_log
     app.state.secret_store = secret_store
     app.state.secret_storage_mode = secret_storage_mode
     app.state.settings_path = settings_path
@@ -766,6 +777,7 @@ app.include_router(artifacts_router)
 app.include_router(chat_sessions_router)
 app.include_router(coverage_router)
 app.include_router(portfolio_router)
+app.include_router(ai_guardrails_router)
 app.include_router(refresh_router)
 app.include_router(dashboard_router)
 app.include_router(valuation_router)
@@ -832,6 +844,7 @@ def _build_runtime_instructions(
     *,
     coverage_block: str | None = None,
     portfolio_block: str | None = None,
+    guardrail_note: str | None = None,
 ) -> str | None:
     """Compose per-request instructions from the UI locale + ContextBar bundle.
 
@@ -850,7 +863,12 @@ def _build_runtime_instructions(
     actually owns — units, cost, P&L — projected by
     ``portfolio.prompt.format_portfolio_snapshot``), distinct from the
     watchlist above (what they're studying). Absent when there is no
-    portfolio or its assembly failed.
+    portfolio, its assembly failed, or the user's AI data-sharing policy does
+    not allow it to be sent automatically.
+
+    ``guardrail_note`` tells the model which personal data it will NOT receive
+    automatically this turn (so an absent portfolio block isn't read as "no
+    holdings"); see ``guardrails.chat_context.guardrail_status_note``.
     """
     lines: list[str] = []
 
@@ -874,6 +892,9 @@ def _build_runtime_instructions(
 
     if portfolio_block:
         lines.append(portfolio_block)
+
+    if guardrail_note:
+        lines.append(guardrail_note)
 
     return "\n\n".join(lines) if lines else None
 
@@ -1014,7 +1035,11 @@ async def _intercept_native_events(
 
         # --- tool result ---
         elif isinstance(event, FunctionToolResultEvent):
-            result_part = event.result
+            # pydantic_ai 2.x: the ToolReturnPart is `event.part` (1.x: `.result`).
+            result_part = getattr(event, "part", None) or getattr(event, "result", None)
+            if result_part is None:
+                yield event
+                continue
             is_error = getattr(result_part, "outcome", "success") == "failed"
             # Extract artifact_id if the tool returned it in a dict payload.
             artifact_id: str | None = None
@@ -1083,7 +1108,18 @@ async def _emit_nonstreaming_fallback(
     transcript side-log is preserved by logging the assistant text here (the
     streaming interceptor never ran for this turn).
     """
-    from pydantic_ai.ui.vercel_ai._event_stream import _FINISH_REASON_MAP
+    # The adapter's own pydantic→Vercel finish-reason map is private API; fall
+    # back to the (stable, protocol-defined) mapping if a release moves it.
+    try:
+        from pydantic_ai.ui.vercel_ai._event_stream import _FINISH_REASON_MAP
+    except ImportError:
+        _FINISH_REASON_MAP = {
+            "stop": "stop",
+            "length": "length",
+            "content_filter": "content-filter",
+            "tool_call": "tool-calls",
+            "error": "error",
+        }
     from pydantic_ai.ui.vercel_ai.response_types import (
         DoneChunk,
         FinishChunk,
@@ -1343,10 +1379,14 @@ async def _chat_impl(
             logger.exception("TranscriptWriter: failed to log context for session %s", session_id)
 
     messages: list[Any] = body_json.get("messages", [])
+    # The user's new message this turn ("" when the request only answers a
+    # permission prompt — then the last message is the assistant's).
+    latest_user_text = ""
     if messages:
         last_msg = messages[-1]
         if isinstance(last_msg, dict) and last_msg.get("role") == "user":
             text_content = _extract_user_text(last_msg)
+            latest_user_text = text_content
             try:
                 await writer.log_user_message(text_content)
             except OSError:
@@ -1355,16 +1395,26 @@ async def _chat_impl(
                 )
 
     # Build the adapter manually so we can intercept the native event stream.
-    # Starlette caches request._body after the first read, so calling
-    # from_request here (which calls request.body() again) is safe.
-    # Lazy import: VercelAIAdapter drags in the pydantic_ai stack (~0.45s); kept
-    # off the sidecar cold-start import path (tests/unit/test_cold_import.py).
-    from pydantic_ai.ui.vercel_ai import VercelAIAdapter
+    # Starlette caches request._body after the first read, so reading the body
+    # again here is safe.
+    # Lazy imports: pydantic_ai (~0.45s) stays off the sidecar cold-start import
+    # path (tests/unit/test_cold_import.py); chat_compat imports it on use.
+    from pydantic_ai import DeferredToolRequests
+
+    from finrobot.chat_compat import build_chat_adapter
+    from finrobot.guardrails.enforcement import record_declined_approvals
 
     try:
-        adapter = await VercelAIAdapter.from_request(
-            request,
-            agent=request.app.state.agent,
+        # Tolerant reader (finrobot/chat_compat.py): the body is used untouched
+        # when the installed pydantic_ai accepts it; otherwise it is adapted to
+        # that version's own schema (older client shapes upgraded, fields/parts
+        # it can't represent set aside) before a genuine 422 is ever returned.
+        # The UI's AI SDK and pydantic_ai are versioned independently — a new
+        # field on either side must not take the chat down. The adapter speaks
+        # the newest protocol both sides support (v6+: tool-approval frames for
+        # the AI data-sharing permission card) — see chat_compat.build_chat_adapter.
+        adapter = build_chat_adapter(
+            request.app.state.agent, await request.body(), request.headers.get("accept")
         )
     except ValidationError as exc:
         # Mirror the behaviour of VercelAIAdapter.dispatch_request which catches
@@ -1380,24 +1430,55 @@ async def _chat_impl(
     # watchlist-aware without a tool call. Fully best-effort — any failure (no
     # coverage store, no system group, assembly error) leaves coverage_block None
     # and the conversation proceeds exactly as before (back-compat).
-    coverage_block = await _build_coverage_snapshot_block(request)
+    #
+    # AI data-sharing guardrails decide FIRST whether either snapshot may go to
+    # the selected provider at all: only an explicit "allow" injects it (and the
+    # snapshot is then not even assembled otherwise). Under the default "ask",
+    # the model reaches for the permission-gated tool instead. See
+    # finrobot/guardrails/.
+    settings = request.app.state.deps.settings
+    disclosure_log: DisclosureLog | None = getattr(request.app.state, "disclosure_log", None)
+    coverage_block = None
+    if guard_ctx.snapshot_allowed(settings, "watchlist"):
+        coverage_block = await _build_coverage_snapshot_block(request)
+        if coverage_block:
+            guard_ctx.record_snapshot_shared(disclosure_log, settings, "watchlist")
     # Per-turn HOLDINGS snapshot: what the user actually owns (units, cost,
     # P&L) across their portfolios — distinct from the watchlist above (what
     # they're studying). Same best-effort contract: any failure leaves
     # portfolio_block None.
-    portfolio_block = await _build_portfolio_snapshot_block(request)
+    portfolio_block = None
+    if guard_ctx.snapshot_allowed(settings, "portfolio"):
+        portfolio_block = await _build_portfolio_snapshot_block(request)
+        if portfolio_block:
+            guard_ctx.record_snapshot_shared(disclosure_log, settings, "portfolio")
+    # Screen context goes out only if allowed, with selected text PII-redacted.
+    # (The transcript above keeps the raw bundle — it stays on this machine.)
+    shared_bundle = guard_ctx.sanitize_context_bundle(context_bundle, settings)
+    guard_ctx.record_message_redaction(disclosure_log, settings, latest_user_text)
     # Per-request instructions layered on top of instructions.md: UI locale +
-    # ContextBar bundle + watchlist snapshot + portfolio snapshot. None when
-    # none apply (back-compat).
+    # ContextBar bundle + watchlist snapshot + portfolio snapshot + which
+    # personal data is NOT included automatically. None when none apply.
     runtime_instructions = _build_runtime_instructions(
-        locale, context_bundle, coverage_block=coverage_block, portfolio_block=portfolio_block
+        locale,
+        shared_bundle,
+        coverage_block=coverage_block,
+        portfolio_block=portfolio_block,
+        guardrail_note=guard_ctx.guardrail_status_note(settings),
     )
     # Per-request deps copy carrying the UI locale so the orchestrator's pipeline
     # tool generates the report body in the user's language (shallow replace —
     # shares data_layer / semaphore / settings, mutates nothing). None locale →
     # request_locale stays None → pipeline falls back to settings.language.
-    request_deps = replace(request.app.state.deps, request_locale=locale)
+    # approvals_supported: this path can show the user a permission card, so an
+    # "ask each time" tool pauses the run (DeferredToolRequests in the output
+    # type) instead of refusing.
+    request_deps = replace(request.app.state.deps, request_locale=locale, approvals_supported=True)
+    deferred_results = adapter.deferred_tool_results
+    if deferred_results is not None:
+        record_declined_approvals(adapter.messages, deferred_results.approvals, request_deps)
     native_stream = adapter.run_stream_native(
+        output_type=[str, DeferredToolRequests],
         deps=request_deps,
         instructions=runtime_instructions,
     )
@@ -1447,7 +1528,9 @@ async def _chat_impl(
         message_history=fallback_history,
         deferred_tool_results=fallback_deferred,
         instructions=runtime_instructions,
-        deps=request_deps,
+        # The one-shot fallback emits a single text message — it cannot surface
+        # a permission card, so a guarded "ask" tool refuses instead of pausing.
+        deps=replace(request_deps, approvals_supported=False),
         writer=writer,
         tool_state=tool_state,
     )

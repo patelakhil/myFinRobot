@@ -1525,7 +1525,7 @@ async def _execute_thesis(
         defer_model_check=True,
     )
     try:
-        result = await synthesis_agent.run(thesis_prompt, deps=deps)  # type: ignore[call-overload]
+        result = await synthesis_agent.run(thesis_prompt, deps=deps)
         thesis = result.output
     except AgentRunError:
         # Recoverable by type (rate-limit / transient LLM error). base.py

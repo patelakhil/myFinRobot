@@ -63,7 +63,10 @@ hiddenimports += ["scripts.refresh_sec_holdings"]
 # (pydantic_ai/__init__ -> version("pydantic_ai_slim"); genai_prices/__init__ ->
 # version("genai_prices")). Without the bundled .dist-info this raises
 # PackageNotFoundError and the whole import chain dies. copy_metadata ships it.
-for _dist in ("genai_prices", "pydantic_ai_slim"):
+# httpx2 (the OpenAI 3.x / Anthropic 2.x SDKs' HTTP client, imported on the first
+# LLM call) likewise does `__version__ = version("httpx2")` at import time —
+# without its metadata the frozen sidecar would die on the first AI request.
+for _dist in ("genai_prices", "pydantic_ai_slim", "httpx2"):
     datas += copy_metadata(_dist)
 
 # genai_prices loads a bundled price dataset at runtime; edgartools ships

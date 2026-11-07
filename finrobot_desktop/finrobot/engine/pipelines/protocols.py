@@ -90,8 +90,8 @@ class DefaultAgentExecutor:
         ticker: str,
         **_kwargs: object,
     ) -> str:
-        result = await agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-        return result.output  # type: ignore[no-any-return]
+        result = await agent.run(prompt, deps=deps)
+        return result.output
 
 
 class TextValidator:

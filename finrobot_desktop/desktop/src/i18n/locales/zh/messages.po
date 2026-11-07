@@ -2737,8 +2737,8 @@ msgid "settings.subtitle"
 msgstr "API 密钥与数据源在这里配置，全部保存在本机。"
 
 #. js-lingui-explicit-id
-msgid "settings.secretStorage.localFile"
-msgstr "密钥存储在本机的本地文件中"
+msgid "settings.secretStorage.encryptedFile"
+msgstr "密钥以加密形式（AES-256）存储在本机的本地文件中，未使用系统钥匙串"
 
 #. js-lingui-explicit-id
 msgid "settings.llm.apiKeyLabel"
@@ -4262,7 +4262,7 @@ msgstr "你配置的连接"
 
 #. js-lingui-explicit-id
 msgid "settings.privacy.integrationsDesc"
-msgstr "这些连接因你的设置而存在——AI 模型会收到你的对话和研究输入；数据源会收到你查询的代码。可在「AI 模型」和「数据源」中管理。"
+msgstr "这些连接因你的设置而存在——AI 模型会收到你的对话和研究输入；数据源会收到你查询的代码。可在「AI 模型」和「数据源」中管理；在「AI 数据共享」中控制 AI 可以看到哪些个人数据。"
 
 #. js-lingui-explicit-id
 msgid "settings.privacy.integrationsNone"
@@ -4270,7 +4270,7 @@ msgstr "尚未配置——仅免密钥的行情源处于启用状态。"
 
 #. js-lingui-explicit-id
 msgid "settings.privacy.integration.llm"
-msgstr "AI 模型 — {model}：对话消息、研究流程输入、研究池快照，以及——仅当你在对话中问及时——你的持仓信息与已保存研报内容"
+msgstr "AI 模型 — {model}：对话消息与研究流程输入。你的自选股、持仓和已保存研报仅在「AI 数据共享」允许时才会发送"
 
 #. js-lingui-explicit-id
 msgid "settings.privacy.integration.provider.yfinance"
@@ -4302,7 +4302,7 @@ msgstr "SEC EDGAR：你声明的身份（User-Agent）及所请求的文件"
 
 #. js-lingui-explicit-id
 msgid "settings.privacy.localNote"
-msgstr "你的持仓和研报仅保存在本机；原始的交易/提醒记录不会离开本机。只有当你在对话中询问持仓或研报相关问题时，AI 模型才会看到对应的持仓信息或研报内容——与它回答其他问题走的是同一条通道，并无另外的渠道。"
+msgstr "你的持仓和研报仅保存在本机；原始的交易/提醒记录不会离开本机。AI 模型能看到哪些持仓、自选股或研报内容由你决定——默认必须先征得你的同意（设置 → AI 数据共享）。"
 
 #. js-lingui-explicit-id
 msgid "settings.privacy.gatesTitle"
@@ -4471,3 +4471,251 @@ msgstr "已沿用"
 #. js-lingui-explicit-id
 msgid "workspace.pipeline.reusedHint"
 msgstr "部分刷新：本节无新数据，原样沿用上一版本报告"
+
+#. js-lingui-explicit-id
+msgid "settings.nav.aiGuard"
+msgstr "AI 数据共享"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.title"
+msgstr "AI 数据共享"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.intro"
+msgstr "选择 FinRobot 可以向助手背后的 AI 服务商发送哪些数据。未经你允许，个人数据绝不会被发送——默认情况下，每次需要时 FinRobot 都会先征求你的同意。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.loadFailed"
+msgstr "无法加载 AI 数据共享设置。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.scope.label"
+msgstr "规则适用于"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.scope.all"
+msgstr "所有服务商"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.scope.active"
+msgstr "使用中"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.scope.custom"
+msgstr "已自定义"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.scope.hintAll"
+msgstr "适用于所有 AI 服务商的默认规则。在上方选择某个服务商可为其单独设置规则——例如允许本地运行的模型读取持仓，而云端模型则需先询问。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.scope.hintProvider"
+msgstr "仅适用于 {provider} 的规则。设为“默认”的项目沿用所有服务商的规则。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.inherit"
+msgstr "默认（{decision}）"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.resetProvider"
+msgstr "将 {provider} 恢复为默认"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.resetAll"
+msgstr "全部恢复默认"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.section.required"
+msgstr "AI 功能必需"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.section.requiredDesc"
+msgstr "助手必须发送这些数据才能工作。除了你自己输入的内容外，其中不含个人数据。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.section.choice"
+msgstr "由你决定"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.section.choiceDesc"
+msgstr "选择“每次询问”后，助手每次需要这些数据时都会在对话中弹出授权请求。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.badge.required"
+msgstr "必需"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.badge.personal"
+msgstr "个人数据"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.badge.never"
+msgstr "从不共享"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.badge.alwaysShared"
+msgstr "始终共享"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.decision.allow"
+msgstr "允许"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.decision.ask"
+msgstr "每次询问"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.decision.deny"
+msgstr "从不"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.market_data.label"
+msgstr "市场与公司数据"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.market_data.desc"
+msgstr "你研究的公司的股票代码、价格、财务报表、SEC 文件和新闻——所有分析所依据的公开信息。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.conversation.label"
+msgstr "你的聊天消息"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.conversation.desc"
+msgstr "你在助手中输入的内容及此前的对话。可在发送前自动移除其中的个人身份信息（见下文）。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.screen_context.label"
+msgstr "当前查看的内容"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.screen_context.desc"
+msgstr "你所在的页面、当前关注的股票、打开的报告以及你选中的文字。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.research_library.label"
+msgstr "你保存的报告"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.research_library.desc"
+msgstr "当助手查找、阅读、比较或刷新你生成的报告时，这些报告的内容。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.watchlist.label"
+msgstr "你的自选股"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.watchlist.desc"
+msgstr "你正在研究的股票及其最新价格、结论和信号，会透露你关注哪些公司。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.portfolio.label"
+msgstr "你的投资组合持仓"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.portfolio.desc"
+msgstr "你持有的资产：仓位、数量、平均成本、市值、盈亏以及你设置的提醒。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.identity.label"
+msgstr "你的身份信息"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.category.identity.desc"
+msgstr "你的 SEC 身份中的姓名和邮箱。只会发送给 sec.gov，绝不会发送给 AI 服务商；若出现在消息中也会被移除。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.redact.label"
+msgstr "从消息中移除个人身份信息"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.redact.desc"
+msgstr "在发送你输入的内容之前，将邮箱、电话号码以及银行卡号、银行账号和社会安全号码替换为 [redacted email] 等占位符。财务数字不受影响。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.activity.title"
+msgstr "最近活动"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.activity.desc"
+msgstr "自 FinRobot 启动以来与 AI 服务商共享或被拦截的数据。只记录数据类型，从不记录数据本身。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.activity.empty"
+msgstr "尚未共享任何个人数据。"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.activity.clear"
+msgstr "清除"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.activity.shared"
+msgstr "{category} → {provider}"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.activity.withheld"
+msgstr "{category} 未发送给 {provider}"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.reason.allowed"
+msgstr "设置允许"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.reason.approved"
+msgstr "你已同意"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.reason.declined"
+msgstr "你已拒绝"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.reason.not_permitted"
+msgstr "设置不允许"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.reason.approval_unavailable"
+msgstr "需要你的授权"
+
+#. js-lingui-explicit-id
+msgid "settings.aiGuard.reason.redacted"
+msgstr "已移除：{detail}"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.title"
+msgstr "要与 {provider} 共享{category}吗？"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.body"
+msgstr "助手需要这些数据来回答。如果你允许，它们会在本次请求中发送给 {provider}。"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.allowOnce"
+msgstr "仅本次允许"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.allowAlways"
+msgstr "始终允许 {provider}"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.deny"
+msgstr "不允许"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.manage"
+msgstr "在设置中管理"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.approved"
+msgstr "已与 {provider} 共享{category}"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.denied"
+msgstr "未共享——{category}保留在本机"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.alwaysFailed"
+msgstr "无法保存规则——仅本次允许。"
+
+#. js-lingui-explicit-id
+msgid "chat.permission.providerFallback"
+msgstr "AI 服务商"

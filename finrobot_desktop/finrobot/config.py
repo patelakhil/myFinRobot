@@ -5,9 +5,10 @@ import os
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal
 
-import httpx
 from pydantic import BaseModel, Field, PrivateAttr, field_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
+
+from finrobot.guardrails.policy import AiDataPolicy
 
 if TYPE_CHECKING:
     # Annotation-only (create_model's return type). Importing pydantic_ai.models
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
     # is imported by nearly everything (auth → server, every route) — so this one
     # edge gated the whole sidecar boot. create_model() imports the concrete
     # Model subclass lazily at call time. See tests/unit/test_cold_import.py.
+    import httpx2
     from pydantic_ai.models import Model
 
 
@@ -33,9 +35,9 @@ logger = logging.getLogger(__name__)
 # generous headroom for a slow first token (gpt-4o first-byte is ~1-4s warm; a
 # reasoning model with a long silent think phase would need this raised).
 # connect stays short so a dead proxy fails fast.
-_LLM_TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0)
+_LLM_TIMEOUT_S: dict[str, float] = {"connect": 10.0, "read": 120.0, "write": 30.0, "pool": 10.0}
 
-# One shared httpx.AsyncClient reused process-wide for every LLM provider —
+# One shared httpx2.AsyncClient reused process-wide for every LLM provider —
 # mirrors how Claude Code keeps a single shared dispatcher with a warm
 # connection pool. The win is amortising the TLS handshake: through the user's
 # Clash proxy the OpenAI handshake costs ~3.3s and is otherwise paid on EVERY
@@ -56,10 +58,16 @@ _LLM_TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0)
 #
 # Lazily constructed on first use (NOT at import) so no event loop is required
 # at import time; bound to the server's running loop on first create_model().
-_llm_http_client: httpx.AsyncClient | None = None
+#
+# httpx2, not httpx: the OpenAI (3.x) and Anthropic (2.x) SDKs — and pydantic_ai
+# 2.x on top of them — moved to httpx2, and the Anthropic SDK refuses a legacy
+# httpx client. Same API and semantics (Timeout / Limits / trust_env). Imported
+# lazily: httpx2 costs ~0.3 s to import and config.py is on the sidecar
+# cold-start path (tests/unit/test_cold_import.py); only the first LLM call pays.
+_llm_http_client: httpx2.AsyncClient | None = None
 
 
-def _shared_llm_http_client() -> httpx.AsyncClient:
+def _shared_llm_http_client() -> httpx2.AsyncClient:
     """Return the process-wide LLM httpx client, building it on first use.
 
     Reused across all agents/providers so the proxied TLS connection stays warm
@@ -68,9 +76,11 @@ def _shared_llm_http_client() -> httpx.AsyncClient:
     """
     global _llm_http_client
     if _llm_http_client is None:
-        _llm_http_client = httpx.AsyncClient(
-            timeout=_LLM_TIMEOUT,
-            limits=httpx.Limits(
+        import httpx2
+
+        _llm_http_client = httpx2.AsyncClient(
+            timeout=httpx2.Timeout(**_LLM_TIMEOUT_S),
+            limits=httpx2.Limits(
                 max_keepalive_connections=20,
                 max_connections=100,
                 keepalive_expiry=90.0,
@@ -284,6 +294,13 @@ class FinRobotSettings(BaseSettings):
     happen lazily on first use instead (the same requests, later, only when
     you actually search or open the desk)."""
 
+    # ── AI data sharing (guardrails) ──────────────────────────────────────────
+    # What may be sent to which LLM provider. Unlike the gates above this
+    # governs the configured integration itself: personal data (holdings,
+    # watchlist) is never sent unless the user allows it — by default the
+    # assistant asks first, per request. See finrobot/guardrails/.
+    ai_data_policy: AiDataPolicy = Field(default_factory=AiDataPolicy)
+
     # Infrastructure
     cache_db_path: str = ""  # resolved at runtime by paths.default_data_cache_db_path()
     skills_dir: str = ""  # resolved at runtime by paths.default_skills_dir() (bundle-aware)
@@ -396,6 +413,24 @@ class FinRobotSettings(BaseSettings):
             if provider.id == provider_id:
                 return provider
         return None
+
+    @property
+    def active_provider_id(self) -> str | None:
+        """Provider id of the selected model ("openai" for "openai:gpt-4o"), or
+        None when no (parsable) model is chosen. This is who the AI data-sharing
+        policy is evaluated against."""
+        try:
+            provider_id, _model_id = self._parse_model_name(self.model_name.strip())
+        except ValueError:
+            return None
+        return provider_id.lower() or None
+
+    def provider_label(self, provider_id: str | None) -> str:
+        """Human name for a provider id ("OpenAI"), falling back to the id."""
+        if not provider_id:
+            return "the AI provider"
+        cfg = self.provider_by_id(provider_id)
+        return cfg.label if cfg is not None else provider_id
 
     def with_provider_keys(self, keys: dict[str, str]) -> FinRobotSettings:
         """Return a copy with LLM provider API keys injected (runtime-only).

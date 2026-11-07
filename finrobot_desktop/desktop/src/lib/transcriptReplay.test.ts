@@ -117,6 +117,25 @@ describe('reconstructMessages', () => {
     if (tool.state === 'output-error') expect(tool.errorText).toBe('data unavailable')
   })
 
+  it('renders a permission-gated tool once even though it was logged twice', () => {
+    // Turn 1 logs the call when it pauses for the data-sharing prompt; turn 2
+    // logs it again when it runs after approval, then its result.
+    const msgs = reconstructMessages([
+      evt('user_msg', { text: 'how is my portfolio?' }),
+      evt('tool_call', { tool_name: 'query_portfolio_holdings', tool_use_id: 'tcP', args: {} }),
+      evt('tool_call', { tool_name: 'query_portfolio_holdings', tool_use_id: 'tcP', args: {} }),
+      evt('tool_result', {
+        tool_use_id: 'tcP',
+        tool_name: 'query_portfolio_holdings',
+        result: 'AAPL 10 units',
+      }),
+      evt('assistant_text', { text: 'You hold AAPL.' }),
+    ])
+    const parts = msgs[1].parts.filter((p) => p.type === 'dynamic-tool') as DynamicToolUIPart[]
+    expect(parts).toHaveLength(1)
+    expect(parts[0].state).toBe('output-available')
+  })
+
   it('finalizes a tool_call with no matching tool_result as output-error (interrupted, not a live spinner)', () => {
     // A replayed transcript is historical — nothing is live-streaming into it,
     // so a dangling tool_call (its result line never written = the turn was cut
